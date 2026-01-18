@@ -37,26 +37,26 @@ class User(db.Model):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     lastname: Mapped[str] = mapped_column(String(100), nullable=False)
     password: Mapped[str] = mapped_column(String(255), nullable=False)
-    profile: Mapped[Optional[str]] = mapped_column(
-        String(255), nullable=True, default=None)
-    is_active: Mapped[bool] = mapped_column(
-        Boolean(), nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(
-        timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(
-        timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    profile: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, default=None)
+    
+    # Cambiado a False para cumplir con la regla del SIGSSEP
+    is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False) 
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
-    rol_id: Mapped[int] = mapped_column(
-        ForeignKey('rol.id_rol'), nullable=False)
+    rol_id: Mapped[int] = mapped_column(ForeignKey('rol.id_rol'), nullable=False)
     rol: Mapped["Rol"] = relationship(back_populates="users")
-    activities: Mapped[List["Activity"]] = relationship(
-        back_populates="responsible")
+    
+    # En Activity, el campo debería llamarse 'responsible' para que esto funcione
+    activities: Mapped[List["Activity"]] = relationship(back_populates="responsible")
 
     def __repr__(self):
         return f'<User {self.email}>'
 
     def serialize(self):
-        initials = f"{self.name}+{self.lastname}"
+        # El + en la URL de la imagen debe estar escapado o ser un espacio
+        initials = f"{self.name} {self.lastname}"
         return {
             "id": self.id_user,
             "name": self.name,
@@ -64,7 +64,7 @@ class User(db.Model):
             "email": self.email,
             "rol": self.rol.name_rol if self.rol else None,
             "is_active": self.is_active,
-            "image": self.profile if self.profile else f"https://ui-avatars.com/api/?name={initials}&size=128&background=random&rounded=true"
+            "image": self.profile if self.profile else f"https://ui-avatars.com/api/?name={initials.replace(' ', '+')}&size=128&background=random&rounded=true"
         }
 
 
