@@ -41,7 +41,36 @@
     padding: 0.65rem 1rem;
     border: 2px solid rgba(0,0,0,0.05);
     background-color: var(--bg-color);
+    color: var(--text-primary) !important;
+    transition: all 0.3s ease;
+}
+
+.register-input:focus, 
+.form-control.is-valid:focus, 
+.form-control.is-invalid:focus,
+.form-control.is-valid, 
+.form-control.is-invalid {
+    background-color: var(--card-bg) !important; /* Mantiene el color de la tarjeta */
+    color: var(--text-primary) !important;       /* Mantiene el texto visible */
+    box-shadow: 0 0 0 0.25rem rgba(65, 90, 119, 0.25);
+    border-color: #415A77 !important;
+}
+
+
+.form-control.is-valid, .form-control.is-invalid {
+    background-image: none !important; /* Quitamos el check/x interno si prefieres un look más limpio */
+    padding-right: 1rem !important;
+}
+
+/* Estilo para los botones de "ver contraseña" en el input-group */
+.input-group .btn-outline-secondary {
+    border-color: rgba(0,0,0,0.1);
     color: var(--text-primary);
+    background-color: var(--bg-color);
+}
+
+[data-theme="dark"] .input-group .btn-outline-secondary {
+    border-color: rgba(255,255,255,0.1);
 }
 
 /* El botón con el verde esmeralda de estatus "completado" */

@@ -7,6 +7,8 @@ from api.utils import generate_sitemap, APIException,  val_email, val_password
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token
+from manager_decorator import manager_required
+from flask_jwt_extended import jwt_required
 
 api = Blueprint('api', __name__)
 
@@ -134,3 +136,34 @@ def login():
     }), 200
 
 
+
+# 1. Obtener todos los usuarios para la tabla de control
+@api.route("/manager/users", methods=["GET"])
+@jwt_required()
+@manager_required()
+def get_all_users():
+    # Buscamos a todos los usuarios en la base de datos
+    users = User.query.all()
+    # Los devolvemos serializados para que React los pueda listar
+    return jsonify([user.serialize() for user in users]), 200
+
+# 2. Activar o desactivar un usuario (El "Visto Bueno" del Gerente)
+@api.route("/manager/users/<int:user_id>/status", methods=["PATCH"])
+@jwt_required()
+@manager_required()
+def toggle_user_status(user_id):
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({"message": "Usuario no encontrado"}), 404
+    
+    # Cambiamos el estado: si estaba False pasa a True, y viceversa
+    user.is_active = not user.is_active
+    
+    try:
+        db.session.commit()
+        status_text = "activado" if user.is_active else "desactivado"
+        return jsonify({"message": f"Usuario {user.name} {status_text} con éxito"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "Error al actualizar el estado", "error": str(e)}), 500

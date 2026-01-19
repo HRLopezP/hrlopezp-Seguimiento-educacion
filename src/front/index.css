@@ -57,3 +57,39 @@ body, html, #root {
     padding: 0;
     background-color: var(--bg-color); /* Esto asegura que NADA sea blanco */
 }
+
+
+.login-input:focus {
+    border-color: #415A77; 
+    box-shadow: none;
+    background-color: var(--card-bg); /* <--- AQUÍ ESTÁ EL DETALLE */
+}
+
+/* Inputs elegantes */
+.login-input {
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    border: 2px solid rgba(0,0,0,0.05);
+    background-color: var(--bg-color);
+    color: var(--text-primary) !important; /* Forzamos que el texto use nuestra variable */
+    transition: all 0.3s ease;
+}
+
+.login-input:focus {
+    border-color: #415A77; 
+    box-shadow: 0 0 0 0.25rem rgba(65, 90, 119, 0.25); /* Un pequeño resplandor ayuda a la elegancia */
+    background-color: var(--card-bg);
+    color: var(--text-primary) !important; /* Aseguramos que al escribir se siga viendo */
+    outline: none;
+}
+
+/* IMPORTANTE: Color del texto dentro del input para navegadores */
+.login-input::placeholder {
+    color: var(--text-primary);
+    opacity: 0.5;
+}
+
+[data-theme="dark"] input {
+    color: #e0e1dd !important; /* Blanco hueso */
+    color-scheme: dark; /* Esto le dice al navegador que el componente es oscuro */
+}

@@ -191,7 +191,7 @@ const Register = () => {
                                             <input
                                                 type={showPassword ? "text" : "password"}
                                                 placeholder="******************"
-                                                className={`form-control ${user.password.length > 0 && (isPasswordValid ? 'is-valid' : 'is-invalid')}`}
+                                                className={`form-control register-input ${user.password.length > 0 && (isPasswordValid ? 'is-valid' : 'is-invalid')}`}
                                                 id="btnPassword"
                                                 name="password"
                                                 onChange={handleChange}
@@ -226,7 +226,7 @@ const Register = () => {
                                                             <li key={req.key} className="d-flex align-items-center mb-1">
                                                                 <i className={`fa-solid ${isCompleted ? 'fa-circle-check' : 'fa-circle-xmark'} me-2`}
                                                                     style={{ color: isCompleted ? '#2D6A4F' : '#e63946' }}></i>
-                                                                <span className="requirement-text">{req.label}</span> {/* <--- Clase añadida */}
+                                                                <span className="requirement-text">{req.label}</span>
                                                             </li>
                                                         );
                                                     })}
@@ -240,7 +240,7 @@ const Register = () => {
                                             <input
                                                 type={showConfirmPassword ? "text" : "password"}
                                                 placeholder="******************"
-                                                className={`form-control ${user.confirmPassword.length > 0 && user.password.length > 0 && (user.password === user.confirmPassword ? 'is-valid' : 'is-invalid')}`}
+                                                className={`form-control register-input ${user.confirmPassword.length > 0 && user.password.length > 0 && (user.password === user.confirmPassword ? 'is-valid' : 'is-invalid')}`}
                                                 id="btnConfirmPassword"
                                                 name="confirmPassword"
                                                 onChange={handleChange}

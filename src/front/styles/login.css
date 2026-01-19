@@ -52,13 +52,16 @@
     padding: 0.75rem 1rem;
     border: 2px solid rgba(0,0,0,0.05);
     background-color: var(--bg-color);
-    color: var(--text-primary);
+    color: var(--text-primary) !important; /* Forzamos que el texto use nuestra variable */
+    transition: all 0.3s ease;
 }
 
 .login-input:focus {
-    border-color: #415A77; /* Azul Acero al enfocar */
-    box-shadow: none;
+    border-color: #415A77; 
+    box-shadow: 0 0 0 0.25rem rgba(65, 90, 119, 0.25); /* Un pequeño resplandor ayuda a la elegancia */
     background-color: var(--card-bg);
+    color: var(--text-primary) !important; /* Aseguramos que al escribir se siga viendo */
+    outline: none;
 }
 
 /* El botón con el verde esmeralda de "activo" */
@@ -96,4 +99,9 @@
 .login-links-separator {
     margin: 0 10px;
     color: #ccc;
+}
+
+.login-input::placeholder {
+    color: var(--text-primary);
+    opacity: 0.5;
 }

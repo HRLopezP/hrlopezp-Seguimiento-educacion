@@ -93,11 +93,11 @@ export const Login = () => {
                                     )}
 
                                     <div className="mb-3">
-                                        <label htmlFor="username" className="login-label">
+                                        <label htmlFor="email" className="login-label">
                                             Correo
                                         </label>
                                         <input
-                                            type="text"
+                                            type="email"
                                             className="form-control login-input"
                                             id="email"
                                             value={email}
