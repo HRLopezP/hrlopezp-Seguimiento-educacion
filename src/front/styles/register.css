@@ -1,0 +1,138 @@
+/* register.css */
+
+.register-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    background-color: var(--bg-color); /* Esto quita el blanco de fondo */
+    transition: background-color 0.3s ease;
+    padding: 2rem 0;
+}
+
+.register-card {
+    background-color: var(--card-bg);
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.register-header {
+    background-color: #1B263B; /* Azul Oxford */
+    padding: 2rem;
+    text-align: center;
+    color: #ffffff;
+}
+
+.register-body {
+    padding: 2.5rem;
+}
+
+.register-label {
+    font-weight: 600;
+    color: var(--text-primary) !important; /* Forzamos el color según el tema */
+    margin-bottom: 0.4rem;
+    font-size: 0.9rem;
+    display: block;
+}
+
+.register-input {
+    border-radius: 10px;
+    padding: 0.65rem 1rem;
+    border: 2px solid rgba(0,0,0,0.05);
+    background-color: var(--bg-color);
+    color: var(--text-primary) !important;
+    transition: all 0.3s ease;
+}
+
+.register-input:focus, 
+.form-control.is-valid:focus, 
+.form-control.is-invalid:focus,
+.form-control.is-valid, 
+.form-control.is-invalid {
+    background-color: var(--card-bg) !important; /* Mantiene el color de la tarjeta */
+    color: var(--text-primary) !important;       /* Mantiene el texto visible */
+    box-shadow: 0 0 0 0.25rem rgba(65, 90, 119, 0.25);
+    border-color: #415A77 !important;
+}
+
+
+.form-control.is-valid, .form-control.is-invalid {
+    background-image: none !important; /* Quitamos el check/x interno si prefieres un look más limpio */
+    padding-right: 1rem !important;
+}
+
+/* Estilo para los botones de "ver contraseña" en el input-group */
+.input-group .btn-outline-secondary {
+    border-color: rgba(0,0,0,0.1);
+    color: var(--text-primary);
+    background-color: var(--bg-color);
+}
+
+[data-theme="dark"] .input-group .btn-outline-secondary {
+    border-color: rgba(255,255,255,0.1);
+}
+
+/* El botón con el verde esmeralda de estatus "completado" */
+.register-submit-btn {
+    background-color: #2D6A4F; /* Emerald Green */
+    color: white;
+    border-radius: 10px;
+    padding: 0.8rem;
+    font-weight: 600;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.register-submit-btn:hover:not(:disabled) {
+    background-color: #1b4332;
+    transform: translateY(-2px);
+}
+
+.register-submit-btn:disabled {
+    background-color: #a7c4b5;
+    cursor: not-allowed;
+}
+
+/* Estilo para los requisitos de contraseña */
+.password-requirements-box {
+    background-color: rgba(255, 255, 255, 0.05); /* Fondo muy sutil */
+    border: 1px solid var(--text-primary);
+    border-radius: 10px;
+    padding: 1rem;
+    margin-top: 10px;
+}
+
+.password-requirements-box h6 {
+    color: var(--text-primary);
+}
+
+[data-theme='dark'] .password-requirements-box {
+    border-color: rgba(255,255,255,0.1);
+}
+
+.register-input::placeholder {
+    color: var(--text-primary);
+    opacity: 0.5;
+}
+
+.requirement-text {
+    color: var(--text-primary);
+    opacity: 0.9;
+}
+
+.register-page-container {
+    min-height: 100vh;
+    width: 100vw; /* Ocupa todo el ancho visual */
+    background-color: var(--bg-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem 0;
+}
+
+.register-label, 
+.form-group label b {
+    color: var(--text-primary) !important;
+    opacity: 1;
+}

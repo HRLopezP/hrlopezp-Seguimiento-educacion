@@ -1,38 +1,52 @@
-export const initialStore=()=>{
-  return{
-    message: null,
-    todos: [
-      {
-        id: 1,
-        title: "Make the bed",
-        background: null,
-      },
-      {
-        id: 2,
-        title: "Do my homework",
-        background: null,
-      }
-    ]
-  }
-}
+export const initialStore = () => {
+  return {
+    token: localStorage.getItem("access_token") ?? null,
+    user: JSON.parse(localStorage.getItem("user")) ?? null,
+    // Leemos el tema del localStorage o usamos 'light' por defecto
+    theme: localStorage.getItem("theme") ?? "light",
+  };
+};
 
 export default function storeReducer(store, action = {}) {
-  switch(action.type){
-    case 'set_hello':
+  switch (action.type) {
+
+    case "TOGGLE_THEME":
+      const newTheme = store.theme === "light" ? "dark" : "light";
+      localStorage.setItem("theme", newTheme); // Guardamos la elección
       return {
         ...store,
-        message: action.payload
+        theme: newTheme,
       };
       
-    case 'add_task':
-
-      const { id,  color } = action.payload
-
+    case "LOGIN": // Una sola acción para todo el inicio de sesión
       return {
         ...store,
-        todos: store.todos.map((todo) => (todo.id === id ? { ...todo, background: color } : todo))
+        token: action.payload.token,
+        user: action.payload.user,
       };
+
+    case "LOGOUT":
+      localStorage.removeItem('access_token'); // ¡No olvides limpiar el storage!
+      localStorage.removeItem('user');
+      return {
+        ...store,
+        token: null,
+        user: null,
+      };
+
+    case "SET_TOKEN":
+      return {
+        ...store,
+        token: action.payload,
+      };
+
+    case "SET_USER":
+      return {
+        ...store,
+        user: action.payload,
+      };
+
     default:
-      throw Error('Unknown action.');
-  }    
+      return store;
+  }
 }
