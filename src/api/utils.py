@@ -1,6 +1,7 @@
 from flask import jsonify, url_for
 import re
 import os
+from itsdangerous import URLSafeTimedSerializer
 
 class APIException(Exception):
     status_code = 400
@@ -69,3 +70,22 @@ def val_password(password: str) -> bool:
         return True
     
     return False
+
+
+def generate_reset_token(email):
+    # Usamos la clave secreta de tu app para "firmar" el token
+    serializer = URLSafeTimedSerializer(os.getenv("FLASK_APP_KEY"))
+    # El token llevará el email y una marca de tiempo
+    return serializer.dumps(email, salt="password-reset-salt")
+
+def confirm_reset_token(token, expiration=900): # 900 segundos = 15 minutos
+    serializer = URLSafeTimedSerializer(os.getenv("FLASK_APP_KEY"))
+    try:
+        email = serializer.loads(
+            token,
+            salt="password-reset-salt",
+            max_age=expiration
+        )
+        return email
+    except:
+        return None

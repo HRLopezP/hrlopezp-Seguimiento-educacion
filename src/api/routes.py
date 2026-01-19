@@ -3,12 +3,15 @@ This module takes care of starting the API Server, Loading the DB and Adding the
 """
 from flask import Flask, request, jsonify, url_for, Blueprint
 from api.models import db, User, Rol, Project, Indicator, Location, Activity
-from api.utils import generate_sitemap, APIException,  val_email, val_password
+from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token
 from manager_decorator import manager_required
 from flask_jwt_extended import jwt_required
+from flask_mail import Message
+from api.extensions import mail
+import os
 
 api = Blueprint('api', __name__)
 
@@ -136,7 +139,73 @@ def login():
     }), 200
 
 
+@api.route('/request-password-reset', methods=['POST'])
+def request_password_reset():
+    data = request.get_json()
+    email = data.get('email')
+    user = User.query.filter_by(email=email).first()
 
+    if user:
+        token = generate_reset_token(email)
+        # El link apunta a tu FRONTEND (React)
+        frontend_url = os.getenv("FRONTEND_URL").rstrip('/')
+        reset_url = f"{frontend_url}/reset-password?token={token}"
+        
+        msg = Message("Recuperación de Contraseña - SIGSSEP",
+                      recipients=[email])
+        
+        # Aquí puedes usar HTML para que el correo se vea profesional
+        msg.html = f"""
+        <div style="background-color: #1B263B; padding: 20px; color: white; text-align: center; border-radius: 10px;">
+            <h1 style="color: #52B788;">SIGSSEP</h1>
+            <p>Has solicitado restablecer tu contraseña. Haz clic en el botón de abajo:</p>
+            <a href="{reset_url}" style="background-color: #2D6A4F; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Restablecer Contraseña</a>
+            <p style="margin-top: 20px; font-size: 12px;">Este enlace expirará en 15 minutos.</p>
+        </div>
+        """
+        mail.send(msg)
+    
+    # Por seguridad, siempre respondemos "éxito" aunque el mail no exista
+    # para evitar que hackers sepan qué correos están registrados.
+    return jsonify({"message": "Si el correo está registrado, recibirás un enlace en breve."}), 200
+
+
+@api.route('/reset-password', methods=['POST'])
+def reset_password():
+    data = request.get_json()
+    token = data.get('token')
+    new_password = data.get('password')
+
+    # 1. Validar que vengan los datos
+    if not token or not new_password:
+        return jsonify({"message": "Token y contraseña son requeridos"}), 400
+
+    # 2. Validar seguridad de la nueva contraseña
+    if not val_password(new_password):
+        return jsonify({"message": "La nueva contraseña no cumple los requisitos de seguridad"}), 400
+
+    # 3. Verificar si el token es válido y no ha expirado
+    email = confirm_reset_token(token)
+    if not email:
+        return jsonify({"message": "El enlace es inválido o ha expirado"}), 400
+
+    # 4. Buscar al usuario y actualizar
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"message": "Usuario no encontrado"}), 404
+
+    # 5. Hashear la nueva contraseña y guardar
+    user.password = generate_password_hash(new_password)
+    
+    try:
+        db.session.commit()
+        return jsonify({"message": "Contraseña actualizada exitosamente. Ya puedes iniciar sesión."}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "Error al actualizar la contraseña"}), 500
+    
+
+    
 # 1. Obtener todos los usuarios para la tabla de control
 @api.route("/manager/users", methods=["GET"])
 @jwt_required()
