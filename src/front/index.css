@@ -93,3 +93,50 @@ body, html, #root {
     color: #e0e1dd !important; /* Blanco hueso */
     color-scheme: dark; /* Esto le dice al navegador que el componente es oscuro */
 }
+
+/* Contenedor principal centrado */
+.auth-page-container {
+    min-height: 90vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-color);
+    padding: 2rem 1rem;
+}
+
+/* La tarjeta unificada */
+.auth-card-unified {
+    background-color: var(--card-bg);
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 450px;
+    overflow: hidden; /* Importante para que la franja no se salga de los bordes redondeados */
+    border: none;
+}
+
+/* LA FRANJA QUE TE GUSTA (Oxford Grey) */
+.auth-card-header {
+    background-color: #1B263B; /* Tu Azul Oxford fijo */
+    padding: 2rem;
+    text-align: center;
+    color: #ffffff;
+}
+
+.auth-card-header h2 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin: 0;
+    color: #ffffff;
+}
+
+.auth-card-header p {
+    opacity: 0.8;
+    margin-top: 0.5rem;
+    font-weight: 300;
+}
+
+/* Cuerpo de la tarjeta */
+.auth-card-body {
+    padding: 2.5rem;
+}
