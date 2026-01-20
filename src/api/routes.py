@@ -86,7 +86,7 @@ def register_user():
         return jsonify({"message": "Error creating user", "error": str(error)}), 500
 
 
-@api.route("/login", methods=["POST"])
+git ch@api.route("/login", methods=["POST"])
 def login():
     data = request.get_json(silent=True)
     
