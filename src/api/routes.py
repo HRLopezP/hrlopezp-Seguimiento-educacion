@@ -87,7 +87,7 @@ def register_user():
         return jsonify({"message": "Error al guardar", "error": str(error)}), 500
     
 
-git ch@api.route("/login", methods=["POST"])
+@api.route("/login", methods=["POST"])
 def login():
     data = request.get_json(silent=True)
 
@@ -241,7 +241,7 @@ def reset_password():
 # 1. Obtener todos los usuarios para la tabla de control
 @api.route("/manager/users", methods=["GET"])
 @jwt_required()
-@manager_required()
+@manager_required
 def get_all_users():
     # Buscamos a todos los usuarios en la base de datos
     users = User.query.all()
@@ -253,7 +253,7 @@ def get_all_users():
 
 @api.route("/manager/users/<int:user_id>/status", methods=["PATCH"])
 @jwt_required()
-@manager_required()
+@manager_required
 def toggle_user_status(user_id):
     user = User.query.get(user_id)
 
