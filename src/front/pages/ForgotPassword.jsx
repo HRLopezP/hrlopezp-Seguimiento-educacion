@@ -1,6 +1,10 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner"; // Usamos Sonner para notificaciones profesionales
+import "../styles/forgotPassword.css"; 
+
+
+const urlBase = import.meta.env.VITE_BACKEND_URL
 
 const ForgotPassword = () => {
     const [email, setEmail] = useState("");
@@ -11,7 +15,7 @@ const ForgotPassword = () => {
         setLoading(true);
 
         try {
-            const response = await fetch(`${process.env.BACKEND_URL}/api/request-password-reset`, {
+            const response = await fetch(`${urlBase}/request-password-reset`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email })
