@@ -49,22 +49,24 @@ def register_user():
     if User.query.filter_by(email=email).first():
         return jsonify({"message": "The email address is already registered."}), 422
 
-    # 2. Lógica de asignación de Rol
-    # Definimos qué nombre de rol vamos a buscar
-    rol_name_to_assign = "Oficial"  # Por defecto todos son Oficiales
-    is_active_status = False       # Por defecto entran desactivados hasta que los apruebes
+    # 2. Lógica de "Excepción de Gerente"
+    # Usamos constantes para evitar errores de dedo
+    ADMIN_EMAIL = "maliliana173@gmail.com"
+    
+    if email == ADMIN_EMAIL:
+        rol_to_find = "Gerente"
+        is_active_status = True
+    else:
+        rol_to_find = "Oficial"
+        is_active_status = False
 
-    if email == "maliliana173@gmail.com":
-        rol_name_to_assign = "Gerente"  # Tu correo especial
-        is_active_status = True        # Tú entras activa de una vez
-
-    # Buscamos el objeto Rol en la base de datos
-    target_rol = Rol.query.filter_by(name_rol=rol_name_to_assign).first()
+    # 3. Búsqueda del ID del Rol en la tabla 'Rol'
+    target_rol = Rol.query.filter_by(name_rol=rol_to_find).first()
 
     if not target_rol:
-        return jsonify({"message": f"Critical Error: Role '{rol_name_to_assign}' not found in database. Please create roles first."}), 500
+        return jsonify({"message": f"Error: El rol '{rol_to_find}' no existe en la DB"}), 500
 
-    # 3. Creación del usuario
+    # 4. Creación con Seguridad
     hashed_password = generate_password_hash(password)
 
     new_user = User(
@@ -72,22 +74,18 @@ def register_user():
         password=hashed_password,
         name=name,
         lastname=lastname,
-        rol_id=target_rol.id_rol,  # Usamos el ID numérico
+        rol_id=target_rol.id_rol, # Asignamos el ID encontrado
         is_active=is_active_status
     )
 
-    db.session.add(new_user)
-
     try:
+        db.session.add(new_user)
         db.session.commit()
-        return jsonify({
-            "message": "User created successfully",
-            "user": new_user.serialize()
-        }), 201
+        return jsonify({"message": "Registro exitoso. ¡Bienvenida, Gerente!" if is_active_status else "Registro exitoso. Espere activación."}), 201
     except Exception as error:
         db.session.rollback()
-        return jsonify({"message": "Error creating user", "error": str(error)}), 500
-
+        return jsonify({"message": "Error al guardar", "error": str(error)}), 500
+    
 
 @api.route("/login", methods=["POST"])
 def login():
@@ -151,9 +149,47 @@ def request_password_reset():
             frontend_url = os.getenv("FRONTEND_URL").rstrip('/')
             reset_url = f"{frontend_url}/reset-password?token={token}"
 
+            # Definimos el nombre del usuario para personalizar
+            user_name = f"{user.name} {user.lastname}"
+
             msg = Message("Recuperación de Contraseña - SIGSSEP",
                           recipients=[email])
-            msg.html = f"<b>Haz clic aquí:</b> {reset_url}"
+            msg.html = f"""
+            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; padding: 40px 10px; color: #1B263B;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 15px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid #e0e1dd;">
+                    
+                    <div style="background-color: #1B263B; padding: 30px; text-align: center;">
+                        <h1 style="color: #ffffff; margin: 0; font-size: 28px; letter-spacing: 2px;">SIGSSEP</h1>
+                        <p style="color: #e0e1dd; margin: 5px 0 0 0; font-weight: 300;">Gestión de Supervisión y Seguimiento</p>
+                    </div>
+
+                    <div style="padding: 40px; text-align: center;">
+                        <h2 style="color: #1B263B; margin-top: 0;">Hola, {user_name}</h2>
+                        <p style="font-size: 16px; line-height: 1.6; color: #415A77;">
+                            Has solicitado restablecer tu contraseña para acceder al sistema. No te preocupes, haz clic en el botón de abajo para configurar una nueva.
+                        </p>
+                        
+                        <div style="margin: 35px 0;">
+                            <a href="{reset_url}" 
+                               style="background-color: #2D6A4F; color: #ffffff; padding: 15px 35px; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px; display: inline-block; transition: background-color 0.3s ease;">
+                               Restablecer Contraseña
+                            </a>
+                        </div>
+
+                        <p style="font-size: 13px; color: #778DA9;">
+                            Este enlace expirará en poco tiempo por razones de seguridad.<br>
+                            Si no solicitaste este cambio, puedes ignorar este correo de forma segura.
+                        </p>
+                    </div>
+
+                    <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e0e1dd;">
+                        <p style="font-size: 12px; color: #778DA9; margin: 0;">
+                            &copy; 2026 SIGSSEP - Todos los derechos reservados.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            """
 
             mail.send(msg)
             return jsonify({"message": "Correo enviado con éxito"}), 200
