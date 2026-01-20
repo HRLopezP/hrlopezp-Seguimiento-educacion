@@ -1,18 +1,30 @@
 import React from "react";
 import { Navigate } from "react-router-dom";
-import useGlobalReducer from "../hooks/useGlobalReducer";
+import { jwtDecode } from "jwt-decode";
 
-const ProtectedRoute = ({ children }) => {
-    const { store } = useGlobalReducer();
+export const ProtectedRoute = ({ children }) => {
+    // 1. Cambiamos 'token' por 'access_token' para que coincida con tu captura
+    const token = localStorage.getItem("access_token");
 
-    // Si no hay token, el usuario no es bienvenido aquí.
-    // Lo redirigimos al login de inmediato.
-    if (!store.token) {
+    if (!token) {
+        console.log("No se encontró access_token, redirigiendo...");
         return <Navigate to="/login" replace />;
     }
 
-    // Si hay token, lo dejamos pasar a ver el contenido (children)
-    return children;
-};
+    try {
+        const decoded = jwtDecode(token);
+        console.log("Token decodificado:", decoded); // Esto te ayudará a ver qué hay dentro
 
-export default ProtectedRoute;
+        // 2. Verificamos el rol. 
+        // Nota: Asegúrate que en el token diga "Gerente" (puedes verlo en jwt.io)
+        if (decoded.rol === "Gerente") {
+            return children;
+        } else {
+            console.log("Rol insuficiente:", decoded.rol);
+            return <Navigate to="/denied" replace />;
+        }
+    } catch (error) {
+        console.error("Error al decodificar token:", error);
+        return <Navigate to="/login" replace />;
+    }
+};

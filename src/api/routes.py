@@ -6,9 +6,8 @@ from api.models import db, User, Rol, Project, Indicator, Location, Activity
 from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from .manager_decorator import manager_required
-from flask_jwt_extended import jwt_required
 from flask_mail import Message
 from api.extensions import mail
 import os
@@ -117,11 +116,12 @@ def login():
 
     # 7. Preparamos las "Additional Claims" para el frontend
     # - Validamos si el rol es 'Gerente' según nuestra tabla Rol.
+    user_role_name = user.rol.name_rol if user.rol else "Oficial"
     is_admin = user.rol.name_rol == "Gerente"
 
     additional_claims = {
         "is_administrator": is_admin,
-        "rol": user.rol.name_rol
+        "rol": user_role_name
     }
 
     # 8. Creamos el token de acceso con la identidad y los claims
@@ -255,12 +255,22 @@ def get_all_users():
 @jwt_required()
 @manager_required
 def toggle_user_status(user_id):
+    # 1. Obtenemos el ID del usuario que está operando (tú)
+    current_manager_id = get_jwt_identity()
+
+    # 2. Verificamos si estás intentando cambiar tu propio estado
+    # Convertimos a int porque identity suele venir como string desde el token
+    if int(current_manager_id) == user_id:
+        return jsonify({
+            "message": "Acción denegada. No puedes desactivar tu propia cuenta de Gerente por seguridad."
+        }), 403
+
     user = User.query.get(user_id)
 
     if not user:
         return jsonify({"message": "Usuario no encontrado"}), 404
 
-    # Cambiamos el estado: si estaba False pasa a True, y viceversa
+    # 3. Cambiamos el estado
     user.is_active = not user.is_active
 
     try:
@@ -270,3 +280,21 @@ def toggle_user_status(user_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": "Error al actualizar el estado", "error": str(e)}), 500
+
+
+@api.route('/roles', methods=['POST'])
+@jwt_required() # Primero verifica que esté logueado
+@manager_required # Luego verifica que sea Gerente
+def create_role():
+    data = request.get_json()
+    new_role_name = data.get("name_rol")
+    
+    if not new_role_name:
+        return jsonify({"message": "El nombre del rol es obligatorio"}), 400
+        
+    # Lógica para guardar en la DB...
+    new_role = Rol(name_rol=new_role_name)
+    db.session.add(new_role)
+    db.session.commit()
+    
+    return jsonify({"message": f"Rol '{new_role_name}' creado exitosamente"}), 201
