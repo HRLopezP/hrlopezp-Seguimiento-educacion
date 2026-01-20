@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner"; // Usamos Sonner para notificaciones profesionales
-import "../styles/forgotPassword.css"; 
+import "../styles/forgotPassword.css";
 
 
 const urlBase = import.meta.env.VITE_BACKEND_URL
@@ -36,39 +36,40 @@ const ForgotPassword = () => {
     };
 
     return (
-        <div className="forgot-password-container">
-            <div className="forgot-password-card">
-                <div className="card-header-sigssep text-center">
-                    <h2 className="brand-logo">SIGSSEP</h2>
-                    <p className="subtitle">Recuperar Acceso</p>
+        <div className="auth-page-container">
+            <div className="auth-card-unified">
+                {/* AQUÍ ESTÁ LA FRANJA QUE QUERÍAS */}
+                <div className="auth-card-header">
+                    <h2>SIGSSEP</h2>
+                    <p>Recuperar Acceso</p>
                 </div>
-                
-                <form onSubmit={handleSubmit} className="forgot-form">
-                    <p className="instruction-text">
-                        Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.
-                    </p>
-                    
-                    <div className="input-group-sigssep">
-                        <label htmlFor="email">Correo Institucional</label>
-                        <input
-                            type="email"
-                            id="email"
-                            placeholder="ejemplo@sigssep.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                        />
+                <div className="auth-card-body">
+                    <form onSubmit={handleSubmit} className="forgot-form">
+                        <p className="instruction-text">
+                            Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.
+                        </p>
+
+                        <div className="input-group-sigssep">
+                            <label htmlFor="email">Correo Institucional</label>
+                            <input
+                                type="email"
+                                id="email"
+                                placeholder="ejemplo@sigssep.com"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                            />
+                        </div>
+
+                        <button type="submit" className="btn-primary-sigssep" disabled={loading}>
+                            {loading ? "Enviando..." : "Enviar Enlace de Recuperación"}
+                        </button>
+                    </form>
+                    <div className="text-center mt-3">
+                        <Link to="/login" className="back-link">
+                        <i className="fas fa-arrow-left"></i>Volver al Inicio de sesión</Link>
                     </div>
 
-                    <button type="submit" className="btn-primary-sigssep" disabled={loading}>
-                        {loading ? "Enviando..." : "Enviar Enlace de Recuperación"}
-                    </button>
-                </form>
-
-                <div className="card-footer-sigssep text-center">
-                    <Link to="/login" className="back-link">
-                        <i className="fas fa-arrow-left"></i> Volver al Inicio de Sesión
-                    </Link>
                 </div>
             </div>
         </div>
