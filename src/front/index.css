@@ -1,142 +1,33 @@
-/* 1. VARIABLES (Las que guardamos en memoria) */
+/* 1. VARIABLES */
 :root {
   --bg-color: #f8f9fa;
   --card-bg: #ffffff;
   --text-primary: #1b263b;
-  --accent-color: #2d6a4f;
-}
-
-[data-theme="dark"] .login-page {
-  background-color: var(--bg-color); /* Esto aplicará el Azul Noche #0D1B2A */
 }
 
 [data-theme="dark"] {
   --bg-color: #0d1b2a;
   --card-bg: #1b263b;
   --text-primary: #e0e1dd;
-  --accent-color: #52b788;
 }
 
-/* 2. ESTILO GLOBAL */
-body {
-  background-color: var(--bg-color);
-  color: var(--text-primary);
-  transition: all 0.3s ease;
-}
-
-/* 3. COMPONENTES (Aquí pegas el último código) */
-.main-navbar {
-  background-color: var(--card-bg);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-}
-
-[data-theme="dark"] .main-navbar {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.theme-toggle-btn:hover {
-  transform: rotate(15deg);
-  transition: transform 0.2s;
-}
-
-[data-theme="dark"] .login-link {
-  color: var(--text-primary); /* Usará el Blanco Hueso #E0E1DD */
-  opacity: 0.7; /* Lo hacemos un poquito transparente para que no compita con el botón */
-}
-
-[data-theme="dark"] .login-link:hover {
-  opacity: 1; /* Al pasar el mouse, brilla totalmente */
-  color: #52b788; /* Opcional: que brille en el verde esmeralda claro */
-}
-
-
+/* 2. RESET GLOBAL SUAVE (Sin !important aquí) */
 body, html, #root {
-    height: 100%;
+    min-height: 100vh;
     margin: 0;
     padding: 0;
-    background-color: var(--bg-color); /* Esto asegura que NADA sea blanco */
-}
-
-
-.login-input:focus {
-    border-color: #415A77; 
-    box-shadow: none;
-    background-color: var(--card-bg); /* <--- AQUÍ ESTÁ EL DETALLE */
-}
-
-/* Inputs elegantes */
-.login-input {
-    border-radius: 10px;
-    padding: 0.75rem 1rem;
-    border: 2px solid rgba(0,0,0,0.05);
-    background-color: var(--bg-color);
-    color: var(--text-primary) !important; /* Forzamos que el texto use nuestra variable */
+    background-color: var(--bg-color); /* Esto permite que cambie solo */
+    color: var(--text-primary);
     transition: all 0.3s ease;
 }
 
-.login-input:focus {
-    border-color: #415A77; 
-    box-shadow: 0 0 0 0.25rem rgba(65, 90, 119, 0.25); /* Un pequeño resplandor ayuda a la elegancia */
-    background-color: var(--card-bg);
-    color: var(--text-primary) !important; /* Aseguramos que al escribir se siga viendo */
-    outline: none;
-}
-
-/* IMPORTANTE: Color del texto dentro del input para navegadores */
-.login-input::placeholder {
-    color: var(--text-primary);
-    opacity: 0.5;
-}
-
-[data-theme="dark"] input {
-    color: #e0e1dd !important; /* Blanco hueso */
-    color-scheme: dark; /* Esto le dice al navegador que el componente es oscuro */
-}
-
-/* Contenedor principal centrado */
-.auth-page-container {
-    min-height: 90vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+/* 3. CLASE PARA PÁGINAS DE AUTH (Login, Reset, Forgot) */
+/* Agrega esta clase en el div principal de tus componentes de login/password */
+.auth-screen {
     background-color: var(--bg-color);
-    padding: 2rem 1rem;
-}
-
-/* La tarjeta unificada */
-.auth-card-unified {
-    background-color: var(--card-bg);
-    border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-    width: 100%;
-    max-width: 450px;
-    overflow: hidden; /* Importante para que la franja no se salga de los bordes redondeados */
-    border: none;
-}
-
-/* LA FRANJA QUE TE GUSTA (Oxford Grey) */
-.auth-card-header {
-    background-color: #1B263B; /* Tu Azul Oxford fijo */
-    padding: 2rem;
-    text-align: center;
-    color: #ffffff;
-}
-
-.auth-card-header h2 {
-    font-size: 1.8rem;
-    font-weight: 700;
-    margin: 0;
-    color: #ffffff;
-}
-
-.auth-card-header p {
-    opacity: 0.8;
-    margin-top: 0.5rem;
-    font-weight: 300;
-}
-
-/* Cuerpo de la tarjeta */
-.auth-card-body {
-    padding: 2.5rem;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: var(--text-primary);
 }

@@ -1,97 +1,79 @@
+/* --- 1. ESTRUCTURA Y CABECERA --- */
 .management-container {
     padding: 2rem;
     max-width: 1100px;
     margin: 0 auto;
 }
 
-.management-header {
-    margin-bottom: 2rem;
-}
-
 .management-header h2 {
-    color: var(--text-primary);
+    color: inherit !important; /* Hereda el color del body (oscuro en claro, blanco en oscuro) */
     font-weight: 700;
 }
 
 .management-header p {
-    color: var(--text-primary);
-    opacity: 0.7;
+    color: inherit !important;
+    opacity: 0.8;
 }
 
+/* --- 2. LA TARJETA (CARD) --- */
 .management-card {
-    background-color: var(--card-bg);
+    /* Quitamos el color fijo #ffffff y usamos la variable */
+    background-color: var(--card-bg) !important; 
     border-radius: 12px;
+    padding: 0;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* --- 3. LA TABLA --- */
+.custom-table tbody td {
+    vertical-align: middle;
     padding: 1rem;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-    border: 1px solid rgba(128, 128, 128, 0.1);
+    /* Usamos la variable de texto para que cambie sola */
+    color: var(--text-primary) !important; 
 }
 
+/* --- 3. LA TABLA (Aquí recuperamos el toque oscuro) --- */
 .custom-table {
-    color: var(--text-primary);
+    margin-bottom: 0;
 }
 
-.custom-table thead th {
-    background-color: #1B263B !important; /* Tu Azul Oxford */
-    color: #ffffff !important;
-    padding: 1.2rem;
-    border: none;
+
+.custom-table tbody td {
+    vertical-align: middle;
+    padding: 1rem;
+    color: #1B263B; /* Texto oscuro para modo claro */
 }
 
-/* Badges de Estado */
-.status-pill {
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 0.85rem;
-    font-weight: 600;
-}
-
-.status-pill.active {
-    background-color: rgba(45, 106, 79, 0.15); /* Emerald claro */
-    color: #2D6A4F;
-}
-
-.status-pill.pending {
-    background-color: rgba(164, 22, 26, 0.15);
-    color: #a4161a;
-}
-
-/* Botones de Acción */
+/* --- 4. BOTONES (Forma y Tamaño) --- */
 .btn-action {
-    padding: 6px 15px;
-    border-radius: 8px;
-    border: none;
+    padding: 8px 20px !important; /* Más ancho para que se vea mejor */
+    border-radius: 8px !important;
     font-weight: 500;
+    border: none;
     transition: 0.3s;
 }
 
-.btn-activate {
-    background-color: #2D6A4F; /* Emerald Green */
-    color: white;
-}
-
 .btn-deactivate {
-    background-color: #415A77; /* Azul Marino */
-    color: white;
+    background-color: #415A77 !important; /* Tu Azul Marino/Oxford */
+    color: white !important;
 }
 
-.btn-action:hover {
-    filter: brightness(1.2);
-    transform: translateY(-1px);
+/* --- 5. INTERRUPTOR MODO OSCURO --- */
+[data-theme="dark"] .management-header h2 { color: #FFFFFF !important; }
+[data-theme="dark"] .management-header p { color: #E0E1DD !important; }
+
+[data-theme="dark"] .management-card {
+    background-color: #1B263B !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
-.role-badge {
-    background: rgba(128, 128, 128, 0.1);
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 0.9rem;
+[data-theme="dark"] .custom-table tbody td {
+    color: #E0E1DD !important;
 }
 
-/* Mejora la visibilidad del título principal en modo claro */
-[data-theme="light"] .management-header h2 {
-    color: #1B263B; /* Azul Oxford para texto en modo claro */
-}
-
-/* Para que las filas no se vean vacías si el texto es muy claro */
-.custom-table tbody td {
-    color: var(--text-primary);
+/* Forzamos que el título de gestión sea visible siempre */
+.management-header h2, .management-header p {
+    color: var(--text-primary) !important;
 }
