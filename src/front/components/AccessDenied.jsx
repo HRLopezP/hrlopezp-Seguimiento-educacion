@@ -13,7 +13,7 @@ export const AccessDenied = () => {
                 </div>
                 <h1 className="display-4 fw-bold text-dark">Acceso Restringido</h1>
                 <p className="lead text-muted mb-4">
-                    Lo sentimos, amiguito, pero no tienes los permisos necesarios para ver esta sección.
+                    Lo sentimos, pero no tienes los permisos necesarios para ver esta sección.
                     Esta área es exclusiva para la Gerencia de SIGSSEP.
                 </p>
                 <div className="d-grid gap-2 d-sm-flex justify-content-sm-center">
