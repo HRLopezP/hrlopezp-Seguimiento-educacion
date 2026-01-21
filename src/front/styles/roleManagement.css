@@ -34,3 +34,26 @@
     border-top-left-radius: 15px;
     border-top-right-radius: 15px;
 }
+
+/* Estilo específico para el input dentro del modal de roles */
+.modal-content .login-input {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #ffffff !important; /* Forzamos texto blanco siempre, ya que el fondo del modal es Oxford Grey */
+    border-radius: 8px;
+    padding: 10px 15px;
+    transition: all 0.3s ease;
+}
+
+/* Estilo para el placeholder (el texto guía que sale al fondo) */
+.modal-content .login-input::placeholder {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Efecto al hacer clic (Focus) */
+.modal-content .login-input:focus {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    border-color: #2D6A4F !important; /* Brillo en Emerald Green */
+    box-shadow: 0 0 8px rgba(45, 106, 79, 0.3);
+    outline: none;
+}
