@@ -77,7 +77,7 @@ export const Login = () => {
                 <div className="row justify-content-center">
                     <div className="col-12 col-md-6 col-lg-5">
                         <div className="card login-card">
-                            <div className="login-card-header">
+                            <div className="login-card-header">   
                                 <h1 className="login-title">Bienvenido de nuevo</h1>
                                 <p className="login-subtitle">
                                     Inicia sesión.

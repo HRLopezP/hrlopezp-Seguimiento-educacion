@@ -1,0 +1,70 @@
+.denied-container {
+    min-height: 90vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-color); /* Automático: Blanco o Azul Noche */
+    transition: background-color 0.4s ease;
+}
+
+.denied-card {
+    background-color: var(--card-bg); /* Automático: Blanco o Azul Oxford */
+    padding: 3.5rem;
+    border-radius: 20px;
+    max-width: 550px;
+    text-align: center;
+    border: 1px solid rgba(0,0,0,0.05);
+    transition: all 0.4s ease;
+}
+
+/* En modo oscuro, suavizamos el borde */
+[data-theme="dark"] .denied-card {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.denied-icon {
+    font-size: 5rem;
+    color: #e63946; /* Rojo de alerta para el escudo */
+    margin-bottom: 1.5rem;
+    filter: drop-shadow(0 0 10px rgba(230, 57, 70, 0.2));
+}
+
+.denied-title {
+    color: var(--text-primary);
+    font-weight: 800;
+    margin-bottom: 1rem;
+}
+
+.denied-text {
+    color: var(--text-primary);
+    opacity: 0.7; /* Esto simula el "muted" pero con nuestro color de texto */
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+}
+
+/* Botón estilo Emerald Green */
+.btn-denied-primary {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 10px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-denied-primary:hover {
+    filter: brightness(1.2);
+    transform: translateY(-2px);
+}
+
+/* Botón Outline usando Oxford Grey */
+.btn-denied-outline {
+    background-color: transparent;
+    border: 2px solid #415A77; 
+    color: var(--text-primary);
+    padding: 0.8rem 1.5rem;
+    border-radius: 10px;
+    font-weight: 600;
+    margin-left: 10px;
+}

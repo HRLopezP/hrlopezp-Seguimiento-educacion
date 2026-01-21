@@ -50,29 +50,30 @@
 .login-input {
     border-radius: 10px;
     padding: 0.75rem 1rem;
-    border: 2px solid rgba(0,0,0,0.05);
+    /* Un borde un poco más visible en modo oscuro ayuda a definir el campo */
+    border: 1px solid rgba(255, 255, 255, 0.1); 
     background-color: var(--bg-color);
-    color: var(--text-primary) !important; /* Forzamos que el texto use nuestra variable */
-    transition: all 0.3s ease;
+    color: var(--text-primary) !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Transición más suave */
 }
 
 .login-input:focus {
     border-color: #415A77; 
-    box-shadow: 0 0 0 0.25rem rgba(65, 90, 119, 0.25); /* Un pequeño resplandor ayuda a la elegancia */
-    background-color: var(--card-bg);
-    color: var(--text-primary) !important; /* Aseguramos que al escribir se siga viendo */
+    /* El resplandor (glow) ahora es más sutil */
+    box-shadow: 0 0 0 3px rgba(65, 90, 119, 0.15); 
+    background-color: var(--bg-color); /* Mantenemos el fondo igual */
     outline: none;
 }
-
 /* El botón con el verde esmeralda de "activo" */
 .login-submit-btn {
-    background-color: #2D6A4F; /* Verde Esmeralda */
+    background-color: #2D6A4F; 
     color: white;
     border-radius: 10px;
     padding: 0.8rem;
     font-weight: 600;
     border: none;
-    transition: all 0.3s ease;
+    cursor: pointer;
+    transition: all 0.2s ease;
     margin-top: 1rem;
 }
 
@@ -104,4 +105,21 @@
 .login-input::placeholder {
     color: var(--text-primary);
     opacity: 0.5;
+}
+
+.login-submit-btn:active {
+    /* Efecto de "presionado" */
+    transform: scale(0.98);
+}
+
+
+.login-input:-webkit-autofill,
+.login-input:-webkit-autofill:hover, 
+.login-input:-webkit-autofill:focus,
+.login-input:-webkit-autofill:active {
+    -webkit-text-fill-color: var(--text-primary) !important;
+    /* Esto detiene el cambio de color de fondo del navegador */
+    transition: background-color 5000s ease-in-out 0s;
+    /* Usamos una sombra interna del mismo color que tu fondo actual */
+    box-shadow: 0 0 0px 1000px var(--bg-color) inset !important;
 }

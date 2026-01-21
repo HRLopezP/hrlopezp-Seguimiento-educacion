@@ -56,6 +56,7 @@ body, html, #root {
     margin: 0;
     padding: 0;
     background-color: var(--bg-color); /* Esto asegura que NADA sea blanco */
+    transition: background-color 0.5s ease, color 0.5s ease;
 }
 
 
@@ -115,13 +116,6 @@ body, html, #root {
     border: none;
 }
 
-/* LA FRANJA QUE TE GUSTA (Oxford Grey) */
-.auth-card-header {
-    background-color: #1B263B; /* Tu Azul Oxford fijo */
-    padding: 2rem;
-    text-align: center;
-    color: #ffffff;
-}
 
 .auth-card-header h2 {
     font-size: 1.8rem;
@@ -137,6 +131,23 @@ body, html, #root {
 }
 
 /* Cuerpo de la tarjeta */
+/* Y para que no se vea pegado al texto, asegúrate que el body de la card tenga su espacio */
 .auth-card-body {
     padding: 2.5rem;
+    border-top: none; /* Evitamos bordes dobles */
 }
+
+/* Aplicamos la transición a todos los elementos que cambian de color */
+*, *::before, *::after {
+    transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease;
+}
+
+.auth-card-header {
+    background-color: #1B263B; /* Azul Oxford */
+    padding: 2rem;
+    text-align: center;
+    color: #ffffff;
+    border-bottom: 2px solid transparent; /* Invisible en modo claro */
+    transition: all 0.4s ease;
+}
+

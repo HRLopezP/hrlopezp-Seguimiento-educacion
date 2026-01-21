@@ -58,7 +58,10 @@ export const Navbar = () => {
 								<li>
 									<div className="dropdown-item-text">
 										<small className="text-muted d-block">Rol asignado:</small>
-										<span className="badge bg-primary-soft text-primary">{store.user?.rol}</span>
+										{/* Usamos el operador || para poner un valor por defecto si está vacío */}
+										<span className="badge bg-primary-soft text-primary" style={{ backgroundColor: 'rgba(27, 38, 59, 0.1)', color: '#1B263B' }}>
+											{store.user?.rol_name || store.user?.rol || "Oficial"}
+										</span>
 									</div>
 								</li>
 								<li><hr className="dropdown-divider" /></li>

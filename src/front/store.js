@@ -9,7 +9,6 @@ export const initialStore = () => {
 
 export default function storeReducer(store, action = {}) {
   switch (action.type) {
-
     case "TOGGLE_THEME":
       const newTheme = store.theme === "light" ? "dark" : "light";
       localStorage.setItem("theme", newTheme); // Guardamos la elección
@@ -17,8 +16,12 @@ export default function storeReducer(store, action = {}) {
         ...store,
         theme: newTheme,
       };
-      
-    case "LOGIN": // Una sola acción para todo el inicio de sesión
+
+    case "LOGIN":
+      // Guardamos en el baúl (localStorage) para que sobreviva al F5
+      localStorage.setItem("access_token", action.payload.token);
+      localStorage.setItem("user", JSON.stringify(action.payload.user));
+
       return {
         ...store,
         token: action.payload.token,
@@ -26,8 +29,8 @@ export default function storeReducer(store, action = {}) {
       };
 
     case "LOGOUT":
-      localStorage.removeItem('access_token'); // ¡No olvides limpiar el storage!
-      localStorage.removeItem('user');
+      localStorage.removeItem("access_token"); // ¡No olvides limpiar el storage!
+      localStorage.removeItem("user");
       return {
         ...store,
         token: null,
