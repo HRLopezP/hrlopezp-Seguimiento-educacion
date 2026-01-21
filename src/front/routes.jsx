@@ -15,6 +15,7 @@ import { AccessDenied } from "./components/AccessDenied";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import UserManagement from "./pages/UserManagement"; 
+import RoleManagement from "./pages/RoleManagement";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 export const router = createBrowserRouter(
@@ -46,6 +47,15 @@ export const router = createBrowserRouter(
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/manager/roles"
+        element={
+          <ProtectedRoute>
+            <RoleManagement />
+          </ProtectedRoute>
+        }
+      />
+      
     </Route>
   )
 );

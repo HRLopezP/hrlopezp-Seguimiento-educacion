@@ -130,3 +130,21 @@
 /* Ajuste de contraste para Pills en modo oscuro */
 [data-theme="dark"] .status-pill.active { background-color: rgba(82, 183, 136, 0.1); color: #52B788 !important; }
 [data-theme="dark"] .status-pill.pending { background-color: rgba(255, 107, 107, 0.1); color: #FF6B6B !important; }
+
+
+/* Forzamos visibilidad en modo claro */
+.form-select:disabled {
+    background-color: #f8f9fa !important; /* Un gris muy suave */
+    color: #1B263B !important;           /* Tu Azul Oxford para el texto */
+    opacity: 0.8;
+    cursor: not-allowed;
+}
+
+/* Forzamos visibilidad en MODO OSCURO */
+[data-theme="dark"] .form-select:disabled {
+    background-color: rgba(255, 255, 255, 0.05) !important; /* Fondo casi invisible */
+    color: #E0E1DD !important;           /* Un blanco hueso elegante para que se lea claro */
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    opacity: 1;                          /* Quitamos la opacidad que le pone el navegador */
+    -webkit-text-fill-color: #E0E1DD !important; /* Necesario para algunos navegadores (Safari/Chrome) */
+}

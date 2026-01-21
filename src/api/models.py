@@ -62,7 +62,8 @@ class User(db.Model):
             "name": self.name,
             "lastname": self.lastname,
             "email": self.email,
-            "rol": self.rol.name_rol if self.rol else None,
+            "rol_id": self.rol_id,
+            "rol_name": self.rol.name_rol if self.rol else None,
             "is_active": self.is_active,
             "image": self.profile if self.profile else f"https://ui-avatars.com/api/?name={initials.replace(' ', '+')}&size=128&background=random&rounded=true"
         }
