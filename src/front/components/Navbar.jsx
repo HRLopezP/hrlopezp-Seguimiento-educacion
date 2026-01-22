@@ -49,7 +49,7 @@ export const Navbar = () => {
 								<img
 									src={store.user?.image}
 									alt="profile"
-									className="rounded-circle me-2"
+									className="navbar-avatar"
 									style={{ width: "28px", height: "28px", objectFit: "cover" }}
 								/>
 								<span className="small d-none d-md-inline">{store.user?.name}</span>

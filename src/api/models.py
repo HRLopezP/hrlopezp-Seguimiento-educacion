@@ -30,7 +30,31 @@ class Rol(db.Model):
         }
 
 
-  def serialize(self):
+class User(db.Model):
+    __tablename__ = 'user'
+    id_user: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    lastname: Mapped[str] = mapped_column(String(100), nullable=False)
+    password: Mapped[str] = mapped_column(String(255), nullable=False)
+    profile: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, default=None)
+    
+    # Cambiado a False para cumplir con la regla del SIGSSEP
+    is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False) 
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    rol_id: Mapped[int] = mapped_column(ForeignKey('rol.id_rol'), nullable=False)
+    rol: Mapped["Rol"] = relationship(back_populates="users")
+    
+    # En Activity, el campo debería llamarse 'responsible' para que esto funcione
+    activities: Mapped[List["Activity"]] = relationship(back_populates="responsible")
+
+    def __repr__(self):
+        return f'<User {self.email}>'
+
+    def serialize(self):
         # El + en la URL de la imagen debe estar escapado o ser un espacio
         initials = f"{self.name} {self.lastname}"
         return {
@@ -43,6 +67,7 @@ class Rol(db.Model):
             "is_active": self.is_active,
             "image": self.profile if self.profile else f"https://ui-avatars.com/api/?name={initials.replace(' ', '+')}&size=128&background=random&rounded=true"
         }
+
 
 class Project(db.Model):
     __tablename__ = 'project'

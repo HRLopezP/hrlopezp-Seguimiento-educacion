@@ -418,3 +418,79 @@ def update_photo():
     db.session.commit()
     
     return jsonify({"message": "Imagen actualizada", "image": user.profile}), 200
+
+
+@api.route('/user/update-profile', methods=['PATCH'])
+@jwt_required()
+def update_profile_data():
+    try:
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({"message": "Usuario no encontrado"}), 404
+            
+        data = request.json
+        # Solo actualizamos si nos envían el dato, si no, dejamos el que estaba
+        user.name = data.get("name", user.name)
+        user.lastname = data.get("lastname", user.lastname)
+        
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Perfil actualizado exitosamente",
+            "user": user.serialize()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error actualizando perfil: {str(e)}")
+        return jsonify({"message": "Error al actualizar los datos"}), 500
+    
+
+@api.route('/user/change-password', methods=['PATCH'])
+@jwt_required()
+def change_password():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    data = request.json
+    
+    current_password = data.get("current_password")
+    new_password = data.get("new_password")
+
+    # 1. Verificar contraseña actual (asumiendo que usas check_password_hash)
+    if not check_password_hash(user.password, current_password):
+        return jsonify({"message": "La contraseña actual es incorrecta"}), 400
+
+    # 2. Guardar la nueva (hasheada)
+    user.password = generate_password_hash(new_password)
+    db.session.commit()
+    
+    return jsonify({"message": "Contraseña actualizada correctamente"}), 200
+
+
+@api.route('/update-avatar', methods=['PATCH'])
+@jwt_required()
+def update_avatar():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    data = request.json
+    new_image_url = data.get("image_url")
+
+    if not new_image_url:
+        return jsonify({"msg": "URL de imagen requerida"}), 400
+
+    # 1. Validamos que la URL sea de nuestra cuenta de Cloudinary
+    if not CloudinaryService.validate_cloudinary_url(new_image_url):
+        return jsonify({"msg": "URL de imagen no válida"}), 400
+
+    # 2. Si el usuario ya tenía una foto, borramos la vieja de la nube
+    if user.image:
+        CloudinaryService.delete_old_image(user.image)
+
+    # 3. Actualizamos la base de datos con la nueva URL
+    user.image = new_image_url
+    db.session.commit()
+
+    return jsonify({"msg": "Avatar actualizado con éxito", "image": user.image}), 200
