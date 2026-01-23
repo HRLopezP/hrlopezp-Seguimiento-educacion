@@ -50,104 +50,160 @@ body {
   color: #52b788; /* Opcional: que brille en el verde esmeralda claro */
 }
 
-
-body, html, #root {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    background-color: var(--bg-color); /* Esto asegura que NADA sea blanco */
-    transition: background-color 0.5s ease, color 0.5s ease;
+body,
+html,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color); /* Esto asegura que NADA sea blanco */
+  transition:
+    background-color 0.5s ease,
+    color 0.5s ease;
 }
 
-
 .login-input:focus {
-    border-color: #415A77; 
-    box-shadow: none;
-    background-color: var(--card-bg); /* <--- AQUÍ ESTÁ EL DETALLE */
+  border-color: #415a77;
+  box-shadow: none;
+  background-color: var(--card-bg); /* <--- AQUÍ ESTÁ EL DETALLE */
 }
 
 /* Inputs elegantes */
 .login-input {
-    border-radius: 10px;
-    padding: 0.75rem 1rem;
-    border: 2px solid rgba(0,0,0,0.05);
-    background-color: var(--bg-color);
-    color: var(--text-primary) !important; /* Forzamos que el texto use nuestra variable */
-    transition: all 0.3s ease;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  border: 2px solid rgba(0, 0, 0, 0.05);
+  background-color: var(--bg-color);
+  color: var(
+    --text-primary
+  ) !important; /* Forzamos que el texto use nuestra variable */
+  transition: all 0.3s ease;
 }
 
 .login-input:focus {
-    border-color: #415A77; 
-    box-shadow: 0 0 0 0.25rem rgba(65, 90, 119, 0.25); /* Un pequeño resplandor ayuda a la elegancia */
-    background-color: var(--card-bg);
-    color: var(--text-primary) !important; /* Aseguramos que al escribir se siga viendo */
-    outline: none;
+  border-color: #415a77;
+  box-shadow: 0 0 0 0.25rem rgba(65, 90, 119, 0.25); /* Un pequeño resplandor ayuda a la elegancia */
+  background-color: var(--card-bg);
+  color: var(
+    --text-primary
+  ) !important; /* Aseguramos que al escribir se siga viendo */
+  outline: none;
 }
 
 /* IMPORTANTE: Color del texto dentro del input para navegadores */
 .login-input::placeholder {
-    color: var(--text-primary);
-    opacity: 0.5;
+  color: var(--text-primary);
+  opacity: 0.5;
 }
 
 [data-theme="dark"] input {
-    color: #e0e1dd !important; /* Blanco hueso */
-    color-scheme: dark; /* Esto le dice al navegador que el componente es oscuro */
+  color: #e0e1dd !important; /* Blanco hueso */
+  color-scheme: dark; /* Esto le dice al navegador que el componente es oscuro */
 }
 
 /* Contenedor principal centrado */
 .auth-page-container {
-    min-height: 90vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: var(--bg-color);
-    padding: 2rem 1rem;
+  min-height: 90vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-color);
+  padding: 2rem 1rem;
 }
 
 /* La tarjeta unificada */
 .auth-card-unified {
-    background-color: var(--card-bg);
-    border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-    width: 100%;
-    max-width: 450px;
-    overflow: hidden; /* Importante para que la franja no se salga de los bordes redondeados */
-    border: none;
+  background-color: var(--card-bg);
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 450px;
+  overflow: hidden; /* Importante para que la franja no se salga de los bordes redondeados */
+  border: none;
 }
 
-
 .auth-card-header h2 {
-    font-size: 1.8rem;
-    font-weight: 700;
-    margin: 0;
-    color: #ffffff;
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0;
+  color: #ffffff;
 }
 
 .auth-card-header p {
-    opacity: 0.8;
-    margin-top: 0.5rem;
-    font-weight: 300;
+  opacity: 0.8;
+  margin-top: 0.5rem;
+  font-weight: 300;
 }
 
 /* Cuerpo de la tarjeta */
 /* Y para que no se vea pegado al texto, asegúrate que el body de la card tenga su espacio */
 .auth-card-body {
-    padding: 2.5rem;
-    border-top: none; /* Evitamos bordes dobles */
+  padding: 2.5rem;
+  border-top: none; /* Evitamos bordes dobles */
 }
 
 /* Aplicamos la transición a todos los elementos que cambian de color */
-*, *::before, *::after {
-    transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease;
+*,
+*::before,
+*::after {
+  transition:
+    background-color 0.4s ease,
+    border-color 0.4s ease,
+    color 0.4s ease,
+    box-shadow 0.4s ease;
 }
 
 .auth-card-header {
-    background-color: #1B263B; /* Azul Oxford */
-    padding: 2rem;
-    text-align: center;
-    color: #ffffff;
-    border-bottom: 2px solid transparent; /* Invisible en modo claro */
-    transition: all 0.4s ease;
+  background-color: #1b263b; /* Azul Oxford */
+  padding: 2rem;
+  text-align: center;
+  color: #ffffff;
+  border-bottom: 2px solid transparent; /* Invisible en modo claro */
+  transition: all 0.4s ease;
 }
 
+.navbar-avatar {
+  width: 36px; /* Lo subimos de 28px a 35px para que se note mejor */
+  height: 36px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 2px solid transparent; /* Espacio para el borde */
+  transition: all 0.3s ease;
+}
+
+/* Ajustes exclusivos para Modo Oscuro */
+[data-theme="dark"] .navbar-avatar {
+  border-color: #ffffff; /* Borde blanco delgado */
+  box-shadow: 0 0 5px rgba(255, 255, 255, 0.2);
+}
+
+/* Color del nombre del usuario en el navbar */
+.user-nav-name {
+  color: var(--text-primary);
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+[data-theme="dark"] .user-nav-name {
+  color: #ffffff !important; /* Blanco puro para resaltar en el azul noche */
+}
+
+/* Estilo para los elementos del dropdown en modo oscuro */
+[data-theme="dark"] .dropdown-menu {
+  background-color: var(--card-bg);
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="dark"] .dropdown-item-text small {
+  color: #e0e1dd !important; /* Blanco hueso para la etiqueta 'Rol asignado' */
+  opacity: 0.8;
+}
+
+/* Ajuste del botón toggle para que el texto del dropdown no se pierda */
+.dropdown-toggle::after {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .dropdown-toggle::after {
+  color: #ffffff;
+}

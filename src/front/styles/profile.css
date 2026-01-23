@@ -1,0 +1,282 @@
+.profile-wrapper {
+  min-height: 85vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background-color: var(--bg-color);
+}
+
+.profile-card {
+  background-color: var(--card-bg);
+  width: 100%;
+  max-width: 500px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+  position: relative;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Franja superior decorativa con el Azul Oxford que te gusta */
+.profile-header-accent {
+  display: none; /* Ya no necesitaremos la franja vacía de 100px */
+}
+
+
+.profile-header-accent-dark {
+    background-color: #1b263b !important; /* Oxford Grey */
+    padding: 1.2rem;
+    border-top-left-radius: 19px;
+    border-top-right-radius: 19px;
+    display: flex;
+    align-items: flex-start !important; 
+    height: 140px; 
+    
+    /* AJUSTE FINO: Cambia el 0.5rem por 2rem o 2.5rem */
+    /* Ve probando este valor hasta que quede a la altura de tus ojos */
+    padding-top: 2.2rem !important; 
+}
+
+.profile-content {
+  padding: 0 2rem 2rem 2rem;
+  /* Subimos el contenido la mitad exacta de lo que mide el avatar (150px / 2 = 75px) 
+       más un pequeño ajuste visual */
+  margin-top: -75px;
+  position: relative;
+  z-index: 5;
+}
+
+/* Contenedor del Avatar */
+.avatar-section {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.avatar-container {
+  width: 150px;
+  height: 150px;
+  margin: 0 auto;
+  position: relative;
+  border-radius: 50%;
+  /* Cambiamos var(--card-bg) por un color blanco sólido o muy claro fijo */
+  /* Esto garantiza que siempre se vea el círculo blanco sin importar el tema */
+  border: 6px solid #ffffff;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  background-color: #ffffff; /* Fondo interno también blanco por si la imagen falla */
+}
+
+.profile-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 50%; /* El radio se lo damos a la imagen directamente */
+}
+
+/* El botón flotante para editar foto (Emerald Green) */
+.edit-badge {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  background-color: #10b981; /* Emerald Green */
+  color: white;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  /* Forzamos el borde blanco aquí también para consistencia */
+  border: 3px solid #ffffff;
+  z-index: 10;
+  transition: all 0.3s ease;
+}
+
+.edit-badge:hover {
+  transform: scale(1.1);
+  filter: brightness(1.2);
+}
+
+/* Tipografía y Badges */
+.user-name {
+  color: var(--text-primary);
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+
+.role-badge {
+  background-color: #415a77;
+  color: #ffffff !important; /* Forzamos blanco para que resalte */
+  padding: 0.4rem 1.2rem;
+  display: inline-block;
+  margin-top: 5px;
+}
+
+.divider {
+  border-top: 1px solid var(--text-primary);
+  opacity: 0.1;
+}
+
+/* Botones de acción */
+.btn-profile-edit {
+  background-color: transparent;
+  color: var(--text-primary);
+  border: 2px solid #415a77;
+  padding: 0.75rem;
+  border-radius: 12px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-profile-edit:hover {
+  background-color: #1b263b;
+  color: white;
+}
+
+/* Ajustes específicos para Modo Oscuro si es necesario */
+[data-theme="dark"] .profile-card {
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+}
+
+.user-info p.text-muted {
+  color: var(--text-primary) !important;
+  opacity: 0.7; /* Para que sea elegante pero legible */
+}
+
+
+[data-theme="dark"] .custom-modal-content {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="dark"] .custom-modal-content .form-control {
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 5. BOTÓN DE CAMBIAR CONTRASEÑA (Para que no se pierda) */
+.btn-profile-edit {
+  background-color: var(--card-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--text-primary); /* Borde dinámico */
+}
+
+[data-theme="dark"] .btn-profile-edit:hover {
+  background-color: var(--accent-color); /* Verde esmeralda al pasar el mouse */
+  border-color: var(--accent-color);
+  color: white;
+}
+
+.role-badge-custom {
+  background-color: #1b263b; /* Oxford Grey */
+  color: #ffffff !important;
+  padding: 0.5rem 1.2rem;
+  font-size: 0.85rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 600;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+/* --- BOTÓN "CAMBIAR CONTRASEÑA" (Estilo Profesional) --- */
+.btn-change-pass {
+  border: 2px solid #1b263b; /* Oxford Grey */
+  color: #1b263b;
+  background-color: transparent;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  padding: 0.6rem;
+}
+
+.btn-change-pass:hover {
+  background-color: #1b263b;
+  color: white !important;
+}
+
+/* Ajuste para Modo Oscuro del Botón */
+[data-theme="dark"] .btn-change-pass {
+  border-color: #415a77; /* Un gris un poco más claro para que resalte en el fondo oscuro */
+  color: #e0e0e0;
+}
+
+[data-theme="dark"] .btn-change-pass:hover {
+  background-color: #10b981; /* Verde Esmeralda al hover para indicar "acción activa" */
+  border-color: #10b981;
+  color: white !important;
+}
+
+/* --- AJUSTE EXTRA PARA EL INPUT GROUP EN MODO OSCURO --- */
+[data-theme="dark"] .input-group-text,
+[data-theme="dark"] .input-group .btn-outline-secondary {
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.custom-modal-header {
+  background-color: #1b263b !important; /* Azul Oxford */
+  color: #ffffff !important;
+  padding: 1rem;
+  border-top-left-radius: 15px; /* Redondeado para elegancia */
+  border-top-right-radius: 15px;
+  display: flex;
+  align-items: center;
+}
+
+.custom-modal-header i {
+  color: #ffffff !important; /* Asegura que la llave sea blanca */
+}
+
+
+
+.avatar-container:hover .profile-avatar {
+  filter: brightness(0.8);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+/* El spinner de carga encima de la foto */
+.uploading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  border-radius: 50%;
+}
+
+.edit-icon-pencil {
+  cursor: pointer;
+  color: var(
+    --text-primary
+  ) !important; /* Usará el Blanco Hueso en Dark Mode */
+  transition: color 0.3s ease;
+}
+
+.edit-icon-pencil:hover {
+  color: #10b981 !important; /* Brilla en esmeralda al pasar el mouse */
+}
+
+.input-edit-profile {
+  background-color: var(
+    --bg-color
+  ) !important; /* Usamos el color de fondo suave que elegiste */
+  color: var(--text-primary) !important;
+  border: 1px solid #1b263b; /* Borde Oxford Grey para que resalte */
+  font-weight: 500;
+}
+
+[data-theme="dark"] .input-edit-profile {
+  background-color: #0d1117 !important; /* Un gris muy oscuro para el modo noche */
+  border-color: #415a77;
+}

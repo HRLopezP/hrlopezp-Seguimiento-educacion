@@ -44,6 +44,8 @@ export default function storeReducer(store, action = {}) {
       };
 
     case "SET_USER":
+      // ¡Importante! Guardamos en el localStorage para que el cambio sea permanente
+      localStorage.setItem("user", JSON.stringify(action.payload));
       return {
         ...store,
         user: action.payload,

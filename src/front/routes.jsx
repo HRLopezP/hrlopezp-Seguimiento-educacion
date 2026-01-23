@@ -17,6 +17,7 @@ import ResetPassword from "./pages/ResetPassword";
 import UserManagement from "./pages/UserManagement"; 
 import RoleManagement from "./pages/RoleManagement";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import Profile from "./pages/Profile";
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -38,6 +39,7 @@ export const router = createBrowserRouter(
       <Route path="/denied" element={<AccessDenied />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/profile" element={< Profile />} />
       {/* RUTA PROTEGIDA PARA EL GERENTE */}
       <Route
         path="/manager/users"

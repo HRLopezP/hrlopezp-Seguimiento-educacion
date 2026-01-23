@@ -40,19 +40,22 @@ export const Navbar = () => {
 					{store.token ? (
 						<div className="dropdown">
 							<button
-								className="btn btn-outline-secondary dropdown-toggle d-flex align-items-center rounded-pill px-3"
+								className="btn btn-outline-secondary dropdown-toggle d-flex align-items-center rounded-pill px-2 py-1"
 								type="button"
 								id="userDropdown"
 								data-bs-toggle="dropdown"
 								aria-expanded="false"
+								style={{ borderColor: 'rgba(65, 90, 119, 0.3)' }} // Borde sutil
 							>
 								<img
-									src={store.user?.image}
+									src={store.user?.image || "https://via.placeholder.com/150"}
 									alt="profile"
-									className="rounded-circle me-2"
-									style={{ width: "28px", height: "28px", objectFit: "cover" }}
+									className="navbar-avatar" // Usamos la clase del CSS
+								// QUITAMOS el style={{ width: "28px" ... }} de aquí
 								/>
-								<span className="small d-none d-md-inline">{store.user?.name}</span>
+								<span className="small d-none d-md-inline user-nav-name">
+									{store.user?.name}
+								</span>
 							</button>
 							<ul className="dropdown-menu dropdown-menu-end shadow border-0 mt-2" aria-labelledby="userDropdown">
 								<li>

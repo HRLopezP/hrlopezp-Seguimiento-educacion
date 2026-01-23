@@ -11,6 +11,7 @@ from .manager_decorator import manager_required
 from flask_mail import Message
 from api.extensions import mail
 import os
+from .CloudinaryService import CloudinaryService
 
 api = Blueprint('api', __name__)
 
@@ -51,7 +52,7 @@ def register_user():
     # 2. Lógica de "Excepción de Gerente"
     # Usamos constantes para evitar errores de dedo
     ADMIN_EMAIL = "maliliana173@gmail.com"
-    
+
     if email == ADMIN_EMAIL:
         rol_to_find = "Gerente"
         is_active_status = True
@@ -73,7 +74,7 @@ def register_user():
         password=hashed_password,
         name=name,
         lastname=lastname,
-        rol_id=target_rol.id_rol, # Asignamos el ID encontrado
+        rol_id=target_rol.id_rol,  # Asignamos el ID encontrado
         is_active=is_active_status
     )
 
@@ -84,7 +85,7 @@ def register_user():
     except Exception as error:
         db.session.rollback()
         return jsonify({"message": "Error al guardar", "error": str(error)}), 500
-    
+
 
 @api.route("/login", methods=["POST"])
 def login():
@@ -228,7 +229,7 @@ def reset_password():
 
     # 5. Cambiar la contraseña (siempre hasheada, ¡nunca en texto plano!)
     user.password = generate_password_hash(new_password)
-    
+
     try:
         db.session.commit()
         return jsonify({"message": "Contraseña actualizada correctamente. Ya puedes iniciar sesión."}), 200
@@ -237,7 +238,6 @@ def reset_password():
         return jsonify({"message": "Error interno al guardar la contraseña", "error": str(e)}), 500
 
 
-        
 # 1. Obtener todos los usuarios para la tabla de control
 @api.route("/manager/users", methods=["GET"])
 @jwt_required()
@@ -292,24 +292,24 @@ def get_roles():
 
 
 @api.route('/roles', methods=['POST'])
-@jwt_required() # Primero verifica que esté logueado
-@manager_required # Luego verifica que sea Gerente
+@jwt_required()  # Primero verifica que esté logueado
+@manager_required  # Luego verifica que sea Gerente
 def create_role():
     data = request.get_json()
     new_role_name = data.get("name_rol")
-    
+
     if not new_role_name:
         return jsonify({"message": "El nombre del rol es obligatorio"}), 400
-    
+
     exists = Rol.query.filter_by(name_rol=new_role_name).first()
     if exists:
         return jsonify({"message": "Este rol ya existe"}), 400
-        
+
     # Lógica para guardar en la DB...
     new_role = Rol(name_rol=new_role_name)
     db.session.add(new_role)
     db.session.commit()
-    
+
     return jsonify({"message": f"Rol '{new_role_name}' creado exitosamente"}), 201
 
 
@@ -321,19 +321,21 @@ def update_role(role_id):
     role = Rol.query.get(role_id)
     if not role:
         return jsonify({"message": "Rol no encontrado"}), 404
-    
+
     data = request.get_json()
     new_name = data.get("name_rol")
-    
+
     if not new_name:
         return jsonify({"message": "El nuevo nombre es requerido"}), 400
 
     role.name_rol = new_name
     db.session.commit()
-    
+
     return jsonify({"message": "Rol actualizado correctamente"}), 200
 
 # 4. Eliminar un rol (DELETE)
+
+
 @api.route('/roles/<int:role_id>', methods=['DELETE'])
 @jwt_required()
 @manager_required
@@ -341,7 +343,7 @@ def delete_role(role_id):
     role = Rol.query.get(role_id)
     if not role:
         return jsonify({"message": "Rol no encontrado"}), 404
-    
+
     # IMPORTANTE: Validar si hay usuarios usando este rol antes de borrar
     user_with_role = User.query.filter_by(rol_id=role_id).first()
     if user_with_role:
@@ -349,9 +351,8 @@ def delete_role(role_id):
 
     db.session.delete(role)
     db.session.commit()
-    
-    return jsonify({"message": f"Rol '{role.name_rol}' eliminado"}), 200
 
+    return jsonify({"message": f"Rol '{role.name_rol}' eliminado"}), 200
 
 
 @api.route("/manager/users/<int:user_id>/role", methods=["PATCH"])
@@ -373,9 +374,126 @@ def update_user_role(user_id):
         return jsonify({"message": "El rol especificado no existe"}), 404
 
     try:
-        user.rol_id = new_role_id # Asignamos el nuevo ID de rol
+        user.rol_id = new_role_id  # Asignamos el nuevo ID de rol
         db.session.commit()
         return jsonify({"message": f"Rol de {user.name} actualizado a {role.name_rol}"}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": "Error al actualizar el rol", "error": str(e)}), 500
+
+
+# 1. Endpoint para obtener los datos del perfil
+@api.route('/user/profile', methods=['GET'])
+@jwt_required()
+def get_profile():
+    try:
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({"message": "Usuario no encontrado"}), 404
+            
+        # IMPORTANTE: Usamos 'profile' que es como se llama en tu modelo
+        # Y usamos el método serialize() que ya tienes bien hecho
+        return jsonify(user.serialize()), 200
+
+    except Exception as e:
+        print(f"DEBUG SIGSSEP - Error en profile: {str(e)}") 
+        return jsonify({"message": "Error interno"}), 500
+
+
+@api.route('/user/update-photo', methods=['PATCH'])
+@jwt_required()
+def update_photo():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    data = request.json
+    new_url = data.get("profile_picture") # Lo que viene de React
+
+    if not new_url:
+        return jsonify({"message": "URL no válida"}), 400
+
+    # Guardamos en la columna 'profile' del modelo User
+    user.profile = new_url 
+    db.session.commit()
+    
+    return jsonify({"message": "Imagen actualizada", "image": user.profile}), 200
+
+
+@api.route('/user/update-profile', methods=['PATCH'])
+@jwt_required()
+def update_profile_data():
+    try:
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({"message": "Usuario no encontrado"}), 404
+            
+        data = request.json
+        # Solo actualizamos si nos envían el dato, si no, dejamos el que estaba
+        user.name = data.get("name", user.name)
+        user.lastname = data.get("lastname", user.lastname)
+        
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Perfil actualizado exitosamente",
+            "user": user.serialize()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error actualizando perfil: {str(e)}")
+        return jsonify({"message": "Error al actualizar los datos"}), 500
+    
+
+@api.route('/user/change-password', methods=['PATCH'])
+@jwt_required()
+def change_password():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    data = request.json
+    
+    current_password = data.get("current_password")
+    new_password = data.get("new_password")
+
+    # 1. Verificar contraseña actual (asumiendo que usas check_password_hash)
+    if not check_password_hash(user.password, current_password):
+        return jsonify({"message": "La contraseña actual es incorrecta"}), 400
+
+    # 2. Guardar la nueva (hasheada)
+    user.password = generate_password_hash(new_password)
+    db.session.commit()
+    
+    return jsonify({"message": "Contraseña actualizada correctamente"}), 200
+
+
+@api.route('/user/update-avatar', methods=['PATCH'])
+@jwt_required()
+def update_avatar():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    data = request.json
+    new_image_url = data.get("image_url") # Coincide con Profile.jsx
+
+    if not new_image_url:
+        return jsonify({"msg": "URL de imagen requerida"}), 400
+
+    # 1. Validar URL (Opcional pero recomendado)
+    if not CloudinaryService.validate_cloudinary_url(new_image_url):
+        return jsonify({"msg": "URL de imagen no válida"}), 400
+
+    # 2. Borrar la vieja si existe (Usamos user.profile que es el nombre real)
+    if user.profile:
+        CloudinaryService.delete_old_image(user.profile)
+
+    # 3. Guardar en la columna correcta: 'profile'
+    user.profile = new_image_url
+    db.session.commit()
+
+    return jsonify({
+        "msg": "Avatar actualizado con éxito", 
+        "user": user.serialize() # Devolvemos el usuario completo actualizado
+    }), 200
