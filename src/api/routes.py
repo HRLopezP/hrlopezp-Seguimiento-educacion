@@ -469,28 +469,31 @@ def change_password():
     return jsonify({"message": "Contraseña actualizada correctamente"}), 200
 
 
-@api.route('/update-avatar', methods=['PATCH'])
+@api.route('/user/update-avatar', methods=['PATCH'])
 @jwt_required()
 def update_avatar():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
     
     data = request.json
-    new_image_url = data.get("image_url")
+    new_image_url = data.get("image_url") # Coincide con Profile.jsx
 
     if not new_image_url:
         return jsonify({"msg": "URL de imagen requerida"}), 400
 
-    # 1. Validamos que la URL sea de nuestra cuenta de Cloudinary
+    # 1. Validar URL (Opcional pero recomendado)
     if not CloudinaryService.validate_cloudinary_url(new_image_url):
         return jsonify({"msg": "URL de imagen no válida"}), 400
 
-    # 2. Si el usuario ya tenía una foto, borramos la vieja de la nube
-    if user.image:
-        CloudinaryService.delete_old_image(user.image)
+    # 2. Borrar la vieja si existe (Usamos user.profile que es el nombre real)
+    if user.profile:
+        CloudinaryService.delete_old_image(user.profile)
 
-    # 3. Actualizamos la base de datos con la nueva URL
-    user.image = new_image_url
+    # 3. Guardar en la columna correcta: 'profile'
+    user.profile = new_image_url
     db.session.commit()
 
-    return jsonify({"msg": "Avatar actualizado con éxito", "image": user.image}), 200
+    return jsonify({
+        "msg": "Avatar actualizado con éxito", 
+        "user": user.serialize() # Devolvemos el usuario completo actualizado
+    }), 200

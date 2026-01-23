@@ -102,31 +102,25 @@ const Profile = () => {
         const file = e.target.files[0];
         if (!file) return;
 
-        if (!file.type.startsWith("image/")) {
-            return toast.error("Por favor, selecciona una imagen válida.");
-        }
-
         setUploading(true);
         try {
-            // 1. Subimos a Cloudinary directamente
             const imageUrl = await uploadImage(file);
 
-            // 2. Enviamos la URL resultante a nuestro backend
             const res = await apiFetch("/user/update-avatar", {
                 method: "PATCH",
-                body: JSON.stringify({ image_url: imageUrl }), // Enviamos JSON, no FormData
+                body: JSON.stringify({ image_url: imageUrl }),
             });
 
             if (res.ok) {
                 const data = await res.json();
-                setUser({ ...user, image: imageUrl });
-                dispatch({ type: "SET_USER", payload: { ...user, image: imageUrl } });
+                // Actualizamos el estado local
+                setUser(data.user);
+                // ¡Actualizamos el store global para que se vea en el Navbar!
+                dispatch({ type: "SET_USER", payload: data.user });
                 toast.success("¡Imagen de perfil actualizada!");
-            } else {
-                toast.error("Error al guardar la referencia en el servidor");
             }
         } catch (error) {
-            toast.error("Error al subir a la nube");
+            toast.error("Error al procesar la imagen");
         } finally {
             setUploading(false);
         }
@@ -139,16 +133,38 @@ const Profile = () => {
             <Toaster richColors position="top-right" />
 
             <div className="profile-card card shadow">
-                <div className="profile-header-accent" style={{ backgroundColor: 'var(--oxford-grey)' }}></div>
+                <div className="profile-header-accent-dark d-flex px-4">
+                    {/* Quitamos mt-1 y dejamos que el padding del padre haga el trabajo */}
+                    <h5 className="mb-0 fs-6 text-white">
+                        <i className="fas fa-user-circle me-2"></i> Perfil de Usuario
+                    </h5>
+                </div>
                 <div className="profile-content card-body">
                     {/* Sección Avatar */}
                     <div className="avatar-section text-center">
-                        <div className="avatar-container d-inline-block position-relative">
-                            <img src={user.image || "https://via.placeholder.com/150"} className="profile-avatar rounded-circle border border-3" alt="Profile" style={{ width: '150px', height: '150px', objectFit: 'cover' }} />
-                            <label htmlFor="file-upload" className="edit-badge btn btn-sm btn-success rounded-circle position-absolute bottom-0 end-0">
-                                {uploading ? <span className="spinner-border spinner-border-sm"></span> : <i className="fa-solid fa-camera"></i>}
+                        <div className="avatar-container"> {/* Quitamos las clases de Bootstrap aquí para usar nuestro CSS personalizado */}
+                            <img
+                                src={user.image || "https://via.placeholder.com/150"}
+                                className="profile-avatar"
+                                alt="Profile"
+                            />
+
+                            <label htmlFor="file-upload" className="edit-badge">
+                                {uploading ? (
+                                    <span className="spinner-border spinner-border-sm"></span>
+                                ) : (
+                                    <i className="fa-solid fa-camera"></i>
+                                )}
                             </label>
-                            <input id="file-upload" type="file" accept="image/*" hidden disabled={uploading} onChange={handleFileChange} />
+
+                            <input
+                                id="file-upload"
+                                type="file"
+                                accept="image/*"
+                                hidden
+                                disabled={uploading}
+                                onChange={handleFileChange}
+                            />
                         </div>
                     </div>
 
@@ -156,8 +172,18 @@ const Profile = () => {
                     <div className="user-info text-center mt-3">
                         {isEditing ? (
                             <div className="px-4">
-                                <input className="form-control mb-2 text-center" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
-                                <input className="form-control mb-2 text-center" value={formData.lastname} onChange={(e) => setFormData({ ...formData, lastname: e.target.value })} />
+                                <input
+                                    className="form-control mb-2 text-center input-edit-profile"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    placeholder="Nombre"
+                                />
+                                <input
+                                    className="form-control mb-2 text-center input-edit-profile"
+                                    value={formData.lastname}
+                                    onChange={(e) => setFormData({ ...formData, lastname: e.target.value })}
+                                    placeholder="Apellido"
+                                />
                                 <div className="d-flex gap-2 justify-content-center">
                                     {/* Botón Esmeralda para completar */}
                                     <button className="btn btn-sm text-white" onClick={handleUpdateProfile} style={{ backgroundColor: '#10b981' }}>Guardar</button>
@@ -168,7 +194,10 @@ const Profile = () => {
                             <>
                                 <h2 className="user-name fw-bold d-flex align-items-center justify-content-center gap-2">
                                     {user.name} {user.lastname}
-                                    <i className="fa-solid fa-pen-to-square edit-icon-pencil fs-5" style={{ cursor: 'pointer', color: 'var(--oxford-grey)' }} onClick={() => setIsEditing(true)}></i>
+                                    <i
+                                        className="fa-solid fa-pen-to-square edit-icon-pencil fs-5"
+                                        onClick={() => setIsEditing(true)}
+                                    ></i>
                                 </h2>
                                 <span className="badge rounded-pill mb-2 role-badge-custom">{user.rol_name || "Oficial"}</span>
                                 <p className="text-muted">{user.email}</p>
