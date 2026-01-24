@@ -26,9 +26,29 @@ body {
 
 /* 3. COMPONENTES (Aquí pegas el último código) */
 .main-navbar {
+  padding-top: 0.3rem !important; /* Casi al límite para máxima elegancia */
+  padding-bottom: 0.3rem !important;
   background-color: var(--card-bg);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
+  min-height: auto; /* Permite que el padding mande */
+}
+
+.hero-and-cards-wrapper {
+  background:
+    linear-gradient(rgba(27, 38, 59, 0.8), rgba(13, 27, 42, 0.95)),
+    url("https://images.unsplash.com/photo-1460925895917-afdab827c52f?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80");
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed; /* Mantiene la imagen fija mientras scrolleas */
+}
+
+.hero-section-transparent {
+  min-height: 60vh; /* Un poco más corto para que las tarjetas suban */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  padding-top: 80px;
+  padding-bottom: 40px;
 }
 
 [data-theme="dark"] .main-navbar {
@@ -206,4 +226,122 @@ html,
 
 [data-theme="dark"] .dropdown-toggle::after {
   color: #ffffff;
+}
+
+
+.benefit-card {
+  background-color: var(--card-bg);
+  border: 1px solid rgba(65, 90, 119, 0.1);
+  border-radius: 15px;
+  padding: 2.5rem;
+  transition: all 0.3s ease;
+  height: 100%;
+}
+
+.benefit-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+  border-color: var(--accent-color);
+}
+
+.icon-box {
+  width: 60px;
+  height: 60px;
+  background-color: rgba(45, 106, 79, 0.1); /* Verde esmeralda muy suave */
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  color: var(--accent-color);
+  font-size: 1.5rem;
+}
+
+[data-theme="dark"] .benefit-card:hover {
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+}
+
+.btn-login-nav {
+  background-color: var(--text-primary) !important;
+  color: var(--bg-color) !important;
+  border: 1px solid var(--text-primary) !important;
+  font-weight: 600;
+}
+
+/* Botón de registro tipo outline */
+.btn-register-nav {
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--text-primary) !important;
+  font-weight: 500;
+}
+
+.btn-register-nav:hover {
+  background-color: var(--text-primary) !important;
+  color: var(--bg-color) !important;
+}
+
+.benefit-card-elegant {
+  background: rgba(27, 38, 59, 0.6) !important; /* Semi-transparente */
+  backdrop-filter: blur(10px); /* Efecto cristal (frosted glass) */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 2.5rem 1.5rem;
+  color: #ffffff;
+  text-align: center;
+  height: 100%;
+  transition: all 0.3s ease;
+}
+
+.benefit-card-elegant:hover {
+  background: rgba(
+    82,
+    183,
+    136,
+    0.1
+  ) !important; /* Brillo verde al pasar el mouse */
+  border-color: #52b788;
+  transform: translateY(-10px);
+}
+
+.benefit-card-elegant i {
+  font-size: 3rem;
+  margin-bottom: 1.5rem;
+  display: block;
+  color: #52b788; /* Iconos en Esmeralda para que resalten */
+}
+
+/* Tarjetas oscuras del Home (como tu imagen 2) */
+
+
+
+.main-footer {
+    background-color: var(--card-bg);
+    color: var(--text-primary);
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    /* Aseguramos que el texto no se rompa en pantallas medianas */
+    white-space: nowrap; 
+}
+
+/* En modo oscuro, le damos un borde superior sutil para separarlo del fondo */
+[data-theme="dark"] .main-footer {
+    background-color: #0d1b2a;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.footer-brand {
+    font-size: 0.9rem;
+    color: var(--accent-color);
+    letter-spacing: 0.5px;
+}
+
+.footer-links a {
+  color: var(--text-primary);
+  opacity: 0.6;
+  transition: opacity 0.3s;
+}
+
+.footer-links a:hover {
+  opacity: 1;
+  color: var(--accent-color);
 }
