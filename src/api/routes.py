@@ -49,12 +49,12 @@ def register_user():
     if User.query.filter_by(email=email).first():
         return jsonify({"message": "The email address is already registered."}), 422
 
-    # 2. Lógica de "Excepción de Gerente"
+    # 2. Lógica de "Excepción de Administrador"
     # Usamos constantes para evitar errores de dedo
-    ADMIN_EMAIL = "maliliana173@gmail.com"
+    ADMIN_EMAIL = "sigssep@gmail.com"
 
     if email == ADMIN_EMAIL:
-        rol_to_find = "Gerente"
+        rol_to_find = "Administrador"
         is_active_status = True
     else:
         rol_to_find = "Oficial"
@@ -81,7 +81,7 @@ def register_user():
     try:
         db.session.add(new_user)
         db.session.commit()
-        return jsonify({"message": "Registro exitoso. ¡Bienvenida, Gerente!" if is_active_status else "Registro exitoso. Espere activación."}), 201
+        return jsonify({"message": "Registro exitoso. ¡Bienvenida, Administrador!" if is_active_status else "Registro exitoso. Espere activación."}), 201
     except Exception as error:
         db.session.rollback()
         return jsonify({"message": "Error al guardar", "error": str(error)}), 500
@@ -116,9 +116,9 @@ def login():
         return jsonify({"message": "Your account is pending activation by a manager."}), 403
 
     # 7. Preparamos las "Additional Claims" para el frontend
-    # - Validamos si el rol es 'Gerente' según nuestra tabla Rol.
+    # - Validamos si el rol es 'Administrador' según nuestra tabla Rol.
     user_role_name = user.rol.name_rol if user.rol else "Oficial"
-    is_admin = user.rol.name_rol == "Gerente"
+    is_admin = user.rol.name_rol == "Administrador"
 
     additional_claims = {
         "is_administrator": is_admin,
@@ -248,33 +248,35 @@ def get_all_users():
     # Los devolvemos serializados para que React los pueda listar
     return jsonify([user.serialize() for user in users]), 200
 
-# 2. Activar o desactivar un usuario (El "Visto Bueno" del Gerente)
+# 2. Activar o desactivar un usuario (El "Visto Bueno" del Administrador)
 
 
 @api.route("/manager/users/<int:user_id>/status", methods=["PATCH"])
 @jwt_required()
 @manager_required
 def toggle_user_status(user_id):
-    # 1. Obtenemos el ID del usuario que está operando (tú)
+    # 1. Obtenemos el ID del manager actual (por si lo necesitas para logs)
     current_manager_id = get_jwt_identity()
 
-    # 2. Verificamos si estás intentando cambiar tu propio estado
-    # Convertimos a int porque identity suele venir como string desde el token
-    if int(current_manager_id) == user_id:
-        return jsonify({
-            "message": "Acción denegada. No puedes desactivar tu propia cuenta de Gerente por seguridad."
-        }), 403
-
+    # 2. Buscamos al usuario una sola vez
     user = User.query.get(user_id)
 
     if not user:
         return jsonify({"message": "Usuario no encontrado"}), 404
 
-    # 3. Cambiamos el estado
+    # 3. PROTECCIÓN SIGSSEP: No tocar al Administrador
+    # Protegemos tanto por rol como por ID para que sea blindado
+    if user.rol.name_rol == "Administrador" or int(current_manager_id) == user_id:
+        return jsonify({
+            "message": "Acción denegada. No se puede desactivar una cuenta de Administrador por seguridad."
+        }), 403
+
+    # 4. Cambiamos el estado (solo una vez)
     user.is_active = not user.is_active
 
     try:
         db.session.commit()
+        # Usamos Emerald Green mentalmente para este éxito:
         status_text = "activado" if user.is_active else "desactivado"
         return jsonify({"message": f"Usuario {user.name} {status_text} con éxito"}), 200
     except Exception as e:
@@ -293,7 +295,7 @@ def get_roles():
 
 @api.route('/roles', methods=['POST'])
 @jwt_required()  # Primero verifica que esté logueado
-@manager_required  # Luego verifica que sea Gerente
+@manager_required  # Luego verifica que sea Administrador
 def create_role():
     data = request.get_json()
     new_role_name = data.get("name_rol")
@@ -365,16 +367,24 @@ def update_user_role(user_id):
     if not new_role_id:
         return jsonify({"message": "El ID del rol es requerido"}), 400
 
+    # Buscamos al usuario
     user = User.query.get(user_id)
-    role = Rol.query.get(new_role_id)
-
     if not user:
         return jsonify({"message": "Usuario no encontrado"}), 404
+
+    # PROTECCIÓN: Si el usuario ya es Administrador, no se le toca el rol
+    if user.rol.name_rol == "Administrador":
+        return jsonify({
+            "message": "Seguridad de SIGSSEP: El rol de Administrador no puede ser modificado."
+        }), 403
+
+    # Buscamos el nuevo rol
+    role = Rol.query.get(new_role_id)
     if not role:
         return jsonify({"message": "El rol especificado no existe"}), 404
 
     try:
-        user.rol_id = new_role_id  # Asignamos el nuevo ID de rol
+        user.rol_id = new_role_id
         db.session.commit()
         return jsonify({"message": f"Rol de {user.name} actualizado a {role.name_rol}"}), 200
     except Exception as e:
@@ -389,16 +399,16 @@ def get_profile():
     try:
         user_id = get_jwt_identity()
         user = User.query.get(user_id)
-        
+
         if not user:
             return jsonify({"message": "Usuario no encontrado"}), 404
-            
+
         # IMPORTANTE: Usamos 'profile' que es como se llama en tu modelo
         # Y usamos el método serialize() que ya tienes bien hecho
         return jsonify(user.serialize()), 200
 
     except Exception as e:
-        print(f"DEBUG SIGSSEP - Error en profile: {str(e)}") 
+        print(f"DEBUG SIGSSEP - Error en profile: {str(e)}")
         return jsonify({"message": "Error interno"}), 500
 
 
@@ -408,15 +418,15 @@ def update_photo():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
     data = request.json
-    new_url = data.get("profile_picture") # Lo que viene de React
+    new_url = data.get("profile_picture")  # Lo que viene de React
 
     if not new_url:
         return jsonify({"message": "URL no válida"}), 400
 
     # Guardamos en la columna 'profile' del modelo User
-    user.profile = new_url 
+    user.profile = new_url
     db.session.commit()
-    
+
     return jsonify({"message": "Imagen actualizada", "image": user.profile}), 200
 
 
@@ -426,27 +436,27 @@ def update_profile_data():
     try:
         user_id = get_jwt_identity()
         user = User.query.get(user_id)
-        
+
         if not user:
             return jsonify({"message": "Usuario no encontrado"}), 404
-            
+
         data = request.json
         # Solo actualizamos si nos envían el dato, si no, dejamos el que estaba
         user.name = data.get("name", user.name)
         user.lastname = data.get("lastname", user.lastname)
-        
+
         db.session.commit()
-        
+
         return jsonify({
             "message": "Perfil actualizado exitosamente",
             "user": user.serialize()
         }), 200
-        
+
     except Exception as e:
         db.session.rollback()
         print(f"Error actualizando perfil: {str(e)}")
         return jsonify({"message": "Error al actualizar los datos"}), 500
-    
+
 
 @api.route('/user/change-password', methods=['PATCH'])
 @jwt_required()
@@ -454,7 +464,7 @@ def change_password():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
     data = request.json
-    
+
     current_password = data.get("current_password")
     new_password = data.get("new_password")
 
@@ -465,7 +475,7 @@ def change_password():
     # 2. Guardar la nueva (hasheada)
     user.password = generate_password_hash(new_password)
     db.session.commit()
-    
+
     return jsonify({"message": "Contraseña actualizada correctamente"}), 200
 
 
@@ -474,9 +484,9 @@ def change_password():
 def update_avatar():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-    
+
     data = request.json
-    new_image_url = data.get("image_url") # Coincide con Profile.jsx
+    new_image_url = data.get("image_url")  # Coincide con Profile.jsx
 
     if not new_image_url:
         return jsonify({"msg": "URL de imagen requerida"}), 400
@@ -494,6 +504,6 @@ def update_avatar():
     db.session.commit()
 
     return jsonify({
-        "msg": "Avatar actualizado con éxito", 
-        "user": user.serialize() # Devolvemos el usuario completo actualizado
+        "msg": "Avatar actualizado con éxito",
+        "user": user.serialize()  # Devolvemos el usuario completo actualizado
     }), 200

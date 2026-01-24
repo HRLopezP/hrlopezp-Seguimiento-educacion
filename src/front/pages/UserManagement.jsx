@@ -56,7 +56,7 @@ const UserManagement = () => {
                     toast.success(data.message || "Rol actualizado correctamente");
                     fetchData();
                 } else {
-                    // Si el backend dice que no (ej: el usuario es el Gerente raíz)
+                    // Si el backend dice que no (ej: el usuario es el Administrador raíz)
                     toast.error(data.message || "No se pudo cambiar el rol");
                     fetchData(); // Refrescamos para que el select vuelva a la realidad
                 }
@@ -75,7 +75,7 @@ const UserManagement = () => {
                     toast.success(data.message || "Estado actualizado");
                     fetchData();
                 } else {
-                    // Aquí es donde aparecerá el mensaje: "No puedes desactivar al Gerente principal"
+                    // Aquí es donde aparecerá el mensaje: "No puedes desactivar al Administrador principal"
                     toast.error(data.message || "Error al cambiar el estado");
                 }
             }
@@ -113,41 +113,48 @@ const UserManagement = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {users.length > 0 ? users.map((user) => (
-                                        <tr key={user.id}>
-                                            <td className="fw-semibold">{user.name} {user.lastname}</td>
-                                            <td>{user.email}</td>
-                                            <td>
-                                                <select
-                                                    className="form-select login-input py-1"
-                                                    value={user.rol_id || ""}
-                                                    // Deshabilitamos el select si es la cuenta maestra
-                                                    disabled={user.email === "maliliana173@gmail.com"}
-                                                    onChange={(e) => handleChangeRole(user.id, e.target.value, roles.find(r => r.id == e.target.value)?.name_rol)}
-                                                >
-                                                    {roles.map(role => (
-                                                        <option key={role.id} value={role.id}>{role.name_rol}</option>
-                                                    ))}
-                                                </select>
-                                            </td>
-                                            <td>
-                                                <span className={`status-pill ${user.is_active ? 'active' : 'pending'}`}>
-                                                    {user.is_active ? 'Activo' : 'Inactivo'}
-                                                </span>
-                                            </td>
-                                            <td className="text-center">
-                                                <button
-                                                    className={`btn-action ${user.is_active ? 'btn-deactivate' : 'btn-activate'}`}
-                                                    // Deshabilitamos el botón para la cuenta maestra
-                                                    disabled={user.email === "maliliana173@gmail.com"}
-                                                    style={user.email === "maliliana173@gmail.com" ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                                                    onClick={() => handleToggleStatus(user.id)}
-                                                >
-                                                    {user.is_active ? "Desactivar" : "Activar"}
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    )) : (
+                                    {users.length > 0 ? users.map((user) => {
+                                        // Definimos quién es el Administrador raíz para bloquearlo
+                                        // Usamos el email y opcionalmente el rol que trae el objeto user
+                                        const isRootAdmin = user.email === "sigssep@gmail.com" || user.rol?.name_rol === "Administrador";
+
+                                        return (
+                                            <tr key={user.id}>
+                                                <td className="fw-semibold">{user.name} {user.lastname}</td>
+                                                <td>{user.email}</td>
+                                                <td>
+                                                    <select
+                                                        className="form-select login-input py-1"
+                                                        value={user.rol_id || ""}
+                                                        // BLOQUEO: Si es administrador, no se puede cambiar el rol
+                                                        disabled={isRootAdmin}
+                                                        style={isRootAdmin ? { cursor: 'not-allowed', opacity: 0.7 } : {}}
+                                                        onChange={(e) => handleChangeRole(user.id, e.target.value, roles.find(r => r.id == e.target.value)?.name_rol)}
+                                                    >
+                                                        {roles.map(role => (
+                                                            <option key={role.id} value={role.id}>{role.name_rol}</option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                                <td>
+                                                    <span className={`status-pill ${user.is_active ? 'active' : 'pending'}`}>
+                                                        {user.is_active ? 'Activo' : 'Inactivo'}
+                                                    </span>
+                                                </td>
+                                                <td className="text-center">
+                                                    <button
+                                                        className={`btn-action ${user.is_active ? 'btn-deactivate' : 'btn-activate'}`}
+                                                        // BLOQUEO: Si es administrador, no se puede desactivar
+                                                        disabled={isRootAdmin}
+                                                        style={isRootAdmin ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                                                        onClick={() => handleToggleStatus(user.id)}
+                                                    >
+                                                        {user.is_active ? "Desactivar" : "Activar"}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    }) : (
                                         <tr><td colSpan="5" className="text-center p-4">No hay personal registrado en el sistema.</td></tr>
                                     )}
                                 </tbody>
