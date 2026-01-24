@@ -56,7 +56,7 @@ const RoleManagement = () => {
 
     const handleDelete = async (role) => {
         // Validación de seguridad para roles base
-        if (role.name_rol === "Gerente" || role.name_rol === "Oficial") {
+        if (role.name_rol === "Administrador" || role.name_rol === "Oficial") {
             return toast.error("Los roles base del sistema no pueden ser eliminados");
         }
 
@@ -92,8 +92,8 @@ const RoleManagement = () => {
     };
 
     const startEdit = (role) => {
-        if (role.name_rol === "Gerente") {
-            return toast.warning("El rol Gerente es vital y no debe ser modificado.");
+        if (role.name_rol === "Administrador") {
+            return toast.warning("El rol Administrador es vital y no debe ser modificado.");
         }
         setEditingId(role.id);
         setRoleName(role.name_rol);
@@ -143,7 +143,7 @@ const RoleManagement = () => {
                                             <td className="text-center">
                                                 <button 
                                                     className="btn-action btn-deactivate me-2"
-                                                    disabled={role.name_rol === "Gerente"}
+                                                    disabled={role.name_rol === "Administrador"}
                                                     data-bs-toggle="modal" 
                                                     data-bs-target="#roleModal"
                                                     onClick={() => startEdit(role)}
@@ -153,7 +153,7 @@ const RoleManagement = () => {
                                                 <button 
                                                     className="btn-action btn-role-delete"
                                                     style={{backgroundColor: '#e63946'}}
-                                                    disabled={role.name_rol === "Gerente" || role.name_rol === "Oficial"}
+                                                    disabled={role.name_rol === "Administrador" || role.name_rol === "Oficial"}
                                                     onClick={() => handleDelete(role)}
                                                 >
                                                     Eliminar

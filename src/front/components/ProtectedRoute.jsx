@@ -7,24 +7,23 @@ export const ProtectedRoute = ({ children }) => {
     const token = localStorage.getItem("access_token");
 
     if (!token) {
-        console.log("No se encontró access_token, redirigiendo...");
         return <Navigate to="/login" replace />;
     }
 
     try {
         const decoded = jwtDecode(token);
-        console.log("Token decodificado:", decoded); // Esto te ayudará a ver qué hay dentro
-
-        // 2. Verificamos el rol. 
-        // Nota: Asegúrate que en el token diga "Gerente" (puedes verlo en jwt.io)
-        if (decoded.rol === "Gerente") {
+        // 1. Definimos quiénes pueden entrar a estas vistas
+        const authorizedRoles = ["Administrador", "Gerente"];
+        
+        // 2. Verificamos si el rol incluido en el token tiene permiso
+        if (authorizedRoles.includes(decoded.rol)) {
             return children;
         } else {
-            console.log("Rol insuficiente:", decoded.rol);
+            console.log("Acceso denegado para el rol:", decoded.rol);
             return <Navigate to="/denied" replace />;
         }
     } catch (error) {
-        console.error("Error al decodificar token:", error);
+        console.error("Error en validación de ruta:", error);
         return <Navigate to="/login" replace />;
     }
 };

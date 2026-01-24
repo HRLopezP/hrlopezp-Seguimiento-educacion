@@ -13,11 +13,13 @@ def manager_required(fn):
         # 2. Obtenemos la información extra (claims) del token
         claims = get_jwt()
 
-        # 3. Verificamos el rol
-        # Usamos .get() para evitar errores si la clave "rol" no existe
-        if claims.get("rol") != "Gerente":
+        # 1. Definimos los roles con "superpoderes"
+        authorized_roles = ["Administrador", "Gerente"]
+
+        # 2. Verificamos si el rol del usuario está en la lista
+        if claims.get("rol") not in authorized_roles:
             return jsonify({
-                "message": "Acceso prohibido. Se requiere perfil de Gerencia para esta acción."
+                "message": f"Acceso prohibido. Se requiere perfil de {', '.join(authorized_roles)}."
             }), 403
 
         # 4. Continuar con la función original

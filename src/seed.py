@@ -4,7 +4,7 @@ from models import Rol
 def create_initial_roles():
     with app.app_context():
         # Definimos los roles que necesita SIGSSEP
-        roles_to_create = ["Gerente", "Oficial"]
+        roles_to_create = ["Administrador", "Oficial"]
         
         for role_name in roles_to_create:
             # Verificamos si ya existe para no duplicarlo
