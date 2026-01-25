@@ -17,6 +17,13 @@
   --accent-color: #52b788;
 }
 
+/* Evitar que el fondo de la tabla o de la página se vea blanco al cargar */
+[data-theme="dark"] body, 
+[data-theme="dark"] .management-page-container,
+[data-theme="dark"] .auth-page {
+  background-color: var(--bg-color) !important;
+}
+
 /* 2. ESTILO GLOBAL */
 body {
   background-color: var(--bg-color);
@@ -228,7 +235,6 @@ html,
   color: #ffffff;
 }
 
-
 .benefit-card {
   background-color: var(--card-bg);
   border: 1px solid rgba(65, 90, 119, 0.1);
@@ -313,26 +319,24 @@ html,
 
 /* Tarjetas oscuras del Home (como tu imagen 2) */
 
-
-
 .main-footer {
-    background-color: var(--card-bg);
-    color: var(--text-primary);
-    border-top: 1px solid rgba(0, 0, 0, 0.05);
-    /* Aseguramos que el texto no se rompa en pantallas medianas */
-    white-space: nowrap; 
+  background-color: var(--card-bg);
+  color: var(--text-primary);
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  /* Aseguramos que el texto no se rompa en pantallas medianas */
+  white-space: nowrap;
 }
 
 /* En modo oscuro, le damos un borde superior sutil para separarlo del fondo */
 [data-theme="dark"] .main-footer {
-    background-color: #0d1b2a;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background-color: #0d1b2a;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .footer-brand {
-    font-size: 0.9rem;
-    color: var(--accent-color);
-    letter-spacing: 0.5px;
+  font-size: 0.9rem;
+  color: var(--accent-color);
+  letter-spacing: 0.5px;
 }
 
 .footer-links a {
@@ -344,4 +348,101 @@ html,
 .footer-links a:hover {
   opacity: 1;
   color: var(--accent-color);
+}
+
+/* Color para la etiqueta 'Rol:' en el dropdown */
+.dropdown-label {
+  color: var(--text-primary);
+  opacity: 0.6; /* Le damos ese toque sutil pero visible */
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Aseguramos que los items del dropdown usen el color correcto en modo oscuro */
+[data-theme="dark"] .dropdown-item {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .dropdown-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--accent-color);
+}
+
+/* Estilo para el badge suave (Soft Badge) */
+.bg-success-soft {
+  background-color: rgba(45, 106, 79, 0.15);
+  border: 1px solid rgba(45, 106, 79, 0.2);
+}
+
+[data-theme="dark"] .bg-success-soft {
+  background-color: rgba(82, 183, 136, 0.1);
+  color: #52b788 !important;
+}
+
+
+/* index.css - SECCIÓN DE TABLAS GLOBALES */
+
+.sigssep-table-container {
+    background-color: var(--card-bg);
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(128, 128, 128, 0.1);
+    transition: all 0.3s ease;
+}
+
+.table-sigssep {
+    width: 100%;
+    margin-bottom: 0;
+    background-color: transparent !important; /* Forzamos transparencia para ver el fondo de la card */
+    color: var(--text-primary) !important;
+    vertical-align: middle;
+    border-collapse: collapse;
+}
+
+/* Encabezados */
+.table-sigssep thead th {
+    background-color: rgba(27, 38, 59, 0.05);
+    color: var(--text-primary);
+    padding: 1.2rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 2px solid var(--accent-color);
+}
+
+/* Celdas de datos */
+.table-sigssep tbody td {
+    padding: 1rem 1.2rem;
+    color: var(--text-primary) !important;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+    background-color: transparent !important; /* Crucial: evita el blanco por defecto */
+}
+
+/* Hover en las filas */
+.table-sigssep tbody tr:hover {
+    background-color: rgba(16, 185, 129, 0.05) !important;
+}
+
+/* REFUERZO MODO OSCURO GLOBAL */
+[data-theme="dark"] .table-sigssep thead th {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: #ffffff;
+}
+
+[data-theme="dark"] .table-sigssep tbody td {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Selects dentro de tablas (como el de roles) */
+.table-sigssep .form-select {
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    border: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+[data-theme="dark"] .table-sigssep .form-select {
+    border-color: rgba(255, 255, 255, 0.1);
 }

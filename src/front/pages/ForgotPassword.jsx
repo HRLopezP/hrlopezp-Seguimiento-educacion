@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast, Toaster } from "sonner"; // Importamos Toaster para asegurar que se vea
+import "../styles/auth.css";
 import "../styles/forgotPassword.css";
 
 const urlBase = import.meta.env.VITE_BACKEND_URL;
@@ -37,64 +38,67 @@ const ForgotPassword = () => {
     };
 
     return (
-        <div className="auth-page-container">
+        <div className="auth-page"> {/* Cambiado a auth-page para consistencia de fondo */}
             <Toaster position="top-center" richColors />
-            <div className="auth-card-unified">
-                <div className="auth-card-header">
-                    <h2>SIGSSEP</h2>
-                    <p>Recuperar Acceso</p>
-                </div>
-                <div className="auth-card-body">
-                    {!isSent ? (
-                        // VISTA 1: FORMULARIO ORIGINAL
-                        <form onSubmit={handleSubmit} className="forgot-form">
-                            <p className="instruction-text">
-                                Ingresa tu correo institucional y te enviaremos un enlace seguro para restablecer tu contraseña.
-                            </p>
-
-                            <div className="input-group-sigssep">
-                                <label htmlFor="email">Correo Institucional</label>
-                                <input
-                                    type="email"
-                                    id="email"
-                                    placeholder="ejemplo@sigssep.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                />
+            <div className="container"> {/* Agregamos container de Bootstrap */}
+                <div className="row justify-content-center w-100">
+                    <div className="col-12 col-md-6 col-lg-5">
+                        <div className="auth-card"> {/* Usamos auth-card global */}
+                            <div className="auth-header">
+                                <h2 className="mb-0">SIGSSEP</h2>
+                                <small className="opacity-75">Recuperar Acceso</small>
                             </div>
+                            
+                            <div className="auth-body">
+                                {!isSent ? (
+                                    <form onSubmit={handleSubmit}>
+                                        <p className="instruction-text text-center mb-4">
+                                            Ingresa tu correo institucional y te enviaremos un enlace seguro para restablecer tu contraseña.
+                                        </p>
 
-                            <button type="submit" className="btn-primary-sigssep" disabled={loading}>
-                                {loading ? (
-                                    <span><i className="fas fa-spinner fa-spin me-2"></i> Enviando...</span>
+                                        <div className="mb-3">
+                                            <label className="auth-label">Correo Institucional</label>
+                                            <input
+                                                type="email"
+                                                className="form-control auth-input" // Usamos la clase global
+                                                placeholder="ejemplo@sigssep.com"
+                                                value={email}
+                                                onChange={(e) => setEmail(e.target.value)}
+                                                required
+                                            />
+                                        </div>
+
+                                        <button type="submit" className="auth-btn-submit w-100" disabled={loading}>
+                                            {loading ? (
+                                                <span><i className="fas fa-spinner fa-spin me-2"></i> Enviando...</span>
+                                            ) : (
+                                                "Enviar Enlace de Recuperación"
+                                            )}
+                                        </button>
+                                    </form>
                                 ) : (
-                                    "Enviar Enlace de Recuperación"
+                                    <div className="text-center py-4">
+                                        <div className="success-icon mb-3">
+                                            <i className="fas fa-paper-plane fa-3x" style={{color: 'var(--accent-color)'}}></i>
+                                        </div>
+                                        <h4 style={{color: 'var(--text-primary)'}}>¡Correo Enviado!</h4>
+                                        <p className="instruction-text mb-4">
+                                            Hemos enviado un enlace a <strong>{email}</strong>. <br />
+                                            Revisa tu bandeja de entrada.
+                                        </p>
+                                        <button className="retry-btn" onClick={() => setIsSent(false)}>
+                                            <i className="fas fa-redo me-2"></i>¿No recibiste nada? Reintentar
+                                        </button>
+                                    </div>
                                 )}
-                            </button>
-                        </form>
-                    ) : (
-                        // VISTA 2: MENSAJE DE ÉXITO (EMERALD GREEN)
-                        <div className="success-message-container text-center py-4">
-                            <div className="success-icon">
-                                <i className="fas fa-paper-plane fa-3x"></i>
+                                
+                                <div className="mt-4 text-center border-top pt-3">
+                                    <Link to="/login" className="back-link small">
+                                        <i className="fas fa-arrow-left me-2"></i>Volver al inicio de sesión
+                                    </Link>
+                                </div>
                             </div>
-                            <h4>¡Correo Enviado!</h4>
-                            <p className="instruction-text">
-                                Hemos enviado un enlace a <strong>{email}</strong>. <br />
-                                Por favor, revisa tu bandeja de entrada para continuar.
-                            </p>
-                            <button
-                                className="retry-btn"
-                                onClick={() => setIsSent(false)}
-                            >
-                                <i className="fas fa-redo me-2"></i>¿No recibiste nada? Reintentar
-                            </button>
                         </div>
-                    )}
-                    <div className="text-center mt-3 border-top pt-3">
-                        <Link to="/login" className="back-link">
-                            <i className="fas fa-arrow-left me-2"></i>Volver al inicio de sesión
-                        </Link>
                     </div>
                 </div>
             </div>

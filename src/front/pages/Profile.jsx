@@ -20,13 +20,11 @@ const Profile = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState({ name: "", lastname: "" });
 
-    // Estados para visibilidad de contraseña (los "ojitos")
-    const [showCurrent, setShowCurrent] = useState(false);
-    const [showNew, setShowNew] = useState(false);
-    const [showConfirm, setShowConfirm] = useState(false);
+    // Visibilidad de contraseñas
+    const [showPass, setShowPass] = useState({ current: false, new: false, confirm: false });
     const [passMatch, setPassMatch] = useState(true);
 
-    // Estados para el Modal de Contraseña
+    // Modal de Contraseña
     const [showPassModal, setShowPassModal] = useState(false);
     const [passData, setPassData] = useState({ current: "", new: "", confirm: "" });
     const [passwordValidity, setPasswordValidity] = useState({});
@@ -57,8 +55,6 @@ const Profile = () => {
         setPassData(updatedData);
 
         if (name === "new") validatePassword(value);
-
-        // Validación de coincidencia en tiempo real
         if (name === "new" || name === "confirm") {
             setPassMatch(updatedData.new === updatedData.confirm || updatedData.confirm === "");
         }
@@ -66,21 +62,17 @@ const Profile = () => {
 
     const updatePassword = async () => {
         if (passData.new !== passData.confirm) return toast.error("Las contraseñas no coinciden");
-
         const res = await apiFetch("/user/change-password", {
             method: "PATCH",
-            body: JSON.stringify({
-                current_password: passData.current,
-                new_password: passData.new
-            })
+            body: JSON.stringify({ current_password: passData.current, new_password: passData.new })
         });
 
         if (res.ok) {
-            toast.success("Contraseña actualizada correctamente");
+            toast.success("Contraseña actualizada");
             setShowPassModal(false);
             setPassData({ current: "", new: "", confirm: "" });
         } else {
-            toast.error("Error: La contraseña actual es incorrecta");
+            toast.error("Contraseña actual incorrecta");
         }
     };
 
@@ -101,21 +93,16 @@ const Profile = () => {
     const handleFileChange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-
         setUploading(true);
         try {
             const imageUrl = await uploadImage(file);
-
             const res = await apiFetch("/user/update-avatar", {
                 method: "PATCH",
                 body: JSON.stringify({ image_url: imageUrl }),
             });
-
             if (res.ok) {
                 const data = await res.json();
-                // Actualizamos el estado local
                 setUser(data.user);
-                // ¡Actualizamos el store global para que se vea en el Navbar!
                 dispatch({ type: "SET_USER", payload: data.user });
                 toast.success("¡Imagen de perfil actualizada!");
             }
@@ -126,91 +113,64 @@ const Profile = () => {
         }
     };
 
-    if (!user) return <div className="spinner-border text-info m-5"></div>;
+    if (!user) return <div className="d-flex justify-content-center p-5"><div className="spinner-border text-success"></div></div>;
 
     return (
         <div className="profile-wrapper">
             <Toaster richColors position="top-right" />
 
-            <div className="profile-card card shadow">
-                <div className="profile-header-accent-dark d-flex px-4">
-                    {/* Quitamos mt-1 y dejamos que el padding del padre haga el trabajo */}
-                    <h5 className="mb-0 fs-6 text-white">
+            <div className="profile-card shadow">
+                <div className="profile-header-accent-dark">
+                    <h5 className="profile-header-title">
                         <i className="fas fa-user-circle me-2"></i> Perfil de Usuario
                     </h5>
                 </div>
-                <div className="profile-content card-body">
+                
+                <div className="profile-content">
                     {/* Sección Avatar */}
-                    <div className="avatar-section text-center">
-                        <div className="avatar-container"> {/* Quitamos las clases de Bootstrap aquí para usar nuestro CSS personalizado */}
+                    <div className="avatar-section">
+                        <div className="avatar-container">
                             <img
                                 src={user.image || "https://via.placeholder.com/150"}
                                 className="profile-avatar"
                                 alt="Profile"
                             />
-
+                            {uploading && <div className="uploading-overlay"><span className="spinner-border spinner-border-sm"></span></div>}
                             <label htmlFor="file-upload" className="edit-badge">
-                                {uploading ? (
-                                    <span className="spinner-border spinner-border-sm"></span>
-                                ) : (
-                                    <i className="fa-solid fa-camera"></i>
-                                )}
+                                <i className="fa-solid fa-camera"></i>
                             </label>
-
-                            <input
-                                id="file-upload"
-                                type="file"
-                                accept="image/*"
-                                hidden
-                                disabled={uploading}
-                                onChange={handleFileChange}
-                            />
+                            <input id="file-upload" type="file" accept="image/*" hidden disabled={uploading} onChange={handleFileChange} />
                         </div>
                     </div>
 
                     {/* Info de Usuario */}
                     <div className="user-info text-center mt-3">
                         {isEditing ? (
-                            <div className="px-4">
-                                <input
-                                    className="form-control mb-2 text-center input-edit-profile"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    placeholder="Nombre"
-                                />
-                                <input
-                                    className="form-control mb-2 text-center input-edit-profile"
-                                    value={formData.lastname}
-                                    onChange={(e) => setFormData({ ...formData, lastname: e.target.value })}
-                                    placeholder="Apellido"
-                                />
+                            <div className="edit-form-container px-3">
+                                <input className="form-control auth-input mb-2 text-center" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Nombre" />
+                                <input className="form-control auth-input mb-3 text-center" value={formData.lastname} onChange={(e) => setFormData({ ...formData, lastname: e.target.value })} placeholder="Apellido" />
                                 <div className="d-flex gap-2 justify-content-center">
-                                    {/* Botón Esmeralda para completar */}
-                                    <button className="btn btn-sm text-white" onClick={handleUpdateProfile} style={{ backgroundColor: '#10b981' }}>Guardar</button>
-                                    <button className="btn btn-secondary btn-sm" onClick={() => setIsEditing(false)}>Cancelar</button>
+                                    <button className="btn btn-emerald btn-sm px-4" onClick={handleUpdateProfile}>Guardar</button>
+                                    <button className="btn btn-outline-secondary btn-sm px-4" onClick={() => setIsEditing(false)}>Cancelar</button>
                                 </div>
                             </div>
                         ) : (
                             <>
-                                <h2 className="user-name fw-bold d-flex align-items-center justify-content-center gap-2">
+                                <h2 className="user-name">
                                     {user.name} {user.lastname}
-                                    <i
-                                        className="fa-solid fa-pen-to-square edit-icon-pencil fs-5"
-                                        onClick={() => setIsEditing(true)}
-                                    ></i>
+                                    <i className="fa-solid fa-pen-to-square edit-icon-pencil ms-2" onClick={() => setIsEditing(true)}></i>
                                 </h2>
-                                <span className="badge rounded-pill mb-2 role-badge-custom">{user.rol_name || "Oficial"}</span>
-                                <p className="text-muted">{user.email}</p>
+                                <span className="badge role-badge-custom mb-2">{user.rol_name || "Oficial"}</span>
+                                <p className="user-email">{user.email}</p>
                             </>
                         )}
                     </div>
 
-                    <hr />
+                    <hr className="my-4 opacity-10" />
 
-                    {/* Acciones de Seguridad */}
-                    <div className="profile-actions d-grid">
-                        <button className="btn btn-change-pass d-flex align-items-center justify-content-center gap-2" onClick={() => setShowPassModal(true)}>
-                            <i className="fas fa-shield-alt"></i> Cambiar Contraseña
+                    <div className="profile-actions">
+                        <button className="btn btn-change-pass w-100" onClick={() => setShowPassModal(true)}>
+                            <i className="fas fa-shield-alt me-2"></i> Cambiar contraseña
                         </button>
                     </div>
                 </div>
@@ -218,42 +178,38 @@ const Profile = () => {
 
             {/* MODAL DE CONTRASEÑA */}
             {showPassModal && (
-                <div className="custom-modal-overlay d-flex align-items-center justify-content-center">
-                    <div className="custom-modal-content card shadow-lg p-0 border-0" style={{ width: '400px' }}>
+                <div className="custom-modal-overlay">
+                    <div className="custom-modal-content card shadow-lg border-0">
                         <div className="custom-modal-header">
-                            <h5 className="mb-0 fs-6">
-                                <i className="fas fa-key me-2"></i>Seguridad de la Cuenta
-                            </h5>
+                            <h5 className="mb-0 fs-6"><i className="fas fa-key me-2"></i>Cambiar Contraseña</h5>
+                            <button className="btn-close btn-close-white ms-auto" onClick={() => setShowPassModal(false)}></button>
                         </div>
 
                         <div className="card-body p-4">
-                            {/* Inputs con visibilidad toggle */}
                             {['current', 'new', 'confirm'].map((field) => (
                                 <div className="mb-3" key={field}>
-                                    <label className="small fw-bold mb-1">
+                                    <label className="auth-label mb-1">
                                         {field === 'current' ? 'Contraseña Actual' : field === 'new' ? 'Nueva Contraseña' : 'Confirmar Nueva'}
                                     </label>
-
                                     <div className="input-group">
                                         <input
-                                            type={field === 'current' ? (showCurrent ? "text" : "password") : field === 'new' ? (showNew ? "text" : "password") : (showConfirm ? "text" : "password")}
+                                            type={showPass[field] ? "text" : "password"}
                                             name={field}
-                                            className={`form-control ${field === 'confirm' && !passMatch ? 'is-invalid' : ''}`}
+                                            className={`form-control auth-input ${field === 'confirm' && !passMatch ? 'is-invalid' : ''}`}
                                             onChange={handlePassChange}
                                             value={passData[field]}
                                         />
-                                        <button className="btn btn-outline-secondary" type="button" onClick={() => field === 'current' ? setShowCurrent(!showCurrent) : field === 'new' ? setShowNew(!showNew) : setShowConfirm(!showConfirm)}>
-                                            <i className={`fa-solid ${eval(`show${field.charAt(0).toUpperCase() + field.slice(1)}`) ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                        <button className="btn auth-input border-start-0" type="button" onClick={() => setShowPass({...showPass, [field]: !showPass[field]})}>
+                                            <i className={`fa-solid ${showPass[field] ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                                         </button>
                                     </div>
-                                    {field === 'confirm' && !passMatch && <div className="invalid-feedback d-block small">Las contraseñas no coinciden</div>}
+                                    {field === 'confirm' && !passMatch && <small className="text-danger">Las contraseñas no coinciden</small>}
                                 </div>
                             ))}
 
-                            {/* Checklist Visual */}
-                            <div className="p-2 rounded mb-3" style={{ backgroundColor: 'rgba(0,0,0,0.05)' }}>
+                            <div className="password-requirements-box mb-4">
                                 {passwordRequirements.map(req => (
-                                    <div key={req.key} className="small d-flex align-items-center mb-1">
+                                    <div key={req.key} className="requirement-item">
                                         <i className={`fa-solid ${passwordValidity[req.key] ? 'fa-check-circle text-success' : 'fa-circle-xmark text-danger'} me-2`}></i>
                                         {req.label}
                                     </div>
@@ -261,14 +217,7 @@ const Profile = () => {
                             </div>
 
                             <div className="d-flex gap-2">
-                                <button
-                                    className="btn text-white w-100"
-                                    style={{ backgroundColor: '#10b981', border: 'none' }}
-                                    onClick={updatePassword}
-                                    disabled={!passMatch}
-                                >
-                                    Actualizar
-                                </button>
+                                <button className="btn btn-emerald w-100" onClick={updatePassword} disabled={!passMatch || !passwordValidity.minLength}>Actualizar</button>
                                 <button className="btn btn-light border w-100" onClick={() => setShowPassModal(false)}>Cerrar</button>
                             </div>
                         </div>

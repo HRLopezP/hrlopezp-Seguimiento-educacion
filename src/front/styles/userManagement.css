@@ -1,150 +1,129 @@
-/* --- 1. CONTENEDORES Y ESTRUCTURA --- */
+/* userManagement.css - Solo estilos específicos */
+
 .management-page-container {
+    background-color: var(--bg-color);
     min-height: 90vh;
     padding: 2rem 0;
-    background-color: var(--bg-color);
 }
 
+/* La card de gestión hereda el estilo global */
 .management-card-unified {
-    background-color: var(--card-bg);
+    border: none;
     border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    background-color: var(--card-bg) !important;
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), 
-                box-shadow 0.5s ease, 
-                border 0.5s ease;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
 }
 
 .management-card-header {
-    background-color: #1B263B; /* Azul Oxford Fijo */
-    padding: 2.5rem 2rem;
-    text-align: center;
+    background-color: #1b263b;
+    padding: 2rem;
     color: #ffffff;
+    text-align: left;
+    border-bottom: 2px solid var(--accent-color);
 }
 
-.management-title {
-    font-size: 1.8rem;
-    font-weight: 700;
-    margin: 0;
-    letter-spacing: -0.5px;
-}
-
-.management-subtitle {
-    opacity: 0.8;
-    margin-top: 0.5rem;
-    font-weight: 300;
-}
-
-/* --- 2. TABLA REFINADA (Reset Global) --- */
-.custom-table, 
-.custom-table tr, 
-.custom-table th, 
-.custom-table td {
-    background-color: transparent !important; /* Una sola regla para todo */
-    color: var(--text-primary) !important;
-    transition: background-color 0.4s ease, 
-                color 0.4s ease, 
-                border-color 0.4s ease !important;
-}
-
-.custom-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.custom-table thead th {
-    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
-    text-transform: uppercase;
-    font-size: 0.85rem;
-    letter-spacing: 0.5px;
-    padding: 1.5rem 1rem;
-}
-
-.custom-table tbody td {
-    padding: 1.2rem 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    vertical-align: middle;
-}
-
-.custom-table tbody tr {
-    transition: background-color 0.3s ease;
-}
-
-/* --- 3. COMPONENTES (Badges, Pills, Buttons) --- */
-.role-badge {
-    background-color: #415A77; 
+/* Avatar del usuario */
+.user-avatar-mini {
+    width: 38px;
+    height: 38px;
+    background-color: var(--accent-color);
     color: white;
-    padding: 0.4em 0.8em;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+/* Botones de acción */
+.btn-toggle-status {
+    border: none;
+    padding: 0.5rem 1.2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-toggle-status.activate { background-color: #10b981; color: white; }
+.btn-toggle-status.deactivate { background-color: #ef4444; color: white; }
+
+.badge-status {
+    padding: 0.4rem 1rem;
+    border-radius: 50px; /* Forma de píldora completa */
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Modo Claro: Verdes y Rojos suaves con texto fuerte */
+.status-active {
+    background-color: rgba(16, 185, 129, 0.15);
+    color: #065f46;
+}
+
+.status-inactive {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: #991b1b;
+}
+
+/* Refuerzo para Modo Oscuro: Colores más brillantes para que resalten */
+[data-theme="dark"] .status-active {
+    background-color: rgba(82, 183, 136, 0.2);
+    color: #52b788;
+}
+
+[data-theme="dark"] .status-inactive {
+    background-color: rgba(255, 107, 107, 0.2);
+    color: #ff6b6b;
+}
+
+.btn-toggle-status {
+    border: none;
+    padding: 0.35rem 0.8rem; /* Reducido de 0.5rem 1.2rem */
+    border-radius: 6px;      /* Bordes un poco más finos */
+    font-size: 0.75rem;      /* Letra más pequeña y elegante */
+    font-weight: 600;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;                /* Espacio entre el icono y el texto */
+}
+
+.btn-toggle-status i {
+    font-size: 0.85rem;      /* El icono un pelín más grande que el texto */
+}
+
+/* Efecto Hover sutil */
+.btn-toggle-status:hover:not(:disabled) {
+    transform: translateY(-1px);
+    filter: brightness(1.1);
+}
+
+
+.btn-delete-user {
+    background-color: transparent;
+    color: #ef4444; /* Rojo */
+    border: 1.5px solid #ef4444;
+    padding: 0.35rem 0.7rem;
     border-radius: 6px;
     font-size: 0.85rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
 }
 
-.status-pill {
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    display: inline-block;
-    transition: all 0.4s ease-in-out;
+.btn-delete-user:hover:not(:disabled) {
+    background-color: #ef4444;
+    color: white;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
 }
 
-/* Colores de Estado (Modo Claro por defecto) */
-.status-pill.active { background-color: rgba(45, 106, 79, 0.15); color: #2D6A4F; }
-.status-pill.pending { background-color: rgba(220, 53, 69, 0.15); color: #DC3545; }
-
-.btn-action {
-    border-radius: 8px;
-    padding: 8px 18px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    border: none;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    color: white !important;
-}
-
-.btn-activate { background-color: #2D6A4F !important; }   /* Emerald Green */
-.btn-deactivate { background-color: #415A77 !important; } /* Azul Marino */
-
-.btn-action:hover {
-    filter: brightness(1.2);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-/* --- 4. OPTIMIZACIONES MODO OSCURO --- */
-[data-theme="dark"] .management-card-unified {
-    background-color: #1B263B !important; 
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-[data-theme="dark"] .custom-table tbody tr:hover {
-    background-color: rgba(255, 255, 255, 0.03) !important;
-}
-
-[data-theme="dark"] .management-subtitle {
-    color: #E0E1DD !important;
-    opacity: 0.7;
-}
-
-/* Ajuste de contraste para Pills en modo oscuro */
-[data-theme="dark"] .status-pill.active { background-color: rgba(82, 183, 136, 0.1); color: #52B788 !important; }
-[data-theme="dark"] .status-pill.pending { background-color: rgba(255, 107, 107, 0.1); color: #FF6B6B !important; }
-
-
-/* Forzamos visibilidad en modo claro */
-.form-select:disabled {
-    background-color: #f8f9fa !important; /* Un gris muy suave */
-    color: #1B263B !important;           /* Tu Azul Oxford para el texto */
-    opacity: 0.8;
+.btn-delete-user:disabled {
+    opacity: 0.5;
     cursor: not-allowed;
-}
-
-/* Forzamos visibilidad en MODO OSCURO */
-[data-theme="dark"] .form-select:disabled {
-    background-color: rgba(255, 255, 255, 0.05) !important; /* Fondo casi invisible */
-    color: #E0E1DD !important;           /* Un blanco hueso elegante para que se lea claro */
-    border-color: rgba(255, 255, 255, 0.1) !important;
-    opacity: 1;                          /* Quitamos la opacidad que le pone el navegador */
-    -webkit-text-fill-color: #E0E1DD !important; /* Necesario para algunos navegadores (Safari/Chrome) */
+    filter: grayscale(1);
 }

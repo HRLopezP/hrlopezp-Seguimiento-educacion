@@ -41,12 +41,21 @@ export const Navbar = () => {
                             </button>
                             <ul className="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
                                 <li className="px-3 py-2">
-                                    <small className="text-muted d-block">Rol:</small>
+                                    {/* Cambié text-muted por una clase personalizada 'dropdown-label' */}
+                                    <small className="dropdown-label d-block">Rol:</small>
                                     <span className="badge bg-success-soft text-success">
                                         {store.user?.rol_name || "Oficial"}
                                     </span>
                                 </li>
                                 <li><hr className="dropdown-divider" /></li>
+
+                                {/* NUEVA OPCIÓN: Editar Perfil */}
+                                <li>
+                                    <Link className="dropdown-item" to="/profile">
+                                        <i className="fa-solid fa-user-pen me-2"></i>Mi Perfil
+                                    </Link>
+                                </li>
+
                                 <li>
                                     <button className="dropdown-item text-danger" onClick={handleLogout}>
                                         <i className="fa-solid fa-right-from-bracket me-2"></i>Cerrar Sesión

@@ -1,0 +1,102 @@
+/* auth.css - Estilos compartidos para Login y Register */
+
+.auth-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-color);
+    transition: background-color 0.3s ease;
+    padding: 2rem 0;
+}
+
+.auth-card {
+    background-color: var(--card-bg);
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    width: 100%;
+}
+
+.auth-header {
+    background-color: #1B263B; /* Azul Oxford fijo */
+    padding: 2.5rem;
+    text-align: center;
+    color: #ffffff;
+}
+
+.auth-body {
+    padding: 2.5rem;
+}
+
+.auth-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    display: block;
+}
+
+.auth-input {
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background-color: var(--bg-color);
+    color: var(--text-primary) !important;
+    transition: all 0.3s ease;
+}
+
+.auth-input:focus {
+    border-color: #415A77;
+    box-shadow: 0 0 0 3px rgba(65, 90, 119, 0.2);
+    outline: none;
+    background-color: var(--bg-color);
+}
+
+.auth-btn-submit {
+    background-color: #2D6A4F; /* Verde Esmeralda */
+    color: white;
+    border-radius: 10px;
+    padding: 0.8rem;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.auth-btn-submit:hover:not(:disabled) {
+    background-color: #1b4332;
+    transform: translateY(-2px);
+}
+
+.auth-btn-submit:disabled {
+    background-color: #a7c4b5;
+    cursor: not-allowed;
+}
+
+/* Manejo de Autofill del navegador */
+input:-webkit-autofill {
+    -webkit-text-fill-color: var(--text-primary) !important;
+    -webkit-box-shadow: 0 0 0px 1000px var(--bg-color) inset !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Color del placeholder de forma global para los inputs de autenticación */
+.auth-input::placeholder {
+    color: var(--text-primary);
+    opacity: 0.5; /* Lo hacemos sutil para que se entienda que es una sugerencia */
+}
+
+/* Refuerzo específico para el Modo Oscuro */
+[data-theme="dark"] .auth-input::placeholder {
+    color: #e0e1dd; /* Blanco hueso para que resalte en el fondo azul */
+    opacity: 0.4;   /* Un poco menos de opacidad para que no compita con el texto real */
+}
+
+/* Estilo para navegadores específicos (algunos lo necesitan por separado) */
+[data-theme="dark"] .auth-input::-webkit-input-placeholder { color: #e0e1dd; }
+[data-theme="dark"] .auth-input::-moz-placeholder { color: #e0e1dd; }
+[data-theme="dark"] .auth-input:-ms-input-placeholder { color: #e0e1dd; }
+
+

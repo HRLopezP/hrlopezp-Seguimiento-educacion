@@ -1,59 +1,70 @@
-/* Heredamos estilos de management-page-container y management-card */
+/* Heredamos la estructura de userManagement.css */
 
-.role-input-group {
-    background-color: var(--bg-color);
-    border: 1px solid rgba(0,0,0,0.1);
-    border-radius: 10px;
-    padding: 1.5rem;
-    margin-bottom: 2rem;
-}
-
-/* Estilo para los botones de acción pequeños */
-.btn-role-edit {
-    background-color: #415A77 !important; /* Azul Marino */
-    color: white !important;
-    margin-right: 5px;
-}
-
-.btn-role-delete {
-    background-color: #DC3545 !important; /* Rojo sutil para peligro */
-    color: white !important;
-}
-
-/* Modales elegantes */
-.modal-content-custom {
-    background-color: var(--card-bg) !important;
-    color: var(--text-primary) !important;
-    border-radius: 15px;
-    border: none;
-}
-
-.modal-header-custom {
-    background-color: #1B263B;
+/* Botón de "Nuevo Rol" en el header */
+.btn-action.btn-activate {
+    background-color: #10b981;
     color: white;
-    border-top-left-radius: 15px;
-    border-top-right-radius: 15px;
-}
-
-/* Estilo específico para el input dentro del modal de roles */
-.modal-content .login-input {
-    background-color: rgba(255, 255, 255, 0.05) !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    color: #ffffff !important; /* Forzamos texto blanco siempre, ya que el fondo del modal es Oxford Grey */
+    border: none;
+    padding: 0.5rem 1rem;
     border-radius: 8px;
-    padding: 10px 15px;
+    font-weight: 600;
+    font-size: 0.9rem;
     transition: all 0.3s ease;
 }
 
-/* Estilo para el placeholder (el texto guía que sale al fondo) */
-.modal-content .login-input::placeholder {
-    color: rgba(255, 255, 255, 0.5) !important;
+.btn-action.btn-activate:hover {
+    background-color: #059669;
+    transform: translateY(-2px);
 }
 
-/* Efecto al hacer clic (Focus) */
-.modal-content .login-input:focus {
-    background-color: rgba(255, 255, 255, 0.1) !important;
-    border-color: #2D6A4F !important; /* Brillo en Emerald Green */
-    box-shadow: 0 0 8px rgba(45, 106, 79, 0.3);
-    outline: none;
+/* Ajustes para el Modal */
+.modal-content {
+    border: none;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* Estilo del label en el modal */
+.form-label.opacity-75 {
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    display: block;
+}
+
+/* Estilos para el Modal de Roles con Icono */
+.role-modal-custom {
+    background-color: #1B263B !important;
+    color: white !important;
+    border-radius: 20px !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.role-icon-container {
+    width: 80px;
+    height: 80px;
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    border: 2px solid rgba(16, 185, 129, 0.2);
+}
+
+/* Si es edición, cambiamos el color a azul para diferenciar */
+.fa-key {
+    color: #3a86ff;
+}
+
+.role-modal-custom .login-input {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: white !important;
+    padding: 12px;
+}
+
+.role-modal-custom .login-input:focus {
+    border-color: #10b981 !important;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
 }

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { toast, Toaster } from "sonner";
 import Swal from 'sweetalert2';
-import { apiFetch } from "../../utils/api"; 
-import "../styles/userManagement.css"; 
+import { apiFetch } from "../../utils/api";
+import "../styles/auth.css"; 
 import "../styles/roleManagement.css";
 
 const RoleManagement = () => {
@@ -55,7 +55,6 @@ const RoleManagement = () => {
     };
 
     const handleDelete = async (role) => {
-        // Validación de seguridad para roles base
         if (role.name_rol === "Administrador" || role.name_rol === "Oficial") {
             return toast.error("Los roles base del sistema no pueden ser eliminados");
         }
@@ -65,12 +64,12 @@ const RoleManagement = () => {
             text: `Esta acción no se puede deshacer y podría afectar a los usuarios asignados a "${role.name_rol}".`,
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#d33',    // Rojo para peligro
-            cancelButtonColor: '#1B263B',  // Tu Azul Oxford
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#1B263B',
             confirmButtonText: 'Sí, eliminar',
             cancelButtonText: 'Cancelar',
-            background: '#1B263B',
-            color: '#ffffff'
+            background: 'var(--card-bg)',
+            color: 'var(--text-primary)'
         });
 
         if (result.isConfirmed) {
@@ -100,7 +99,7 @@ const RoleManagement = () => {
     };
 
     if (loading) return (
-        <div className="d-flex justify-content-center align-items-center" style={{height: '80vh'}}>
+        <div className="d-flex justify-content-center align-items-center" style={{ height: '80vh' }}>
             <div className="spinner-border text-info" role="status"></div>
         </div>
     );
@@ -115,48 +114,30 @@ const RoleManagement = () => {
                             <h2 className="management-title">Gestión de Roles</h2>
                             <p className="management-subtitle">Define los niveles de acceso al sistema</p>
                         </div>
-                        <button 
-                            className="btn-action btn-activate" 
-                            data-bs-toggle="modal" 
+                        <button
+                            className="btn-action btn-activate"
+                            data-bs-toggle="modal"
                             data-bs-target="#roleModal"
                             onClick={() => { setEditingId(null); setRoleName(""); }}
                         >
-                            + Nuevo Rol
+                            <i className="fas fa-plus-circle me-2"></i>Nuevo Rol
                         </button>
                     </div>
-
                     <div className="card-body p-0">
                         <div className="table-responsive">
-                            <table className="table align-middle custom-table mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Nombre del Rol</th>
-                                        <th className="text-center">Acciones</th>
-                                    </tr>
-                                </thead>
+                            <table className="table align-middle table-sigssep mb-0">
+                                <thead><tr><th style={{ width: '80px' }}>ID</th><th>Nombre del Rol</th><th className="text-center">Acciones</th></tr></thead>
                                 <tbody>
                                     {roles.map((role) => (
                                         <tr key={role.id}>
                                             <td className="text-muted small">#{role.id}</td>
-                                            <td className="fw-semibold">{role.name_rol}</td>
+                                            <td><span className="fw-semibold user-name-text">{role.name_rol}</span></td>
                                             <td className="text-center">
-                                                <button 
-                                                    className="btn-action btn-deactivate me-2"
-                                                    disabled={role.name_rol === "Administrador"}
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#roleModal"
-                                                    onClick={() => startEdit(role)}
-                                                >
-                                                    Editar
+                                                <button className="btn-toggle-status activate me-2" disabled={role.name_rol === "Administrador"} data-bs-toggle="modal" data-bs-target="#roleModal" onClick={() => startEdit(role)}>
+                                                    <i className="fas fa-edit me-1"></i> Editar
                                                 </button>
-                                                <button 
-                                                    className="btn-action btn-role-delete"
-                                                    style={{backgroundColor: '#e63946'}}
-                                                    disabled={role.name_rol === "Administrador" || role.name_rol === "Oficial"}
-                                                    onClick={() => handleDelete(role)}
-                                                >
-                                                    Eliminar
+                                                <button className="btn-toggle-status deactivate" disabled={role.name_rol === "Administrador" || role.name_rol === "Oficial"} onClick={() => handleDelete(role)}>
+                                                    <i className="fas fa-trash-alt me-1"></i> Eliminar
                                                 </button>
                                             </td>
                                         </tr>
@@ -168,30 +149,34 @@ const RoleManagement = () => {
                 </div>
             </div>
 
-            {/* MODAL PARA CREAR/EDITAR */}
-            <div className="modal fade" id="roleModal" tabIndex="-1" aria-labelledby="roleModalLabel">
+            {/* MODAL PARA CREAR/EDITAR CON ICONOS */}
+            <div className="modal fade" id="roleModal" tabIndex="-1" aria-hidden="true">
                 <div className="modal-dialog modal-dialog-centered">
-                    <div className="modal-content" style={{backgroundColor: '#1B263B', color: 'white', borderRadius: '15px'}}>
+                    <div className="modal-content role-modal-custom">
                         <div className="modal-header border-0">
-                            <h5 className="modal-title">{editingId ? "Actualizar Rol" : "Crear Nuevo Rol"}</h5>
                             <button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
                         <form onSubmit={handleSubmit}>
-                            <div className="modal-body p-4">
-                                <label className="form-label opacity-75">Nombre del Rol</label>
-                                <input 
-                                    type="text" 
-                                    className="form-control login-input" 
-                                    style={{backgroundColor: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.1)'}}
-                                    placeholder="Ej. Auditor, Supervisor..."
-                                    value={roleName}
-                                    onChange={(e) => setRoleName(e.target.value)}
-                                    required
-                                />
+                            <div className="modal-body text-center p-4">
+                                <div className="role-icon-container mb-3">
+                                    <i className={`fas ${editingId ? 'fa-key' : 'fa-shield-alt'} fa-3x`}></i>
+                                </div>
+                                <h4 className="mb-3">{editingId ? "Actualizar Rol" : "Nuevo Rol de Sistema"}</h4>
+                                <div className="text-start">
+                                    <label className="form-label opacity-75 small">NOMBRE DEL ROL</label>
+                                    <input
+                                        type="text"
+                                        className="form-control login-input"
+                                        placeholder="Ej. Auditor, Supervisor..."
+                                        value={roleName}
+                                        onChange={(e) => setRoleName(e.target.value)}
+                                        required
+                                    />
+                                </div>
                             </div>
-                            <div className="modal-footer border-0">
-                                <button type="button" className="btn btn-outline-light" data-bs-dismiss="modal">Cancelar</button>
-                                <button type="submit" className="btn btn-action btn-activate" data-bs-dismiss="modal">
+                            <div className="modal-footer border-0 justify-content-center pb-4">
+                                <button type="button" className="btn btn-outline-light px-4" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="submit" className="btn btn-action btn-activate px-4" data-bs-dismiss="modal">
                                     {editingId ? "Guardar Cambios" : "Crear Rol"}
                                 </button>
                             </div>
