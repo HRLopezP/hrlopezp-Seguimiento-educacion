@@ -127,3 +127,16 @@
     cursor: not-allowed;
     filter: grayscale(1);
 }
+
+.table-sigssep th:nth-child(4), 
+.table-sigssep td:nth-child(4) {
+    width: 120px; /* Ajusta según el ancho de tus badges */
+    white-space: nowrap;
+}
+
+/* Reducir el padding horizontal de las celdas para que todo esté más compacto */
+.table-sigssep td {
+    padding-left: 1rem !important;
+    padding-right: 0.5rem !important;
+}
+

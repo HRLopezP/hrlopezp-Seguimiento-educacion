@@ -8,23 +8,23 @@ export const Home = () => {
         <div className="landing-page">
             {/* ENVOLTORIO ÚNICO PARA CONTINUIDAD VISUAL */}
             <div className="hero-and-cards-wrapper">
-                
+
                 {/* 1. HERO SECTION */}
                 <header className="hero-section-transparent text-center px-3">
                     <div className="container">
-                        <h1 className="display-4 fw-bold mb-3 text-white">
-                            Gestión de Supervisión y <br /> 
+                        <h1 className="display-4 fw-bold mb-3" style={{ color: "var(--hero-text)" }}>
+                            Gestión de Supervisión y <br />
                             <span style={{ color: "#52b788" }}>Seguimiento de Proyectos</span>
                         </h1>
-                        <p className="lead mb-0 mx-auto text-white" style={{ maxWidth: "800px", opacity: 0.9 }}>
-                            Optimización de indicadores, metas y ejecución en tiempo real. 
+                        <p className="lead mb-0 mx-auto" style={{ maxWidth: "800px", opacity: 0.9, color: "var(--hero-text)" }}>
+                            Optimización de indicadores, metas y ejecución en tiempo real.
                             La herramienta definitiva para el control estratégico institucional.
                         </p>
                     </div>
                 </header>
 
                 {/* 2. BENEFIT CARDS SECTION (Mismo fondo) */}
-                <section className="pb-5"> 
+                <section className="pb-5">
                     <div className="container pb-5">
                         <div className="row g-4 justify-content-center">
                             {/* Tarjeta 1 */}

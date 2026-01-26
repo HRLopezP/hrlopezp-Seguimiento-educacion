@@ -132,7 +132,7 @@ const UserManagement = () => {
                                         <th>Contacto</th>
                                         <th>Privilegios</th>
                                         <th>Estado</th>
-                                        <th className="text-center">Acciones</th>
+                                        <th className="text-start ps-5">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -166,7 +166,7 @@ const UserManagement = () => {
                                                         {user.is_active ? 'Activo' : 'Inactivo'}
                                                     </span>
                                                 </td>
-                                                <td className="text-center">
+                                                <td className="text-start d-flex justify-content-between ps-4">
                                                     <button
                                                         className={`btn-toggle-status ${user.is_active ? 'deactivate' : 'activate'}`}
                                                         disabled={isRootAdmin}
@@ -177,7 +177,7 @@ const UserManagement = () => {
                                                     </button>
                                                     {/* NUEVO: Botón de Eliminar */}
                                                     <button
-                                                        className="btn-delete-user ms-3"
+                                                        className="btn-delete-user ms-4"
                                                         disabled={isRootAdmin}
                                                         onClick={() => handleDeleteUser(user.id, user.name)}
                                                         title="Eliminar Usuario"

@@ -2,69 +2,146 @@
 
 /* Botón de "Nuevo Rol" en el header */
 .btn-action.btn-activate {
-    background-color: #10b981;
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    transition: all 0.3s ease;
+  background-color: #10b981;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
 }
 
 .btn-action.btn-activate:hover {
-    background-color: #059669;
-    transform: translateY(-2px);
+  background-color: #059669;
+  transform: translateY(-2px);
 }
 
 /* Ajustes para el Modal */
-.modal-content {
-    border: none;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+.role-modal-custom-swal {
+  border-radius: 20px !important;
+  border: 1px solid rgba(128, 128, 128, 0.2) !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4) !important;
+  padding: 2rem !important;
+}
+
+.role-modal-title {
+  font-size: 1.8rem !important;
+  font-weight: 700 !important;
+  padding-bottom: 10px !important;
+}
+
+/* Forzamos que el input de la alerta se vea elegante */
+.role-modal-input {
+  background-color: var(--bg-color) !important;
+  color: var(--text-primary) !important;
+  border: 2px solid rgba(128, 128, 128, 0.1) !important;
+  border-radius: 12px !important;
+  height: 55px !important;
+  font-size: 1rem !important;
+  transition: all 0.3s ease !important;
+}
+
+.role-modal-input:focus {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1) !important;
+}
+
+/* Ajuste para que el texto del label de SweetAlert no se pierda */
+.swal2-input-label {
+  color: var(--text-primary) !important;
+  opacity: 0.8;
+  font-weight: 500 !important;
 }
 
 /* Estilo del label en el modal */
 .form-label.opacity-75 {
-    font-size: 0.85rem;
-    letter-spacing: 0.5px;
-    margin-bottom: 8px;
-    display: block;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  display: block;
 }
 
 /* Estilos para el Modal de Roles con Icono */
 .role-modal-custom {
-    background-color: #1B263B !important;
-    color: white !important;
-    border-radius: 20px !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  /* Usamos variables para que cambie según el modo */
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border-radius: 20px !important;
+  border: 1px solid rgba(128, 128, 128, 0.2) !important;
+  transition: all 0.4s ease;
 }
 
 .role-icon-container {
-    width: 80px;
-    height: 80px;
-    background: rgba(16, 185, 129, 0.1);
-    color: #10b981;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto;
-    border: 2px solid rgba(16, 185, 129, 0.2);
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 10px auto;
+  font-size: 1.8rem;
+  transition: all 0.3s ease;
+}
+
+.role-icon-container.create-mode {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 2px solid rgba(16, 185, 129, 0.3);
+}
+
+/* Modo Edición (Azul Brillante) */
+.role-icon-container.edit-mode {
+  background: rgba(58, 134, 255, 0.15);
+  color: #3a86ff;
+  border: 2px solid rgba(58, 134, 255, 0.3);
+}
+
+/* Animación sutil al abrir */
+.role-modal-custom-swal .role-icon-container {
+  animation: scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* Si es edición, cambiamos el color a azul para diferenciar */
 .fa-key {
-    color: #3a86ff;
+  color: #3a86ff;
 }
 
 .role-modal-custom .login-input {
-    background-color: rgba(255, 255, 255, 0.05) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    color: white !important;
-    padding: 12px;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
+  padding: 12px;
 }
 
 .role-modal-custom .login-input:focus {
-    border-color: #10b981 !important;
-    box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+  border-color: #10b981 !important;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+}
+
+[data-theme="dark"] .role-modal-custom {
+  background-color: #1b263b !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Ajuste para el botón de cerrar (X) */
+.btn-close-white {
+  filter: invert(
+    var(--invert-value, 0)
+  ); /* Esto lo invertirá si es necesario */
+}
+
+[data-theme="light"] .role-modal-custom .btn-close {
+  filter: invert(1); /* Hace que la X sea oscura en fondo claro */
 }

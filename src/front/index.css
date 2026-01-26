@@ -4,6 +4,10 @@
   --card-bg: #ffffff;
   --text-primary: #1b263b;
   --accent-color: #2d6a4f;
+  /* Nuevas variables para el Home */
+  --overlay-color-1: rgba(255, 255, 255, 0.85); /* Blanco semi-transparente */
+  --overlay-color-2: rgba(248, 249, 250, 0.95); /* Gris muy claro */
+  --hero-text: #1b263b; /* Azul Oxford para lectura en claro */
 }
 
 [data-theme="dark"] .login-page {
@@ -15,10 +19,14 @@
   --card-bg: #1b263b;
   --text-primary: #e0e1dd;
   --accent-color: #52b788;
+  /* Nuevas variables para el Home */
+  --overlay-color-1: rgba(27, 38, 59, 0.8); /* Azul Oxford */
+  --overlay-color-2: rgba(13, 27, 42, 0.95); /* Azul Noche */
+  --hero-text: #ffffff; /* Blanco puro para resaltar */
 }
 
 /* Evitar que el fondo de la tabla o de la página se vea blanco al cargar */
-[data-theme="dark"] body, 
+[data-theme="dark"] body,
 [data-theme="dark"] .management-page-container,
 [data-theme="dark"] .auth-page {
   background-color: var(--bg-color) !important;
@@ -40,12 +48,17 @@ body {
 }
 
 .hero-and-cards-wrapper {
+  /* La magia está en usar variables para el gradiente */
   background:
-    linear-gradient(rgba(27, 38, 59, 0.8), rgba(13, 27, 42, 0.95)),
+    linear-gradient(
+      var(--overlay-color-1, rgba(27, 38, 59, 0.8)),
+      var(--overlay-color-2, rgba(13, 27, 42, 0.95))
+    ),
     url("https://images.unsplash.com/photo-1460925895917-afdab827c52f?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80");
   background-size: cover;
   background-position: center;
-  background-attachment: fixed; /* Mantiene la imagen fija mientras scrolleas */
+  background-attachment: fixed;
+  transition: all 0.5s ease; /* Transición suave entre modos */
 }
 
 .hero-section-transparent {
@@ -288,15 +301,23 @@ html,
 }
 
 .benefit-card-elegant {
-  background: rgba(27, 38, 59, 0.6) !important; /* Semi-transparente */
-  backdrop-filter: blur(10px); /* Efecto cristal (frosted glass) */
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(
+    --card-bg
+  ) !important; /* Ahora usará blanco en light y azul en dark */
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(128, 128, 128, 0.1);
   border-radius: 20px;
   padding: 2.5rem 1.5rem;
-  color: #ffffff;
+  color: var(--text-primary) !important; /* Texto dinámico */
   text-align: center;
   height: 100%;
   transition: all 0.3s ease;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .benefit-card-elegant {
+  background: rgba(27, 38, 59, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .benefit-card-elegant:hover {
@@ -381,68 +402,67 @@ html,
   color: #52b788 !important;
 }
 
-
 /* index.css - SECCIÓN DE TABLAS GLOBALES */
 
 .sigssep-table-container {
-    background-color: var(--card-bg);
-    border-radius: 15px;
-    overflow: hidden;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-    border: 1px solid rgba(128, 128, 128, 0.1);
-    transition: all 0.3s ease;
+  background-color: var(--card-bg);
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(128, 128, 128, 0.1);
+  transition: all 0.3s ease;
 }
 
 .table-sigssep {
-    width: 100%;
-    margin-bottom: 0;
-    background-color: transparent !important; /* Forzamos transparencia para ver el fondo de la card */
-    color: var(--text-primary) !important;
-    vertical-align: middle;
-    border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 0;
+  background-color: transparent !important; /* Forzamos transparencia para ver el fondo de la card */
+  color: var(--text-primary) !important;
+  vertical-align: middle;
+  border-collapse: collapse;
 }
 
 /* Encabezados */
 .table-sigssep thead th {
-    background-color: rgba(27, 38, 59, 0.05);
-    color: var(--text-primary);
-    padding: 1.2rem;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    border-bottom: 2px solid var(--accent-color);
+  background-color: rgba(27, 38, 59, 0.05);
+  color: var(--text-primary);
+  padding: 1.2rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 2px solid var(--accent-color);
 }
 
 /* Celdas de datos */
 .table-sigssep tbody td {
-    padding: 1rem 1.2rem;
-    color: var(--text-primary) !important;
-    border-bottom: 1px solid rgba(128, 128, 128, 0.1);
-    background-color: transparent !important; /* Crucial: evita el blanco por defecto */
+  padding: 1rem 1.2rem;
+  color: var(--text-primary) !important;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+  background-color: transparent !important; /* Crucial: evita el blanco por defecto */
 }
 
 /* Hover en las filas */
 .table-sigssep tbody tr:hover {
-    background-color: rgba(16, 185, 129, 0.05) !important;
+  background-color: rgba(16, 185, 129, 0.05) !important;
 }
 
 /* REFUERZO MODO OSCURO GLOBAL */
 [data-theme="dark"] .table-sigssep thead th {
-    background-color: rgba(255, 255, 255, 0.05);
-    color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
 }
 
 [data-theme="dark"] .table-sigssep tbody td {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 /* Selects dentro de tablas (como el de roles) */
 .table-sigssep .form-select {
-    background-color: var(--bg-color);
-    color: var(--text-primary);
-    border: 1px solid rgba(128, 128, 128, 0.2);
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  border: 1px solid rgba(128, 128, 128, 0.2);
 }
 
 [data-theme="dark"] .table-sigssep .form-select {
-    border-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.1);
 }
