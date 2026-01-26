@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Toaster, toast } from "sonner";
-import "../styles/resetPassword.css";
+import "../styles/auth.css"; // Estilos base
+import "../styles/resetPassword.css"; // Estilos específicos
 
 const urlBase = import.meta.env.VITE_BACKEND_URL;
 
@@ -10,7 +11,7 @@ const passwordRequirements = [
     { key: 'lowerCase', label: 'Al menos una letra minúscula', regex: /[a-z]/ },
     { key: 'upperCase', label: 'Al menos una letra mayúscula', regex: /[A-Z]/ },
     { key: 'number', label: 'Al menos un número', regex: /[0-9]/ },
-    { key: 'specialChar', label: 'Al menos un caracter especial (!@#$%^&*...)', regex: /[!@#$%^&*()-+\.]/ },
+    { key: 'specialChar', label: 'Al menos un caracter especial', regex: /[!@#$%^&*()-+\.]/ },
 ];
 
 const ResetPassword = () => {
@@ -20,20 +21,13 @@ const ResetPassword = () => {
 
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
-    
-    // Estados independientes para mostrar/ocultar contraseñas
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    
     const [isPasswordFocused, setIsPasswordFocused] = useState(false);
     const [loading, setLoading] = useState(false);
 
     const [passwordValidity, setPasswordValidity] = useState({
-        minLength: false,
-        lowerCase: false,
-        upperCase: false,
-        number: false,
-        specialChar: false,
+        minLength: false, lowerCase: false, upperCase: false, number: false, specialChar: false,
     });
 
     const validatePassword = (value) => {
@@ -56,7 +50,7 @@ const ResetPassword = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!isPasswordValid) return toast.error("La contraseña no cumple con los niveles de seguridad.");
+        if (!isPasswordValid) return toast.error("La contraseña no es segura.");
         if (password !== confirmPassword) return toast.error("Las contraseñas no coinciden.");
 
         setLoading(true);
@@ -69,109 +63,103 @@ const ResetPassword = () => {
 
             if (response.ok) {
                 toast.success("¡Contraseña actualizada con éxito!");
-                setTimeout(() => navigate("/login"), 3000);
+                setTimeout(() => navigate("/login"), 2000);
             } else {
                 const data = await response.json();
-                toast.error(data.message || "Error al restablecer la contraseña");
+                toast.error(data.message || "Error al restablecer");
             }
         } catch (error) {
-            toast.error("Error de conexión con el servidor");
+            toast.error("Error de conexión");
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="auth-page-container">
+        <div className="auth-page">
             <Toaster position="top-center" richColors />
-            <div className="auth-card-unified">
-                <div className="auth-card-header">
-                    <h2>SIGSSEP</h2>
-                    <p>Actualizar Contraseña</p>
-                </div>
-                <div className="auth-card-body">
-                    <form onSubmit={handleSubmit}>
-                        
-                        {/* 1. Campo Nueva Contraseña */}
-                        <div className="form-group mb-3">
-                            <label className="register-label mb-2">Nueva Contraseña</label>
-                            <div className="input-group">
-                                <input
-                                    type={showPassword ? "text" : "password"}
-                                    className={`form-control register-input ${password.length > 0 && (isPasswordValid ? 'is-valid' : 'is-invalid')}`}
-                                    value={password}
-                                    onChange={handlePasswordChange}
-                                    onFocus={() => setIsPasswordFocused(true)}
-                                    onBlur={() => setIsPasswordFocused(false)}
-                                    placeholder="Nueva contraseña..."
-                                    required
-                                />
-                                <button
-                                    className="btn btn-outline-secondary"
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                >
-                                    <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
-                                </button>
+            <div className="container">
+                <div className="row justify-content-center w-100">
+                    <div className="col-12 col-md-6 col-lg-5">
+                        <div className="auth-card">
+                            <div className="auth-header text-center">
+                                <h2 className="mb-0">SIGSSEP</h2>
+                                <p className="mb-0 opacity-75">Nueva Contraseña</p>
+                            </div>
+                            <div className="auth-body">
+                                <form onSubmit={handleSubmit}>
+                                    
+                                    <div className="mb-3">
+                                        <label className="auth-label">Nueva Contraseña</label>
+                                        <div className="input-group">
+                                            <input
+                                                type={showPassword ? "text" : "password"}
+                                                className={`form-control auth-input ${password.length > 0 && (isPasswordValid ? 'border-success' : 'border-danger')}`}
+                                                value={password}
+                                                onChange={handlePasswordChange}
+                                                onFocus={() => setIsPasswordFocused(true)}
+                                                onBlur={() => setIsPasswordFocused(false)}
+                                                placeholder="Mínimo 8 caracteres"
+                                                required
+                                            />
+                                            <button 
+                                                className="btn auth-input border-start-0" 
+                                                type="button" 
+                                                onClick={() => setShowPassword(!showPassword)}
+                                            >
+                                                <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`} style={{color: 'var(--text-primary)'}}></i>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {shouldShowRequirements && (
+                                        <div className="password-requirements-box mb-3">
+                                            <ul className="list-unstyled mb-0">
+                                                {passwordRequirements.map(req => {
+                                                    const isCompleted = passwordValidity[req.key];
+                                                    return (
+                                                        <li key={req.key} className="d-flex align-items-center mb-1">
+                                                            <i className={`fa-solid ${isCompleted ? 'fa-circle-check' : 'fa-circle-xmark'} me-2`}
+                                                                style={{ color: isCompleted ? 'var(--accent-color)' : '#e63946', fontSize: '0.8rem' }}></i>
+                                                            <span className="requirement-text">{req.label}</span>
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    <div className="mb-4">
+                                        <label className="auth-label">Confirmar Contraseña</label>
+                                        <div className="input-group">
+                                            <input
+                                                type={showConfirmPassword ? "text" : "password"}
+                                                className={`form-control auth-input ${confirmPassword.length > 0 && (password === confirmPassword ? 'border-success' : 'border-danger')}`}
+                                                value={confirmPassword}
+                                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                                placeholder="Repite tu contraseña"
+                                                required
+                                            />
+                                            <button 
+                                                className="btn auth-input border-start-0" 
+                                                type="button" 
+                                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                            >
+                                                <i className={`fa-solid ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`} style={{color: 'var(--text-primary)'}}></i>
+                                            </button>
+                                        </div>
+                                        {passwordsDoNotMatch && (
+                                            <small className="text-danger mt-1 d-block">Las contraseñas no coinciden</small>
+                                        )}
+                                    </div>
+
+                                    <button type="submit" className="auth-btn-submit w-100" disabled={loading || !isPasswordValid || password !== confirmPassword}>
+                                        {loading ? "Procesando..." : "Actualizar Contraseña"}
+                                    </button>
+                                </form>
                             </div>
                         </div>
-
-                        {/* Cuadro de Requisitos (Estilo Esmeralda/Rojo) */}
-                        {shouldShowRequirements && (
-                            <div className="password-requirements-box mb-4">
-                                <h6 className="font-bold mb-2 register-label" style={{ fontSize: '0.8rem' }}>
-                                    Seguridad Requerida:
-                                </h6>
-                                <ul className="list-unstyled mb-0">
-                                    {passwordRequirements.map(req => {
-                                        const isCompleted = passwordValidity[req.key];
-                                        return (
-                                            <li key={req.key} className="d-flex align-items-center mb-1">
-                                                <i className={`fa-solid ${isCompleted ? 'fa-circle-check' : 'fa-circle-xmark'} me-2`}
-                                                    style={{ color: isCompleted ? '#2D6A4F' : '#e63946', fontSize: '0.8rem' }}></i>
-                                                <span className="requirement-text" style={{ fontSize: '0.75rem' }}>{req.label}</span>
-                                            </li>
-                                        );
-                                    })}
-                                </ul>
-                            </div>
-                        )}
-
-                        {/* 2. Confirmar Contraseña (¡OJITO RECUPERADO!) */}
-                        <div className="form-group mb-4">
-                            <label className="register-label mb-2">Confirmar Contraseña</label>
-                            <div className="input-group">
-                                <input
-                                    type={showConfirmPassword ? "text" : "password"}
-                                    className={`form-control register-input ${confirmPassword.length > 0 && (password === confirmPassword ? 'is-valid' : 'is-invalid')}`}
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    placeholder="Repite la contraseña..."
-                                    required
-                                />
-                                <button
-                                    className="btn btn-outline-secondary"
-                                    type="button"
-                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                >
-                                    <i className={`fa-solid ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
-                                </button>
-                            </div>
-                            {passwordsDoNotMatch && (
-                                <p className="text-danger mt-2" style={{ fontSize: '0.85rem' }}>
-                                    ¡Las contraseñas no coinciden!
-                                </p>
-                            )}
-                        </div>
-
-                        <button
-                            type="submit"
-                            className="register-submit-btn w-100"
-                            disabled={loading || !isPasswordValid || password !== confirmPassword}
-                        >
-                            {loading ? "Procesando..." : "Restablecer Contraseña"}
-                        </button>
-                    </form>
+                    </div>
                 </div>
             </div>
         </div>

@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import useGlobalReducer from '../hooks/useGlobalReducer';
 import { Toaster, toast } from "sonner";
+import "../styles/auth.css";
 import "../styles/login.css";
 
 export const Login = () => {
-
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
@@ -21,141 +21,101 @@ export const Login = () => {
         setError(null);
         setLoading(true);
 
-
-        if (!email || !password) {
-            setError("Correo y contraseña son requeridos.");
-            setLoading(false);
-            return;
-        }
-
         try {
             const response = await fetch(`${API_URL}/login`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
             });
             const data = await response.json();
 
             if (response.ok) {
                 const { token, user } = data;
-
                 localStorage.setItem('access_token', token);
                 localStorage.setItem('user', JSON.stringify(user));
-
-                dispatch({
-                    type: "LOGIN",
-                    payload: { token, user }
-                });
-
+                dispatch({ type: "LOGIN", payload: { token, user } });
                 toast.success(`¡Bienvenido de nuevo, ${user.name}!`);
-
                 navigate('/');
-
-
             } else {
-                const errorMessage = data.message || 'Error desconocido al iniciar sesión.';
-                setError(errorMessage);
-
+                setError(data.message || 'Error al iniciar sesión.');
             }
         } catch (err) {
-            console.error("Error de red/servidor:", err);
-            setError('No se pudo conectar con el servidor. Por favor, revisa la conexión.');
+            setError('Error de conexión con el servidor.');
         } finally {
             setLoading(false);
         }
     };
 
-    const togglePasswordVisibility = () => {
-        setShowPassword(prevShowPassword => !prevShowPassword);
-    };
-
     return (
-        <div className="login-page">
+        <div className="auth-page"> {/* Clase global para el fondo centrado */}
+            <Toaster position="top-center" richColors />
             <div className="container">
-                <div className="row justify-content-center">
+                <div className="row justify-content-center w-100">
                     <div className="col-12 col-md-6 col-lg-5">
-                        <div className="card login-card">
-                            <div className="login-card-header">   
-                                <h1 className="login-title">Bienvenido de nuevo</h1>
-                                <p className="login-subtitle">
-                                    Inicia sesión.
-                                </p>
+                        <div className="auth-card"> {/* Clase global para la tarjeta */}
+                            <div className="auth-header">
+                                <h2 className="mb-0">Bienvenido</h2>
+                                <small className="opacity-75">Inicia sesión en SIGSSEP</small>
                             </div>
 
-                            <div className="card-body login-card-body">
-                                <form onSubmit={handleSubmit} className="login-form">
+                            <div className="auth-body">
+                                <form onSubmit={handleSubmit}>
                                     {error && (
-                                        <div className="alert alert-danger login-alert">
-                                            {error}
+                                        <div className="alert alert-danger py-2 mb-3 small">
+                                            <i className="fas fa-exclamation-circle me-2"></i>{error}
                                         </div>
                                     )}
 
                                     <div className="mb-3">
-                                        <label htmlFor="email" className="login-label">
-                                            Correo
-                                        </label>
+                                        <label className="auth-label">Correo Electrónico</label>
                                         <input
                                             type="email"
-                                            className="form-control login-input"
-                                            id="email"
+                                            className="form-control auth-input"
+                                            placeholder="correo@sigssep.com"
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
                                             required
                                         />
                                     </div>
 
-                                    <div className="mb-3">
-                                        <label htmlFor="password" className="login-label">
-                                            Contraseña
-                                        </label>
-                                        <div className="input-group login-input-group">
+                                    <div className="mb-4">
+                                        <label className="auth-label">Contraseña</label>
+                                        <div className="input-group">
                                             <input
                                                 type={showPassword ? "text" : "password"}
-                                                className="form-control login-input"
-                                                id="password"
+                                                className="form-control auth-input"
+                                                placeholder="Tu contraseña"
                                                 value={password}
                                                 onChange={(e) => setPassword(e.target.value)}
                                                 required
                                             />
                                             <button
+                                                className="btn auth-input border-start-0"
                                                 type="button"
-                                                className="btn border-0 toggle-password-btn"
-                                                style={{ color: "var(--text-primary)" }}
-                                                onClick={togglePasswordVisibility}
+                                                onClick={() => setShowPassword(!showPassword)}
                                             >
-                                                {showPassword ? (
-                                                    <i className="fa-solid fa-eye-slash" />
-                                                ) : (
-                                                    <i className="fa-solid fa-eye" />
-                                                )}
+                                                <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}
+                                                    style={{ color: 'var(--text-primary)' }}></i>
                                             </button>
                                         </div>
                                     </div>
 
-                                    <button
-                                        type="submit"
-                                        className="btn login-submit-btn w-100"
-                                        disabled={loading}
-                                    >
+                                    <button type="submit" className="auth-btn-submit w-100" disabled={loading}>
                                         {loading ? (
                                             <>
-                                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                                <span className="spinner-border spinner-border-sm me-2"></span>
                                                 Autenticando...
                                             </>
                                         ) : "Ingresar"}
                                     </button>
                                 </form>
 
-                                <div className="login-links mt-3 text-center">
-                                    <Link to="/register" className="login-link">
-                                        Registrarme
-                                    </Link>
-                                    <span className="login-links-separator">·</span>
-                                    <Link to="/forgot-password" className="login-link">
-                                        Olvidé mi contraseña
-                                    </Link>
+                                <div className="mt-4 text-center">
+                                    <div className="d-flex justify-content-center gap-2 flex-wrap">
+                                        <Link to="/register" className="login-link small">Registrarme</Link>
+                                        <span className="opacity-25">|</span>
+                                        <Link to="/forgot-password" className="login-link small">Olvidé mi contraseña</Link>
+                                    </div>
                                 </div>
                             </div>
                         </div>

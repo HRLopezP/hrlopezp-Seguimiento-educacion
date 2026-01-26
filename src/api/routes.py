@@ -282,7 +282,36 @@ def toggle_user_status(user_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": "Error al actualizar el estado", "error": str(e)}), 500
+    
 
+@api.route("/manager/users/<int:user_id>", methods=["DELETE"])
+@jwt_required()
+@manager_required
+def delete_user(user_id):
+    current_manager_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"message": "Usuario no encontrado"}), 404
+
+    # 1. PROTECCIÓN: No borrar al Administrador ni a uno mismo
+    if user.rol.name_rol == "Administrador" or int(current_manager_id) == user_id:
+        return jsonify({"message": "Acción denegada por seguridad"}), 403
+
+    # 2. VALIDACIÓN DE INTEGRIDAD: ¿Tiene actividades?
+    if len(user.activities) > 0:
+        return jsonify({
+            "message": f"No se puede eliminar a {user.name} porque tiene actividades asignadas. Primero desactívalo o reasigna sus tareas."
+        }), 400
+
+    try:
+        db.session.delete(user)
+        db.session.commit()
+        return jsonify({"message": "Usuario eliminado permanentemente"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "Error en el servidor", "error": str(e)}), 500
+    
 
 @api.route('/roles', methods=['GET'])
 @jwt_required()

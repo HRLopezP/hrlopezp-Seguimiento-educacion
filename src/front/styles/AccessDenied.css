@@ -1,70 +1,91 @@
-.denied-container {
-    min-height: 90vh;
+.denied-page-wrapper {
+    min-height: 100vh;
+    width: 100%;
+    background-color: var(--bg-color, #f8f9fa);
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: var(--bg-color); /* Automático: Blanco o Azul Noche */
-    transition: background-color 0.4s ease;
+    position: relative;
+    overflow: hidden;
 }
 
+/* --- PATRÓN DE MARCA DE AGUA REPETIDA --- */
+.sigssep-pattern {
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%; /* Más grande para cubrir la rotación */
+    height: 200%;
+    /* Creamos el texto repetido usando un SVG como fondo */
+    background-image: url("data:image/svg+xml,%3Csvg width='200' height='100' viewBox='0 0 200 100' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='10' y='50' font-family='Arial' font-weight='900' font-size='20' fill='gray' fill-opacity='0.04'%3ESIGSSEP%3C/text%3E%3C/svg%3E");
+    transform: rotate(-25deg);
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* --- ANIMACIÓN DE LATIDO (Pulse) --- */
+.pulse-animation {
+    animation: shield-heartbeat 2s infinite ease-in-out;
+}
+
+@keyframes shield-heartbeat {
+    0% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.2)); }
+    50% { transform: scale(1.1); filter: drop-shadow(0 0 20px rgba(239, 68, 68, 0.5)); }
+    100% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.2)); }
+}
+
+/* --- RESTO DE ESTILOS (Escudo y Colores) --- */
 .denied-card {
-    background-color: var(--card-bg); /* Automático: Blanco o Azul Oxford */
-    padding: 3.5rem;
-    border-radius: 20px;
-    max-width: 550px;
+    position: relative;
+    z-index: 10;
+    background-color: var(--card-bg, #ffffff);
+    padding: 3.5rem 2rem;
+    border-radius: 25px;
+    max-width: 500px;
     text-align: center;
-    border: 1px solid rgba(0,0,0,0.05);
-    transition: all 0.4s ease;
+    border: 1px solid rgba(128, 128, 128, 0.1);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
 }
 
-/* En modo oscuro, suavizamos el borde */
-[data-theme="dark"] .denied-card {
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.denied-icon {
-    font-size: 5rem;
-    color: #e63946; /* Rojo de alerta para el escudo */
+.shield-stack {
+    position: relative;
+    display: inline-block;
+    font-size: 7rem;
     margin-bottom: 1.5rem;
-    filter: drop-shadow(0 0 10px rgba(230, 57, 70, 0.2));
 }
 
-.denied-title {
-    color: var(--text-primary);
-    font-weight: 800;
-    margin-bottom: 1rem;
+.shield-base { color: #ef4444; }
+.shield-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    color: #4b5563;
+    clip-path: inset(0 0 0 50%);
 }
 
-.denied-text {
-    color: var(--text-primary);
-    opacity: 0.7; /* Esto simula el "muted" pero con nuestro color de texto */
-    font-size: 1.1rem;
-    margin-bottom: 2rem;
-}
+/* Forzar visibilidad en Modo Oscuro */
+[data-theme="dark"] .denied-title { color: #ffffff !important; }
+[data-theme="dark"] .denied-text { color: rgba(255,255,255,0.8) !important; }
+[data-theme="dark"] .btn-denied-outline { color: #ffffff; border-color: #415A77; }
 
-/* Botón estilo Emerald Green */
+.denied-title { color: var(--text-primary); font-weight: 800; font-size: 2.2rem; }
+.denied-text { color: var(--text-secondary); margin-bottom: 2rem; }
+
 .btn-denied-primary {
-    background-color: var(--accent-color);
+    background-color: #10b981;
     color: white;
     border: none;
-    padding: 0.8rem 1.5rem;
-    border-radius: 10px;
-    font-weight: 600;
-    transition: all 0.3s ease;
+    padding: 12px 30px;
+    border-radius: 12px;
+    font-weight: 700;
+    transition: 0.3s;
 }
 
-.btn-denied-primary:hover {
-    filter: brightness(1.2);
-    transform: translateY(-2px);
-}
-
-/* Botón Outline usando Oxford Grey */
 .btn-denied-outline {
-    background-color: transparent;
-    border: 2px solid #415A77; 
-    color: var(--text-primary);
-    padding: 0.8rem 1.5rem;
-    border-radius: 10px;
+    background: transparent;
+    border: 2px solid #415A77;
+    color: #415A77;
+    padding: 10px 25px;
+    border-radius: 12px;
     font-weight: 600;
     margin-left: 10px;
 }
