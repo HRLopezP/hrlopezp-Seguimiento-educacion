@@ -17,6 +17,7 @@ import ResetPassword from "./pages/ResetPassword";
 import UserManagement from "./pages/UserManagement"; 
 import RoleManagement from "./pages/RoleManagement";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import CompetenceManagement from "./pages/CompetenceManagement";
 import Profile from "./pages/Profile";
 
 export const router = createBrowserRouter(
@@ -57,7 +58,14 @@ export const router = createBrowserRouter(
           </ProtectedRoute>
         }
       />
-      
+      <Route
+        path="/manager/competences"
+        element={
+          <ProtectedRoute>
+            <CompetenceManagement />
+          </ProtectedRoute>
+        }
+      />
     </Route>
   )
 );

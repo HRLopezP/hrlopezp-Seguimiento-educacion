@@ -145,3 +145,42 @@
 [data-theme="light"] .role-modal-custom .btn-close {
   filter: invert(1); /* Hace que la X sea oscura en fondo claro */
 }
+
+.table-sigssep td span.user-name-text {
+    display: block;
+    max-width: 400px; /* Evita que el nombre se estire infinitamente */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Si el nombre es larguísimo, pone "..." */
+}
+
+/* 2. Ajustes para Tablets y Celulares */
+@media (max-width: 768px) {
+    .management-card-header {
+        flex-direction: column; /* Apila el título y el botón */
+        gap: 15px;
+        text-align: center;
+    }
+
+    .management-title {
+        font-size: 1.4rem;
+    }
+
+    .btn-action.btn-activate {
+        width: 100%; /* Botón ancho en móviles */
+    }
+
+    /* Reducimos el padding de las celdas para que quepa todo */
+    .table-sigssep th, 
+    .table-sigssep td {
+        padding: 10px 5px !important;
+        font-size: 0.85rem;
+    }
+}
+
+/* 3. Evitar que la tabla se vea estirada en monitores ultra-wide */
+.management-card-unified {
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+}

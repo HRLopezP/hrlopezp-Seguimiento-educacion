@@ -2,7 +2,7 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 from flask import Flask, request, jsonify, url_for, Blueprint
-from api.models import db, User, Rol, Project, Indicator, Location, Activity
+from api.models import db, User, Rol, Competence
 from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -536,3 +536,62 @@ def update_avatar():
         "msg": "Avatar actualizado con éxito",
         "user": user.serialize()  # Devolvemos el usuario completo actualizado
     }), 200
+
+
+@api.route('/competences', methods=['GET'])
+@jwt_required()
+def get_competences():
+    """Cualquier usuario logueado puede ver el catálogo"""
+    competences = Competence.query.all()
+    return jsonify([c.serialize() for c in competences]), 200
+
+
+@api.route('/competences', methods=['POST'])
+@manager_required # <--- ¡Aquí está la magia! Ya no necesitas if user.rol == ...
+def create_competence():
+    data = request.json
+    name = data.get("name")
+
+    if not name:
+        return jsonify({"message": "El nombre de la competencia es obligatorio"}), 400
+
+    # Verificamos si ya existe para evitar errores de base de datos
+    if Competence.query.filter_by(name=name).first():
+        return jsonify({"message": "Esta competencia ya está registrada"}), 400
+
+    new_comp = Competence(name=name)
+    db.session.add(new_comp)
+    db.session.commit()
+    
+    return jsonify(new_comp.serialize()), 201
+
+@api.route('/competences/<int:id>', methods=['PUT'])
+@manager_required
+def update_competence(id):
+    competence = Competence.query.get(id)
+    if not competence:
+        return jsonify({"message": "Competencia no encontrada"}), 404
+
+    data = request.json
+    competence.name = data.get("name", competence.name)
+    
+    db.session.commit()
+    return jsonify(competence.serialize()), 200
+
+
+@api.route('/competences/<int:id>', methods=['DELETE'])
+@manager_required
+def delete_competence(id):
+    competence = Competence.query.get(id)
+    if not competence:
+        return jsonify({"message": "Competencia no encontrada"}), 404
+
+    # Ojo amiguito: Si la competencia ya está en un proyecto, 
+    # SQLAlchemy lanzará un error de integridad. 
+    try:
+        db.session.delete(competence)
+        db.session.commit()
+        return jsonify({"message": "Competencia eliminada exitosamente"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "No se puede eliminar: está asignada a un proyecto"}), 400

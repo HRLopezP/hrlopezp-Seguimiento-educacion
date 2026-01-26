@@ -130,6 +130,16 @@ class Project(db.Model):
         DateTime, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="En Progreso")
 
+    @hybrid_property
+    def remaining_days(self):
+        if self.end_date:
+            # Comparamos la fecha de fin con el momento actual
+            # Usamos replace(tzinfo=None) para que ambas sean "naive" y no de error de zona horaria
+            now = datetime.now()
+            delta = self.end_date.replace(tzinfo=None) - now.replace(tzinfo=None)
+            return max(0, delta.days) # max(0, ...) evita que salgan días negativos si ya venció
+        return 0
+
     # Relaciones principales
     locations: Mapped[List["Location"]] = relationship(
         back_populates="project")
@@ -154,6 +164,8 @@ class Indicator(db.Model):
     id_indicator: Mapped[int] = mapped_column(primary_key=True)
     template_id: Mapped[int] = mapped_column(ForeignKey('indicator_template.id'), nullable=False)
     project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
+
+    project: Mapped["Project"] = relationship(back_populates="indicators")
     
     template: Mapped["IndicatorTemplate"] = relationship()
     location_goals: Mapped[List["IndicatorLocationGoal"]] = relationship(back_populates="indicator")
