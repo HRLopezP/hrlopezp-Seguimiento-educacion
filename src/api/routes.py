@@ -115,17 +115,21 @@ def login():
     if not user.is_active:
         return jsonify({"message": "Your account is pending activation by a manager."}), 403
 
-    # 7. Preparamos las "Additional Claims" para el frontend
-    # - Validamos si el rol es 'Administrador' según nuestra tabla Rol.
+    # 7. Preparamos las "Additional Claims" mejoradas
     user_role_name = user.rol.name_rol if user.rol else "Oficial"
-    is_admin = user.rol.name_rol == "Administrador"
+    is_admin = user_role_name == "Administrador"
+
+    # Extraemos solo los nombres (o IDs) de las competencias asignadas
+    # Esto crea una lista simple: ["Educación", "Salud"]
+    user_competences = [c.name for c in user.competences]
 
     additional_claims = {
         "is_administrator": is_admin,
-        "rol": user_role_name
+        "rol": user_role_name,
+        "competences": user_competences  # <--- ¡Aquí está la magia!
     }
 
-    # 8. Creamos el token de acceso con la identidad y los claims
+    # 8. Creamos el token de acceso con la identidad y los nuevos claims
     access_token = create_access_token(
         identity=str(user.id_user),
         additional_claims=additional_claims
@@ -595,3 +599,45 @@ def delete_competence(id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": "No se puede eliminar: está asignada a un proyecto"}), 400
+
+
+@api.route("/user/<int:user_id>/competences", methods=["PUT"])
+@jwt_required() # Solo usuarios autenticados (y podrías validar que sea Admin)
+def assign_user_competences(user_id):
+    data = request.get_json(silent=True)
+    
+    if data is None:
+        return jsonify({"message": "No data provided"}), 400
+
+    # 1. Buscamos al usuario
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    # 2. Obtenemos la lista de IDs de competencias desde el frontend
+    # Esperamos algo como: {"competence_ids": [1, 3]}
+    competence_ids = data.get("competence_ids", [])
+
+    if not isinstance(competence_ids, list):
+        return jsonify({"message": "competence_ids must be a list"}), 400
+
+    try:
+        # 3. Buscamos los objetos de competencia reales en la DB
+        # Esto asegura que no intentemos asignar un ID que no existe
+        selected_competences = Competence.query.filter(Competence.id_competence.in_(competence_ids)).all()
+
+        # 4. SINCRONIZACIÓN: 
+        # Al asignar la lista de objetos directamente, SQLAlchemy maneja 
+        # la tabla 'user_competence' por nosotros (borra lo viejo, añade lo nuevo)
+        user.competences = selected_competences
+        
+        db.session.commit()
+
+        return jsonify({
+            "message": f"Competences updated for user {user.name}",
+            "user": user.serialize() # Esto ya incluye las nuevas competencias gracias a tu serialize
+        }), 200
+
+    except Exception as error:
+        db.session.rollback()
+        return jsonify({"message": "Error assigning competences", "error": str(error)}), 500

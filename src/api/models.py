@@ -30,6 +30,15 @@ class Rol(db.Model):
         }
 
 
+user_competence = db.Table(
+    'user_competence',
+    db.Column('user_id', db.Integer, db.ForeignKey(
+        'user.id_user'), primary_key=True),
+    db.Column('competence_id', db.Integer, db.ForeignKey(
+        'competence.id_competence'), primary_key=True)
+)
+
+
 class User(db.Model):
     __tablename__ = 'user'
     id_user: Mapped[int] = mapped_column(primary_key=True)
@@ -53,6 +62,11 @@ class User(db.Model):
         ForeignKey('rol.id_rol'), nullable=False)
     rol: Mapped["Rol"] = relationship(back_populates="users")
 
+    competences: Mapped[List["Competence"]] = relationship(
+        secondary=user_competence,
+        back_populates="users"
+    )
+
     # En Activity, el campo debería llamarse 'responsible' para que esto funcione
     activities: Mapped[List["Activity"]] = relationship(
         back_populates="responsible")
@@ -61,7 +75,6 @@ class User(db.Model):
         return f'<User {self.email}>'
 
     def serialize(self):
-        # El + en la URL de la imagen debe estar escapado o ser un espacio
         initials = f"{self.name} {self.lastname}"
         return {
             "id": self.id_user,
@@ -71,6 +84,8 @@ class User(db.Model):
             "rol_id": self.rol_id,
             "rol_name": self.rol.name_rol if self.rol else None,
             "is_active": self.is_active,
+            # Añadimos esto para el Navbar y Claims
+            "competences": [c.serialize() for c in self.competences],
             "image": self.profile if self.profile else f"https://ui-avatars.com/api/?name={initials.replace(' ', '+')}&size=128&background=random&rounded=true"
         }
 
@@ -136,8 +151,10 @@ class Project(db.Model):
             # Comparamos la fecha de fin con el momento actual
             # Usamos replace(tzinfo=None) para que ambas sean "naive" y no de error de zona horaria
             now = datetime.now()
-            delta = self.end_date.replace(tzinfo=None) - now.replace(tzinfo=None)
-            return max(0, delta.days) # max(0, ...) evita que salgan días negativos si ya venció
+            delta = self.end_date.replace(
+                tzinfo=None) - now.replace(tzinfo=None)
+            # max(0, ...) evita que salgan días negativos si ya venció
+            return max(0, delta.days)
         return 0
 
     # Relaciones principales
@@ -145,7 +162,7 @@ class Project(db.Model):
         back_populates="project")
     indicators: Mapped[List["Indicator"]] = relationship(
         back_populates="project")
-    
+
     def serialize(self):
         return {
             "id": self.id_project,
@@ -153,7 +170,7 @@ class Project(db.Model):
             "project_name": self.project_name,
             "donor_name": self.donor_name,
             "status": self.status,
-            "remaining_days": self.remaining_days, # Tu hybrid_property
+            "remaining_days": self.remaining_days,  # Tu hybrid_property
             "locations": [loc.serialize() for loc in self.locations],
             "indicators": [ind.serialize() for ind in self.indicators]
         }
@@ -162,13 +179,16 @@ class Project(db.Model):
 class Indicator(db.Model):
     __tablename__ = 'indicator'
     id_indicator: Mapped[int] = mapped_column(primary_key=True)
-    template_id: Mapped[int] = mapped_column(ForeignKey('indicator_template.id'), nullable=False)
-    project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
+    template_id: Mapped[int] = mapped_column(
+        ForeignKey('indicator_template.id'), nullable=False)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey('project.id_project'), nullable=False)
 
     project: Mapped["Project"] = relationship(back_populates="indicators")
-    
+
     template: Mapped["IndicatorTemplate"] = relationship()
-    location_goals: Mapped[List["IndicatorLocationGoal"]] = relationship(back_populates="indicator")
+    location_goals: Mapped[List["IndicatorLocationGoal"]
+                           ] = relationship(back_populates="indicator")
 
     # Metas globales
     target_total: Mapped[float] = mapped_column(Float, default=0.0)
@@ -193,6 +213,7 @@ class Indicator(db.Model):
             "location_breakdown": [goal.serialize() for goal in self.location_goals]
         }
 
+
 class Location(db.Model):
     __tablename__ = 'location'
     id_location: Mapped[int] = mapped_column(primary_key=True)
@@ -210,7 +231,7 @@ class Location(db.Model):
 
     def __repr__(self):
         return f'<Location {self.province} - {self.municipality}>'
-    
+
     def serialize(self):
         return {
             "id": self.id_location,
@@ -263,8 +284,15 @@ class Competence(db.Model):
     __tablename__ = 'competence'
     id_competence: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    
-    project_assignments: Mapped[List["ProjectCompetence"]] = relationship(back_populates="competence")
+
+    # Relación inversa hacia User
+    users: Mapped[List["User"]] = relationship(
+        secondary=user_competence, 
+        back_populates="competences"
+    )
+
+    project_assignments: Mapped[List["ProjectCompetence"]] = relationship(
+        back_populates="competence")
 
     def serialize(self):
         return {
@@ -274,14 +302,19 @@ class Competence(db.Model):
 
 # --- RELACIONES DE GESTIÓN ---
 
+
 class ProjectCompetence(db.Model):
     __tablename__ = 'project_competence'
     id_pc: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
-    competence_id: Mapped[int] = mapped_column(ForeignKey('competence.id_competence'), nullable=False)
-    manager_id: Mapped[int] = mapped_column(ForeignKey('user.id_user'), nullable=False)
-    
-    competence: Mapped["Competence"] = relationship(back_populates="project_assignments")
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey('project.id_project'), nullable=False)
+    competence_id: Mapped[int] = mapped_column(
+        ForeignKey('competence.id_competence'), nullable=False)
+    manager_id: Mapped[int] = mapped_column(
+        ForeignKey('user.id_user'), nullable=False)
+
+    competence: Mapped["Competence"] = relationship(
+        back_populates="project_assignments")
     manager: Mapped["User"] = relationship()
 
     def serialize(self):
@@ -293,23 +326,28 @@ class ProjectCompetence(db.Model):
         }
 # --- REGISTRO DE AVANCES (OPERATIVO) ---
 
+
 class Activity(db.Model):
     __tablename__ = 'activity'
     id_activity: Mapped[int] = mapped_column(primary_key=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    implementation_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    
+    implementation_date: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False)
+
     # Logros numéricos
     achievement_men: Mapped[float] = mapped_column(Float, default=0.0)
     achievement_women: Mapped[float] = mapped_column(Float, default=0.0)
     achievement_disability: Mapped[float] = mapped_column(Float, default=0.0)
-    
+
     status: Mapped[str] = mapped_column(String(20), default="Pendiente")
-    
+
     # Relaciones
-    indicator_id: Mapped[int] = mapped_column(ForeignKey('indicator.id_indicator'), nullable=False)
-    user_id: Mapped[int] = mapped_column(ForeignKey('user.id_user'), nullable=False)
-    location_id: Mapped[int] = mapped_column(ForeignKey('location.id_location'), nullable=False)
+    indicator_id: Mapped[int] = mapped_column(
+        ForeignKey('indicator.id_indicator'), nullable=False)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey('user.id_user'), nullable=False)
+    location_id: Mapped[int] = mapped_column(
+        ForeignKey('location.id_location'), nullable=False)
 
     responsible: Mapped["User"] = relationship(back_populates="activities")
 

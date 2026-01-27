@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: 555fdb1f3413
+Revision ID: 47e24ce76c7b
 Revises: 
-Create Date: 2026-01-26 20:16:11.134279
+Create Date: 2026-01-26 23:35:41.444388
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '555fdb1f3413'
+revision = '47e24ce76c7b'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -102,6 +102,13 @@ def upgrade():
     sa.ForeignKeyConstraint(['project_id'], ['project.id_project'], ),
     sa.PrimaryKeyConstraint('id_pc')
     )
+    op.create_table('user_competence',
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('competence_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['competence_id'], ['competence.id_competence'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['user.id_user'], ),
+    sa.PrimaryKeyConstraint('user_id', 'competence_id')
+    )
     op.create_table('indicator',
     sa.Column('id_indicator', sa.Integer(), nullable=False),
     sa.Column('template_id', sa.Integer(), nullable=False),
@@ -150,6 +157,7 @@ def downgrade():
     op.drop_table('indicator_location_goal')
     op.drop_table('activity')
     op.drop_table('indicator')
+    op.drop_table('user_competence')
     op.drop_table('project_competence')
     op.drop_table('indicator_template')
     op.drop_table('user')
