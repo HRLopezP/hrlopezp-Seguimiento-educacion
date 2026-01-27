@@ -23,6 +23,7 @@
   --overlay-color-1: rgba(27, 38, 59, 0.8); /* Azul Oxford */
   --overlay-color-2: rgba(13, 27, 42, 0.95); /* Azul Noche */
   --hero-text: #ffffff; /* Blanco puro para resaltar */
+  --hero-subtitle: #b0b0b0; /* Gris claro para el subtítulo */
 }
 
 /* Evitar que el fondo de la tabla o de la página se vea blanco al cargar */
@@ -62,13 +63,33 @@ body {
 }
 
 .hero-section-transparent {
-  min-height: 60vh; /* Un poco más corto para que las tarjetas suban */
+  min-height: 60vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  text-align: center;
+  /* Quitamos el color: #ffffff fijo y usamos la variable */
+  color: var(--hero-text); 
   padding-top: 80px;
   padding-bottom: 40px;
+  transition: color 0.4s ease;
+}
+
+.hero-section-transparent p {
+  color: var(--hero-subtitle, rgba(255,255,255,0.8));
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* El título principal necesita resaltar más */
+.hero-section-transparent h1 {
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+
+.hero-section-transparent h1, 
+.hero-section-transparent .display-4 {
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 [data-theme="dark"] .main-navbar {
@@ -465,4 +486,85 @@ html,
 
 [data-theme="dark"] .table-sigssep .form-select {
   border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Color para los enlaces del menú central (Tablero, Proyectos, etc.) */
+.main-navbar .nav-link {
+  color: var(--text-primary) !important;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+/* En modo oscuro, forzamos que sean blancos si la variable no lo hace */
+[data-theme="dark"] .main-navbar .nav-link {
+  color: #ffffff !important;
+}
+
+/* Efecto Hover para que se sienta vivo */
+.main-navbar .nav-link:hover {
+  color: var(--accent-color) !important; /* Usará tu verde esmeralda */
+}
+
+/* Para el enlace que ya tiene la clase 'text-emerald' (Gestión) */
+.text-emerald {
+  color: #52b788 !important; /* Esmeralda claro para que resalte en el fondo oscuro */
+}
+
+.user-role-display {
+    font-weight: 700;
+    text-align: center;
+    display: block;
+    padding: 5px 0;
+    transition: color 0.3s ease;
+}
+
+/* Color en MODO CLARO (Fondo blanco -> Texto Oxford Grey) */
+.user-role-display {
+    color: #1b263b; /* Tu color Oxford Grey de gestión */
+}
+
+/* Color en MODO OSCURO (Fondo oscuro -> Texto Blanco o Esmeralda) */
+[data-theme="dark"] .user-role-display {
+    color: #ffffff !important;
+}
+
+/* Opcional: Si quieres que el badge sea dinámico como pediste */
+.bg-oxford {
+    background-color: #1b263b !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.bg-emerald-soft {
+    background-color: #52b788 !important; /* Usamos el esmeralda brillante */
+    color: #0d1b2a !important; /* Texto oscuro para máximo contraste sobre verde */
+}
+
+[data-theme="dark"] .bg-oxford {
+    background-color: #415a77 !important; /* Un azul un poco más claro para que no se pierda */
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] .bg-emerald-soft {
+    background-color: #52b788 !important; 
+    color: #0d1b2a !important; /* Texto oscuro sobre fondo claro siempre gana en legibilidad */
+}
+
+[data-theme="dark"] .dropdown-label {
+    color: #e0e1dd !important; /* Blanco hueso para que sea legible */
+    opacity: 0.8;
+}
+
+/* --- SOLUCIÓN PARA LOS BADGES DE ROL --- */
+
+/* Clase base para que todos los roles se vean uniformes */
+.role-badge {
+    display: block;
+    width: 100%;
+    padding: 0.4rem;
+    border-radius: 6px;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
 }

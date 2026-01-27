@@ -2,7 +2,7 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 from flask import Flask, request, jsonify, url_for, Blueprint
-from api.models import db, User, Rol, Project, Indicator, Location, Activity
+from api.models import db, User, Rol, Competence
 from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -115,17 +115,21 @@ def login():
     if not user.is_active:
         return jsonify({"message": "Your account is pending activation by a manager."}), 403
 
-    # 7. Preparamos las "Additional Claims" para el frontend
-    # - Validamos si el rol es 'Administrador' según nuestra tabla Rol.
+    # 7. Preparamos las "Additional Claims" mejoradas
     user_role_name = user.rol.name_rol if user.rol else "Oficial"
-    is_admin = user.rol.name_rol == "Administrador"
+    is_admin = user_role_name == "Administrador"
+
+    # Extraemos solo los nombres (o IDs) de las competencias asignadas
+    # Esto crea una lista simple: ["Educación", "Salud"]
+    user_competences = [c.name for c in user.competences]
 
     additional_claims = {
         "is_administrator": is_admin,
-        "rol": user_role_name
+        "rol": user_role_name,
+        "competences": user_competences  # <--- ¡Aquí está la magia!
     }
 
-    # 8. Creamos el token de acceso con la identidad y los claims
+    # 8. Creamos el token de acceso con la identidad y los nuevos claims
     access_token = create_access_token(
         identity=str(user.id_user),
         additional_claims=additional_claims
@@ -536,3 +540,104 @@ def update_avatar():
         "msg": "Avatar actualizado con éxito",
         "user": user.serialize()  # Devolvemos el usuario completo actualizado
     }), 200
+
+
+@api.route('/competences', methods=['GET'])
+@jwt_required()
+def get_competences():
+    """Cualquier usuario logueado puede ver el catálogo"""
+    competences = Competence.query.all()
+    return jsonify([c.serialize() for c in competences]), 200
+
+
+@api.route('/competences', methods=['POST'])
+@manager_required # <--- ¡Aquí está la magia! Ya no necesitas if user.rol == ...
+def create_competence():
+    data = request.json
+    name = data.get("name")
+
+    if not name:
+        return jsonify({"message": "El nombre de la competencia es obligatorio"}), 400
+
+    # Verificamos si ya existe para evitar errores de base de datos
+    if Competence.query.filter_by(name=name).first():
+        return jsonify({"message": "Esta competencia ya está registrada"}), 400
+
+    new_comp = Competence(name=name)
+    db.session.add(new_comp)
+    db.session.commit()
+    
+    return jsonify(new_comp.serialize()), 201
+
+@api.route('/competences/<int:id>', methods=['PUT'])
+@manager_required
+def update_competence(id):
+    competence = Competence.query.get(id)
+    if not competence:
+        return jsonify({"message": "Competencia no encontrada"}), 404
+
+    data = request.json
+    competence.name = data.get("name", competence.name)
+    
+    db.session.commit()
+    return jsonify(competence.serialize()), 200
+
+
+@api.route('/competences/<int:id>', methods=['DELETE'])
+@manager_required
+def delete_competence(id):
+    competence = Competence.query.get(id)
+    if not competence:
+        return jsonify({"message": "Competencia no encontrada"}), 404
+
+    # Ojo amiguito: Si la competencia ya está en un proyecto, 
+    # SQLAlchemy lanzará un error de integridad. 
+    try:
+        db.session.delete(competence)
+        db.session.commit()
+        return jsonify({"message": "Competencia eliminada exitosamente"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "No se puede eliminar: está asignada a un proyecto"}), 400
+
+
+@api.route("/user/<int:user_id>/competences", methods=["PUT"])
+@jwt_required() # Solo usuarios autenticados (y podrías validar que sea Admin)
+def assign_user_competences(user_id):
+    data = request.get_json(silent=True)
+    
+    if data is None:
+        return jsonify({"message": "No data provided"}), 400
+
+    # 1. Buscamos al usuario
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    # 2. Obtenemos la lista de IDs de competencias desde el frontend
+    # Esperamos algo como: {"competence_ids": [1, 3]}
+    competence_ids = data.get("competence_ids", [])
+
+    if not isinstance(competence_ids, list):
+        return jsonify({"message": "competence_ids must be a list"}), 400
+
+    try:
+        # 3. Buscamos los objetos de competencia reales en la DB
+        # Esto asegura que no intentemos asignar un ID que no existe
+        selected_competences = Competence.query.filter(Competence.id_competence.in_(competence_ids)).all()
+
+        # 4. SINCRONIZACIÓN: 
+        # Al asignar la lista de objetos directamente, SQLAlchemy maneja 
+        # la tabla 'user_competence' por nosotros (borra lo viejo, añade lo nuevo)
+        user.competences = selected_competences
+        
+        db.session.commit()
+
+        return jsonify({
+            "message": f"Competences updated for user {user.name}",
+            "user": user.serialize() # Esto ya incluye las nuevas competencias gracias a tu serialize
+        }), 200
+
+    except Exception as error:
+        db.session.rollback()
+        return jsonify({"message": "Error assigning competences", "error": str(error)}), 500

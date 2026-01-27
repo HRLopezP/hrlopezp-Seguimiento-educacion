@@ -8,20 +8,30 @@ import "../styles/userManagement.css";
 const UserManagement = () => {
     const [users, setUsers] = useState([]);
     const [roles, setRoles] = useState([]);
+    const [allCompetences, setAllCompetences] = useState([]);
     const [loading, setLoading] = useState(true);
 
     const fetchData = async () => {
         try {
-            const [usersRes, rolesRes] = await Promise.all([
+            setLoading(true);
+            const [usersRes, rolesRes, compRes] = await Promise.all([ // <-- AGREGADO compRes aquí
                 apiFetch("/manager/users"),
-                apiFetch("/roles")
+                apiFetch("/roles"),
+                apiFetch("/competences")
             ]);
-            if (!usersRes || !rolesRes) return;
+
+            // Verificamos que las tres respuestas existan
+            if (!usersRes || !rolesRes || !compRes) return;
+
             const usersData = await usersRes.json();
             const rolesData = await rolesRes.json();
+            const compData = await compRes.json();
+
             setUsers(usersData);
             setRoles(rolesData);
+            setAllCompetences(compData);
         } catch (error) {
+            console.error("Error detallado:", error); // Esto te ayudará a ver qué pasa en la consola
             toast.error("Error al cargar datos del sistema");
         } finally {
             setLoading(false);
@@ -76,6 +86,72 @@ const UserManagement = () => {
         }
     };
 
+    const openCompetenceModal = async (user) => {
+        if (!allCompetences || allCompetences.length === 0) {
+            toast.error("No hay competencias cargadas en el sistema");
+            return;
+        }
+
+        const competenceHtml = allCompetences.map(comp => {
+            // Verificamos si el usuario ya tiene esta competencia asignada
+            const isSelected = user.competences?.some(c => c.id === comp.id) || false;
+            return `
+            <div class="swal-comp-item">
+                <input type="checkbox" id="comp-${comp.id}" class="comp-checkbox" 
+                    value="${comp.id}" ${isSelected ? 'checked' : ''}>
+                <label for="comp-${comp.id}" class="comp-label">
+                    <i class="fas fa-check-circle check-icon"></i>
+                    ${comp.name}
+                </label>
+            </div>
+            `;
+        }).join('');
+
+        const { value: selectedIds } = await Swal.fire({
+            title: `<span style="color: #ffffff">Competencias: ${user.name}</span>`,
+            html: `
+                <div class="swal-comp-container">
+                    <p style="color: var(--text-primary); font-size: 0.9rem;">Seleccione las áreas de acceso para este oficial:</p>
+                    <div class="swal-comp-grid">
+                        ${competenceHtml}
+                    </div>
+                </div>
+            `,
+            background: 'var(--card-bg)',
+            showCancelButton: true,
+            confirmButtonColor: '#10b981', // Emerald
+            cancelButtonColor: '#1B263B',  // Oxford Grey
+            confirmButtonText: 'Guardar Cambios',
+            cancelButtonText: 'Cancelar',
+            customClass: {
+                title: 'management-card-header w-100 m-0 p-3 fs-5',
+                popup: 'p-0 rounded-4 overflow-hidden'
+            },
+            preConfirm: () => {
+                const checked = document.querySelectorAll('.comp-checkbox:checked');
+                return Array.from(checked).map(cb => parseInt(cb.value));
+            }
+        });
+
+        if (selectedIds) {
+            try {
+                const res = await apiFetch(`/user/${user.id}/competences`, {
+                    method: "PUT",
+                    body: JSON.stringify({ competence_ids: selectedIds })
+                });
+
+                if (res?.ok) {
+                    toast.success("Permisos actualizados correctamente");
+                    fetchData();
+                } else {
+                    toast.error("No se pudieron actualizar las competencias");
+                }
+            } catch (error) {
+                toast.error("Error de conexión");
+            }
+        }
+    };
+
     if (loading) return (
         <div className="d-flex justify-content-center align-items-center" style={{ height: '80vh' }}>
             <div className="spinner-border text-emerald" role="status"></div>
@@ -124,7 +200,6 @@ const UserManagement = () => {
                     </div>
                     <div className="card-body p-0">
                         <div className="table-responsive sigssep-table-container">
-                            {/* Usaremos la clase table-sigssep que es la más robusta de tus archivos */}
                             <table className="table align-middle table-sigssep mb-0">
                                 <thead>
                                     <tr>
@@ -166,7 +241,19 @@ const UserManagement = () => {
                                                         {user.is_active ? 'Activo' : 'Inactivo'}
                                                     </span>
                                                 </td>
-                                                <td className="text-start d-flex justify-content-between ps-4">
+                                                <td className="text-start d-flex align-items-center ps-4">
+
+                                                    {/* NUEVO: Botón de Competencias (Solo aparece si NO es root admin) */}
+                                                    {!isRootAdmin && (
+                                                        <button
+                                                            className="btn-competence-badge me-3"
+                                                            onClick={() => openCompetenceModal(user)}
+                                                        >
+                                                            <i className="fas fa-shield-alt me-1"></i>
+                                                            <span className="btn-text">Permisos</span>
+                                                        </button>
+                                                    )}
+
                                                     <button
                                                         className={`btn-toggle-status ${user.is_active ? 'deactivate' : 'activate'}`}
                                                         disabled={isRootAdmin}
@@ -175,9 +262,9 @@ const UserManagement = () => {
                                                         <i className={`fas ${user.is_active ? 'fa-user-slash' : 'fa-user-check'}`}></i>
                                                         {user.is_active ? "Suspender" : "Reactivar"}
                                                     </button>
-                                                    {/* NUEVO: Botón de Eliminar */}
+
                                                     <button
-                                                        className="btn-delete-user ms-4"
+                                                        className="btn-delete-user ms-3"
                                                         disabled={isRootAdmin}
                                                         onClick={() => handleDeleteUser(user.id, user.name)}
                                                         title="Eliminar Usuario"
