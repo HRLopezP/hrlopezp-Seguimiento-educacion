@@ -14,10 +14,11 @@ import { Login } from "./pages/Login";
 import { AccessDenied } from "./components/AccessDenied";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
-import UserManagement from "./pages/UserManagement"; 
+import UserManagement from "./pages/UserManagement";
 import RoleManagement from "./pages/RoleManagement";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import CompetenceManagement from "./pages/CompetenceManagement";
+import TheoryManagement from "./pages/TheoryManagement";
 import Profile from "./pages/Profile";
 
 export const router = createBrowserRouter(
@@ -63,6 +64,15 @@ export const router = createBrowserRouter(
         element={
           <ProtectedRoute>
             <CompetenceManagement />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/manager/theories"
+        element={
+          <ProtectedRoute>
+            <TheoryManagement />
           </ProtectedRoute>
         }
       />

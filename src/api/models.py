@@ -96,22 +96,43 @@ class TheoryTemplate(db.Model):
     __tablename__ = 'theory_template'
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    results: Mapped[List["ResultTemplate"]
-                    ] = relationship(back_populates="theory")
+    
+    # Asegúrate de que el nombre aquí coincida con el primary_key de Competence
+    competence_id: Mapped[int] = mapped_column(ForeignKey('competence.id_competence'), nullable=False)
+    
+    # Relación bidireccional (Añadido back_populates)
+    competence: Mapped["Competence"] = relationship(backref="theories") 
+
+    results: Mapped[List["ResultTemplate"]] = relationship(back_populates="theory", cascade="all, delete-orphan")
+    
+    def serialize(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "competence_id": self.competence_id,
+            "competence_name": self.competence.name if self.competence else None
+        }
 
 
 class ResultTemplate(db.Model):
     __tablename__ = 'result_template'
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    # Define si es Output u Outcome
     type: Mapped[str] = mapped_column(
         Enum('output', 'outcome', name='result_types'), nullable=False)
 
     theory_id: Mapped[int] = mapped_column(ForeignKey('theory_template.id'))
     theory: Mapped["TheoryTemplate"] = relationship(back_populates="results")
-    indicators: Mapped[List["IndicatorTemplate"]
-                       ] = relationship(back_populates="result")
+    indicators: Mapped[List["IndicatorTemplate"]] = relationship(back_populates="result", cascade="all, delete-orphan")
+
+    # ¡IMPORTANTE! Añadir serialize para el siguiente paso del proyecto
+    def serialize(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "type": self.type,
+            "theory_id": self.theory_id
+        }
 
 
 class IndicatorTemplate(db.Model):

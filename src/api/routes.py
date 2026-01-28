@@ -2,7 +2,7 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 from flask import Flask, request, jsonify, url_for, Blueprint
-from api.models import db, User, Rol, Competence
+from api.models import db, User, Rol, Competence, TheoryTemplate
 from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -641,3 +641,59 @@ def assign_user_competences(user_id):
     except Exception as error:
         db.session.rollback()
         return jsonify({"message": "Error assigning competences", "error": str(error)}), 500
+
+
+@api.route('/theories', methods=['GET'])
+@jwt_required()
+def get_theories():
+    theories = TheoryTemplate.query.all()
+    # Al serializar, ya incluimos el nombre de la competencia gracias al modelo
+    return jsonify([t.serialize() for t in theories]), 200
+
+
+@api.route('/theories', methods=['POST'])
+@manager_required
+def create_theory():
+    data = request.json
+    name = data.get("name")
+    competence_id = data.get("competence_id")
+
+    if not name or not competence_id:
+        return jsonify({"message": "Nombre y ID de competencia son obligatorios"}), 400
+
+    # Verificamos que la competencia exista
+    if not Competence.query.get(competence_id):
+        return jsonify({"message": "La competencia especificada no existe"}), 404
+
+    new_theory = TheoryTemplate(name=name, competence_id=competence_id)
+    db.session.add(new_theory)
+    db.session.commit()
+    
+    return jsonify(new_theory.serialize()), 201
+
+
+@api.route('/theories/<int:id>', methods=['PUT'])
+@manager_required
+def update_theory(id):
+    theory = TheoryTemplate.query.get(id)
+    if not theory:
+        return jsonify({"message": "Teoría no encontrada"}), 404
+
+    data = request.json
+    theory.name = data.get("name", theory.name)
+    theory.competence_id = data.get("competence_id", theory.competence_id)
+    
+    db.session.commit()
+    return jsonify(theory.serialize()), 200
+
+
+@api.route('/theories/<int:id>', methods=['DELETE'])
+@manager_required
+def delete_theory(id):
+    theory = TheoryTemplate.query.get(id)
+    if not theory:
+        return jsonify({"message": "Teoría no encontrada"}), 404
+
+    db.session.delete(theory)
+    db.session.commit()
+    return jsonify({"message": "Teoría de cambio eliminada"}), 200
