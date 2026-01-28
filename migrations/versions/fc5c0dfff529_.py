@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: 47e24ce76c7b
+Revision ID: fc5c0dfff529
 Revises: 
-Create Date: 2026-01-26 23:35:41.444388
+Create Date: 2026-01-28 14:33:36.684197
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '47e24ce76c7b'
+revision = 'fc5c0dfff529'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -45,11 +45,6 @@ def upgrade():
     sa.PrimaryKeyConstraint('id_rol'),
     sa.UniqueConstraint('name_rol')
     )
-    op.create_table('theory_template',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(length=100), nullable=False),
-    sa.PrimaryKeyConstraint('id')
-    )
     op.create_table('location',
     sa.Column('id_location', sa.Integer(), nullable=False),
     sa.Column('province', sa.String(length=100), nullable=False),
@@ -60,12 +55,11 @@ def upgrade():
     sa.ForeignKeyConstraint(['project_id'], ['project.id_project'], ),
     sa.PrimaryKeyConstraint('id_location')
     )
-    op.create_table('result_template',
+    op.create_table('theory_template',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=100), nullable=False),
-    sa.Column('type', sa.Enum('output', 'outcome', name='result_types'), nullable=False),
-    sa.Column('theory_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['theory_id'], ['theory_template.id'], ),
+    sa.Column('competence_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['competence_id'], ['competence.id_competence'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('user',
@@ -83,15 +77,6 @@ def upgrade():
     sa.PrimaryKeyConstraint('id_user'),
     sa.UniqueConstraint('email')
     )
-    op.create_table('indicator_template',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('code', sa.String(length=20), nullable=False),
-    sa.Column('description', sa.Text(), nullable=False),
-    sa.Column('result_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['result_id'], ['result_template.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('code')
-    )
     op.create_table('project_competence',
     sa.Column('id_pc', sa.Integer(), nullable=False),
     sa.Column('project_id', sa.Integer(), nullable=False),
@@ -102,12 +87,29 @@ def upgrade():
     sa.ForeignKeyConstraint(['project_id'], ['project.id_project'], ),
     sa.PrimaryKeyConstraint('id_pc')
     )
+    op.create_table('result_template',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('type', sa.Enum('output', 'outcome', name='result_types'), nullable=False),
+    sa.Column('theory_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['theory_id'], ['theory_template.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('user_competence',
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('competence_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['competence_id'], ['competence.id_competence'], ),
     sa.ForeignKeyConstraint(['user_id'], ['user.id_user'], ),
     sa.PrimaryKeyConstraint('user_id', 'competence_id')
+    )
+    op.create_table('indicator_template',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('code', sa.String(length=20), nullable=False),
+    sa.Column('description', sa.Text(), nullable=False),
+    sa.Column('result_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['result_id'], ['result_template.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('code')
     )
     op.create_table('indicator',
     sa.Column('id_indicator', sa.Integer(), nullable=False),
@@ -157,13 +159,13 @@ def downgrade():
     op.drop_table('indicator_location_goal')
     op.drop_table('activity')
     op.drop_table('indicator')
-    op.drop_table('user_competence')
-    op.drop_table('project_competence')
     op.drop_table('indicator_template')
-    op.drop_table('user')
+    op.drop_table('user_competence')
     op.drop_table('result_template')
-    op.drop_table('location')
+    op.drop_table('project_competence')
+    op.drop_table('user')
     op.drop_table('theory_template')
+    op.drop_table('location')
     op.drop_table('rol')
     op.drop_table('project')
     op.drop_table('competence')
