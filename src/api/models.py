@@ -149,6 +149,15 @@ class IndicatorTemplate(db.Model):
     result_id: Mapped[int] = mapped_column(ForeignKey('result_template.id'))
     result: Mapped["ResultTemplate"] = relationship(
         back_populates="indicators")
+    
+    def serialize(self):
+        return {
+            "id": self.id,
+            "code": self.code,
+            "description": self.description,
+            "result_id": self.result_id
+            # No pongas "result" aquí para evitar bucles infinitos
+        }
 
 
 # --- INSTANCIAS DEL PROYECTO (Lo que el Gerente llena) ---

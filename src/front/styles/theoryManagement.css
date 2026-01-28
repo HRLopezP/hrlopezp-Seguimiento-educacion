@@ -2,108 +2,201 @@
 
 /* 1. ANIMACIÓN (Definida una sola vez al inicio) */
 @keyframes fadeInUp {
-    from { 
-        opacity: 0; 
-        transform: translateY(20px); 
-    }
-    to { 
-        opacity: 1; 
-        transform: translateY(0); 
-    }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* 2. TÍTULOS DE LA PÁGINA (Con candado para no afectar a Usuarios/Roles) */
 .theory-page-wrapper .management-title {
-    color: var(--text-primary) !important;
-    font-weight: 800;
-    font-size: 2rem; /* Un poco más grande para que destaque */
-    margin-bottom: 0.2rem;
-    display: block; /* Asegura que tome su espacio */
+  color: var(--text-primary) !important;
+  font-weight: 800;
+  font-size: 2rem; /* Un poco más grande para que destaque */
+  margin-bottom: 0.2rem;
+  display: block; /* Asegura que tome su espacio */
 }
 
 .theory-page-wrapper .management-subtitle {
-    color: var(--text-primary) !important;
-    opacity: 0.8; /* Subimos un poco la opacidad para que no se pierda */
-    font-size: 1.1rem;
+  color: var(--text-primary) !important;
+  opacity: 0.8; /* Subimos un poco la opacidad para que no se pierda */
+  font-size: 1.1rem;
 }
 
 /* 5. TABLA CON ENCABEZADO GRIS SÓLIDO */
 .theory-page-wrapper .theory-table th {
-    /* Cambiamos el transparente por un gris sólido suave */
-    background-color: #f8f9fa !important; 
-    color: #1b263b !important; /* Texto oscuro para contraste en light mode */
-    border-bottom: 2px solid var(--accent-color) !important;
-    text-transform: uppercase;
-    font-size: 0.75rem;
-    padding: 0.8rem 1.2rem !important; 
+  /* Cambiamos el transparente por un gris sólido suave */
+  background-color: #f8f9fa !important;
+  color: #1b263b !important; /* Texto oscuro para contraste en light mode */
+  border-bottom: 2px solid var(--accent-color) !important;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  padding: 0.8rem 1.2rem !important;
 }
 
 /* Ajuste para el encabezado en MODO OSCURO */
 [data-theme="dark"] .theory-page-wrapper .theory-table th {
-    background-color: #252d3d !important; /* Un gris azulado oscuro para el fondo */
-    color: #ffffff !important; /* Texto blanco */
+  background-color: #252d3d !important; /* Un gris azulado oscuro para el fondo */
+  color: #ffffff !important; /* Texto blanco */
 }
 
 /* 3. TARJETAS DE COMPETENCIA */
 .theory-page-wrapper .theory-section-card {
-    background-color: var(--card-bg) !important;
-    border-radius: 15px;
-    border: 1px solid rgba(128, 128, 128, 0.1);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-    overflow: hidden;
-    margin-bottom: 2.5rem;
-    animation: fadeInUp 0.6s ease backwards;
+  background-color: var(--card-bg) !important;
+  border-radius: 15px;
+  border: 1px solid rgba(128, 128, 128, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  margin-bottom: 2.5rem;
+  animation: fadeInUp 0.6s ease backwards;
 }
 
 /* Efecto Cascada para las primeras 3 tarjetas */
-.theory-page-wrapper .theory-section-card:nth-child(1) { animation-delay: 0.1s; }
-.theory-page-wrapper .theory-section-card:nth-child(2) { animation-delay: 0.2s; }
-.theory-page-wrapper .theory-section-card:nth-child(3) { animation-delay: 0.3s; }
+.theory-page-wrapper .theory-section-card:nth-child(1) {
+  animation-delay: 0.1s;
+}
+.theory-page-wrapper .theory-section-card:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.theory-page-wrapper .theory-section-card:nth-child(3) {
+  animation-delay: 0.3s;
+}
 
 /* 4. ENCABEZADO DE COMPETENCIA (Azul Oxford) */
 .theory-page-wrapper .theory-section-header {
-    background-color: #1b263b !important; 
-    color: #ffffff !important;
-    padding: 1rem 1.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  background-color: #1b263b !important;
+  color: #ffffff !important;
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 /* 5. TABLA COMPACTA (Eje Y reducido) */
 .theory-page-wrapper .theory-table {
-    background-color: transparent !important;
-    margin-bottom: 0;
+  background-color: transparent !important;
+  margin-bottom: 0;
 }
 
 .theory-page-wrapper .theory-table td {
-    color: var(--text-primary) !important;
-    border-bottom: 1px solid rgba(128, 128, 128, 0.1) !important;
-    padding: 0.6rem 1.2rem !important;
-    vertical-align: middle;
+  color: var(--text-primary) !important;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.1) !important;
+  padding: 0.6rem 1.2rem !important;
+  vertical-align: middle;
 }
 
 /* 6. BOTONES Y ACCIONES */
 .theory-page-wrapper .btn-add-theory {
-    background-color: rgba(82, 183, 136, 0.2);
-    color: #52b788 !important;
-    border: 1px solid #52b788;
-    font-weight: 600;
-    transition: all 0.3s ease;
+  background-color: rgba(82, 183, 136, 0.2);
+  color: #52b788 !important;
+  border: 1px solid #52b788;
+  font-weight: 600;
+  transition: all 0.3s ease;
 }
 
 .theory-page-wrapper .btn-add-theory:hover {
-    background-color: #52b788;
-    color: #0d1b2a !important;
+  background-color: #52b788;
+  color: #0d1b2a !important;
 }
 
 .theory-page-wrapper .theory-row:hover {
-    background-color: rgba(82, 183, 136, 0.05) !important;
+  background-color: rgba(82, 183, 136, 0.05) !important;
 }
 
 /* Limpieza de botones tipo link para que no estiren la fila */
 .theory-page-wrapper .btn-link {
-    padding: 0 5px !important;
-    line-height: 1;
-    text-decoration: none;
+  padding: 0 5px !important;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.theory-page-wrapper .text-primary {
+  color: #1b263b !important;
+}
+
+[data-theme="dark"] .theory-page-wrapper .text-primary {
+  color: #778da9 !important; /* Un azul más claro para que resalte en el fondo oscuro */
+}
+
+/* Efecto hover para que el gerente sepa que es clickeable */
+.theory-page-wrapper .btn-link:hover i {
+  transform: scale(1.2);
+  transition: transform 0.2s ease;
+}
+
+/* Estilo para que el ID se vea como un badge minimalista */
+.theory-page-wrapper .id-badge {
+  background-color: rgba(27, 38, 59, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+
+/* Estilo para las Tabs de la Consola */
+.custom-console-tabs {
+    border-bottom: 2px solid rgba(128, 128, 128, 0.1);
+}
+
+.custom-console-tabs .nav-link {
+    color: var(--text-primary);
+    border: none;
+    font-weight: 600;
+    padding: 1rem 1.5rem;
+    opacity: 0.6;
+    transition: all 0.3s ease;
+}
+
+.custom-console-tabs .nav-link.active {
+    background-color: transparent !important;
+    color: var(--accent-color) !important; /* Emerald Green */
+    border-bottom: 3px solid var(--accent-color);
+    opacity: 1;
+}
+
+/* Tarjeta de cada Resultado (Outcome/Output) */
+.result-card {
+    background-color: var(--card-bg);
+    border-radius: 12px;
+    border-left: 5px solid var(--accent-color);
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.result-card-header {
+    background-color: rgba(27, 38, 59, 0.03);
+    padding: 1rem;
+    font-weight: 700;
+}
+
+
+/* Ajuste de la tabla interna de indicadores */
+.result-card .table-sigssep thead th {
+    background-color: transparent !important;
+    border-bottom: 1px solid var(--accent-color) !important;
+    padding: 0.5rem !important;
+    font-size: 0.7rem;
+}
+
+.result-card .table-sigssep tbody td {
+    padding: 0.8rem 0.5rem !important;
+    font-size: 0.9rem;
+}
+
+/* Hover suave para el botón de añadir indicador */
+.btn-link.text-emerald:hover {
+    background-color: rgba(82, 183, 136, 0.1);
+    color: #40916c !important;
+}
+
+/* Sombras y bordes para los inputs de Swal */
+.custom-swal-input {
+    border: 1px solid rgba(128, 128, 128, 0.2) !important;
+    border-radius: 8px !important;
+    background-color: var(--bg-color) !important;
+    color: var(--text-primary) !important;
 }
