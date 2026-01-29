@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: fc5c0dfff529
+Revision ID: 7b138c5917e1
 Revises: 
-Create Date: 2026-01-28 14:33:36.684197
+Create Date: 2026-01-28 22:41:41.918992
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'fc5c0dfff529'
+revision = '7b138c5917e1'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -57,7 +57,7 @@ def upgrade():
     )
     op.create_table('theory_template',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('competence_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['competence_id'], ['competence.id_competence'], ),
     sa.PrimaryKeyConstraint('id')
@@ -89,7 +89,7 @@ def upgrade():
     )
     op.create_table('result_template',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('name', sa.Text(), nullable=False),
     sa.Column('type', sa.Enum('output', 'outcome', name='result_types'), nullable=False),
     sa.Column('theory_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['theory_id'], ['theory_template.id'], ),
@@ -105,6 +105,7 @@ def upgrade():
     op.create_table('indicator_template',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('code', sa.String(length=20), nullable=False),
+    sa.Column('name', sa.String(length=200), nullable=False),
     sa.Column('description', sa.Text(), nullable=False),
     sa.Column('result_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['result_id'], ['result_template.id'], ),

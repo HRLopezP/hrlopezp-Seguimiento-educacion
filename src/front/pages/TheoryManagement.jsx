@@ -2,14 +2,20 @@ import React, { useEffect, useState } from "react";
 import { toast, Toaster } from "sonner";
 import Swal from 'sweetalert2';
 import { apiFetch } from "../../utils/api";
+import { useNavigate } from "react-router-dom";
 import "../styles/auth.css";
 import "../styles/roleManagement.css";
 import "../styles/theoryManagement.css";
 
 const TheoryManagement = () => {
+    const navigate = useNavigate();
     const [theories, setTheories] = useState([]);
     const [competences, setCompetences] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    const handleViewDetails = (theoryId) => {
+        navigate(`/theories/${theoryId}/console`); // Esta ruta la definiremos en el App.js
+    };
 
     const fetchData = async () => {
         try {
@@ -145,7 +151,6 @@ const TheoryManagement = () => {
                             </div>
 
                             <div className="card-body p-0">
-                                {/* CAMBIO: Quitamos table-light de thead y usamos theory-table */}
                                 <table className="table table-sigssep theory-table mb-0">
                                     <thead>
                                         <tr>
@@ -164,6 +169,13 @@ const TheoryManagement = () => {
                                                     </td>
                                                     <td className="fw-bold">{t.name}</td>
                                                     <td className="text-end pe-4">
+                                                        <button
+                                                            className="btn btn-sm btn-link text-primary me-2"
+                                                            title="Ver Resultados e Indicadores"
+                                                            onClick={() => handleViewDetails(t.id)}
+                                                        >
+                                                            <i className="fas fa-folder-open"></i>
+                                                        </button>
                                                         <button className="btn btn-sm btn-link text-info me-2" onClick={() => handleOpenModal(t)}>
                                                             <i className="fas fa-edit"></i>
                                                         </button>

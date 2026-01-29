@@ -95,13 +95,13 @@ class User(db.Model):
 class TheoryTemplate(db.Model):
     __tablename__ = 'theory_template'
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
     
     # Asegúrate de que el nombre aquí coincida con el primary_key de Competence
     competence_id: Mapped[int] = mapped_column(ForeignKey('competence.id_competence'), nullable=False)
     
     # Relación bidireccional (Añadido back_populates)
-    competence: Mapped["Competence"] = relationship(backref="theories") 
+    competence: Mapped["Competence"] = relationship(back_populates="theories") 
 
     results: Mapped[List["ResultTemplate"]] = relationship(back_populates="theory", cascade="all, delete-orphan")
     
@@ -110,19 +110,23 @@ class TheoryTemplate(db.Model):
             "id": self.id,
             "name": self.name,
             "competence_id": self.competence_id,
-            "competence_name": self.competence.name if self.competence else None
+            "competence_name": self.competence.name if self.competence else None,
+            # Importante: ¿Quieres ver los resultados al serializar la teoría?
+            "results": [r.serialize() for r in self.results] 
         }
 
 
 class ResultTemplate(db.Model):
     __tablename__ = 'result_template'
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
     type: Mapped[str] = mapped_column(
         Enum('output', 'outcome', name='result_types'), nullable=False)
 
     theory_id: Mapped[int] = mapped_column(ForeignKey('theory_template.id'))
     theory: Mapped["TheoryTemplate"] = relationship(back_populates="results")
+    
+    # Cascade delete es vital aquí: si borras un output, se van sus indicadores
     indicators: Mapped[List["IndicatorTemplate"]] = relationship(back_populates="result", cascade="all, delete-orphan")
 
     # ¡IMPORTANTE! Añadir serialize para el siguiente paso del proyecto
@@ -131,7 +135,8 @@ class ResultTemplate(db.Model):
             "id": self.id,
             "name": self.name,
             "type": self.type,
-            "theory_id": self.theory_id
+            "theory_id": self.theory_id,
+            "indicators": [i.serialize() for i in self.indicators]
         }
 
 
@@ -139,11 +144,22 @@ class IndicatorTemplate(db.Model):
     __tablename__ = 'indicator_template'
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    name = db.Column(db.String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
 
     result_id: Mapped[int] = mapped_column(ForeignKey('result_template.id'))
     result: Mapped["ResultTemplate"] = relationship(
         back_populates="indicators")
+    
+    def serialize(self):
+        return {
+            "id": self.id,
+            "code": self.code,
+            "name": self.name,
+            "description": self.description,
+            "result_id": self.result_id
+            # No pongas "result" aquí para evitar bucles infinitos
+        }
 
 
 # --- INSTANCIAS DEL PROYECTO (Lo que el Gerente llena) ---
@@ -311,9 +327,19 @@ class Competence(db.Model):
         secondary=user_competence, 
         back_populates="competences"
     )
-
+    
+    theories: Mapped[List["TheoryTemplate"]] = relationship(back_populates="competence")
     project_assignments: Mapped[List["ProjectCompetence"]] = relationship(
         back_populates="competence")
+    
+    def serialize(self):
+        return {
+            "id": self.id_competence,
+            "name": self.name,
+            # Útil para el frontend ver cuántas teorías tiene
+            "theories_count": len(self.theories) if self.theories else 0 
+        }
+    
 
     def serialize(self):
         return {

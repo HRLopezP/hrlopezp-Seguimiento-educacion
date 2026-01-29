@@ -19,6 +19,7 @@ import RoleManagement from "./pages/RoleManagement";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import CompetenceManagement from "./pages/CompetenceManagement";
 import TheoryManagement from "./pages/TheoryManagement";
+import TheoryConsole from "./pages/TheoryConsole";
 import Profile from "./pages/Profile";
 
 export const router = createBrowserRouter(
@@ -73,6 +74,15 @@ export const router = createBrowserRouter(
         element={
           <ProtectedRoute>
             <TheoryManagement />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/theories/:id/console"
+        element={
+          <ProtectedRoute>
+            <TheoryConsole />
           </ProtectedRoute>
         }
       />

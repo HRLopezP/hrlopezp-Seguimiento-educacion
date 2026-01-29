@@ -2,7 +2,7 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 from flask import Flask, request, jsonify, url_for, Blueprint
-from api.models import db, User, Rol, Competence, TheoryTemplate
+from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate
 from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -697,3 +697,120 @@ def delete_theory(id):
     db.session.delete(theory)
     db.session.commit()
     return jsonify({"message": "Teoría de cambio eliminada"}), 200
+
+
+@api.route('/results', methods=['POST'])
+@manager_required
+def create_result():
+    data = request.json
+    name = data.get("name")
+    result_type = data.get("type") # 'outcome' o 'output'
+    theory_id = data.get("theory_id")
+
+    if not all([name, result_type, theory_id]):
+        return jsonify({"message": "Faltan datos obligatorios (nombre, tipo o teoría)"}), 400
+
+    new_result = ResultTemplate(name=name, type=result_type, theory_id=theory_id)
+    db.session.add(new_result)
+    db.session.commit()
+    return jsonify(new_result.serialize()), 201
+
+
+@api.route('/results/<int:id>', methods=['DELETE'])
+@manager_required
+def delete_result(id):
+    result = ResultTemplate.query.get(id)
+    if not result:
+        return jsonify({"message": "Resultado no encontrado"}), 404
+    
+    db.session.delete(result)
+    db.session.commit()
+    return jsonify({"message": f"{result.type.capitalize()} eliminado correctamente"}), 200
+
+
+@api.route('/results/<int:id>', methods=['PUT'])
+@manager_required
+def update_result(id):
+    result = ResultTemplate.query.get(id)
+    if not result:
+        return jsonify({"message": "Resultado no encontrado"}), 404
+
+    data = request.json
+    # Permitimos editar el nombre. El tipo (outcome/output) usualmente no se cambia 
+    # para evitar errores de lógica, pero si quieres puedes añadirlo.
+    result.name = data.get("name", result.name)
+    
+    db.session.commit()
+    return jsonify(result.serialize()), 200
+
+
+@api.route('/indicators', methods=['POST'])
+@manager_required
+def create_indicator():
+    data = request.json
+    name = data.get("name")
+    code = data.get("code")
+    description = data.get("description")
+    result_id = data.get("result_id")
+
+    if not all([code, description, result_id]):
+        return jsonify({"message": "Código, nombre, descripción y ID de resultado son obligatorios"}), 400
+
+    # Verificamos si el código ya existe (es unique en el modelo)
+    if IndicatorTemplate.query.filter_by(code=code).first():
+        return jsonify({"message": f"El código de indicador {code} ya está en uso"}), 400
+
+    new_indicator = IndicatorTemplate(code=code, name=name, description=description, result_id=result_id)
+    try:
+        db.session.add(new_indicator)
+        db.session.commit()
+        return jsonify(new_indicator.serialize()), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Error al guardar", "error": str(e)}), 500
+
+
+@api.route('/indicators/<int:id>', methods=['PUT'])
+@manager_required
+def update_indicator(id):
+    indicator = IndicatorTemplate.query.get(id)
+    if not indicator:
+        return jsonify({"message": "Indicador no encontrado"}), 404
+
+    data = request.json
+    new_code = data.get("code")
+    
+    # Si cambia el código, verificamos que no choque con otro existente
+    if new_code and new_code != indicator.code:
+        if IndicatorTemplate.query.filter_by(code=new_code).first():
+            return jsonify({"message": f"El código {new_code} ya existe"}), 400
+        indicator.code = new_code
+
+    indicator.description = data.get("description", indicator.description)
+    
+    db.session.commit()
+    return jsonify({"id": indicator.id, "code": indicator.code, "description": indicator.description}), 200
+
+
+@api.route('/indicators/<int:id>', methods=['DELETE'])
+@manager_required
+def delete_indicator(id):
+    indicator = IndicatorTemplate.query.get(id)
+    if not indicator:
+        return jsonify({"message": "Indicador no encontrado"}), 404
+
+    db.session.delete(indicator)
+    db.session.commit()
+    return jsonify({"message": "Indicador eliminado correctamente"}), 200
+
+
+@api.route('/theories/<int:id>/details', methods=['GET'])
+@jwt_required()
+def get_theory_full_details(id):
+    theory = TheoryTemplate.query.get(id)
+    if not theory:
+        return jsonify({"message": "Teoría no encontrada"}), 404
+    
+    # Gracias a que mejoramos el serialize() en el modelo, 
+    # este objeto ya incluirá sus outcomes, outputs e indicadores anidados.
+    return jsonify(theory.serialize()), 200

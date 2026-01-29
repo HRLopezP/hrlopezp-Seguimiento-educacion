@@ -568,3 +568,46 @@ html,
     font-size: 0.75rem;
     letter-spacing: 0.5px;
 }
+
+
+.btn-add-theory {
+    background-color: rgba(82, 183, 136, 0.15) !important;
+    color: #52b788 !important; /* Color verde esmeralda */
+    border: 1px solid #52b788 !important;
+    padding: 0.5rem 1rem !important;
+    border-radius: 8px !important;
+    display: inline-flex !important;
+    align-items: center;
+    font-weight: 600 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* 2. El icono dentro del botón (Quitamos cualquier opacidad heredada) */
+.btn-add-theory i {
+    color: #52b788 !important;
+    opacity: 1 !important;
+    margin-right: 8px;
+}
+
+/* 3. Comportamiento en MODO OSCURO */
+[data-theme="dark"] .btn-add-theory {
+    background-color: rgba(82, 183, 136, 0.2) !important;
+    color: #ffffff !important; /* Texto blanco en oscuro para máximo contraste */
+    border-color: #52b788 !important;
+}
+
+[data-theme="dark"] .btn-add-theory i {
+    color: #ffffff !important;
+}
+
+/* 4. Efecto al pasar el mouse (Hover) */
+.btn-add-theory:hover {
+    background-color: #52b788 !important;
+    color: #0d1b2a !important; /* Texto oscuro sobre fondo verde */
+}
+
+[data-theme="dark"] .btn-add-theory:hover i,
+.btn-add-theory:hover i {
+    color: #0d1b2a !important;
+}
