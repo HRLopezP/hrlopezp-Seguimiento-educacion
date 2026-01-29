@@ -2,6 +2,9 @@ import React from "react";
 import Swal from 'sweetalert2';
 import { toast } from "sonner";
 import { apiFetch } from "../../utils/api";
+import "../styles/auth.css";
+import "../styles/roleManagement.css";
+import "../styles/theoryManagement.css";
 
 
 const ResultSection = ({ type, theoryId, results, onRefresh }) => {
@@ -123,7 +126,7 @@ const ResultSection = ({ type, theoryId, results, onRefresh }) => {
 
     return (
         <div className="animate__animated animate__fadeIn">
-            <div className="d-flex justify-content-between align-items-center mb-4">
+            <div className="d-flex justify-content-between align-items-center">
                 <h4 className="management-subtitle mb-0">Listado de {type}s</h4>
                 <button className="btn btn-add-theory" onClick={handleAddResult}>
                     <i className="fas fa-plus me-2"></i> Nuevo {type}
@@ -131,9 +134,9 @@ const ResultSection = ({ type, theoryId, results, onRefresh }) => {
             </div>
 
             {results.map(r => (
-                <div key={r.id} className="result-card mb-4">
+                <div key={r.id} className="result-card mb-5 mt-3 p-0">
                     {/* CABECERA DEL RESULTADO (OUTCOME/OUTPUT) */}
-                    <div className="result-card-header d-flex justify-content-between align-items-center">
+                    <div className="management-card-header rounded p-3 d-flex justify-content-between align-items-center">
                         <span><i className="fas fa-chevron-right text-emerald me-2"></i> {r.name}</span>
                         <div>
                             <button className="btn btn-sm text-info me-2" onClick={() => handleEditResult(r)}>
@@ -146,7 +149,7 @@ const ResultSection = ({ type, theoryId, results, onRefresh }) => {
                     </div>
 
                     {/* TABLA DE INDICADORES */}
-                    <div className="p-3">
+                    <div className="px-3 m-0">
                         <table className="table table-sm table-sigssep">
                             <thead>
                                 <tr>
@@ -180,7 +183,7 @@ const ResultSection = ({ type, theoryId, results, onRefresh }) => {
                                 <tr>
                                     <td colSpan="3" className="text-center p-0">
                                         <button
-                                            className="btn btn-link text-emerald btn-sm w-100 py-2"
+                                            className="btn btn-link text-emerald btn-sm w-100 py-0"
                                             onClick={() => handleAddIndicator(r.id)}
                                             style={{ textDecoration: 'none' }}
                                         >

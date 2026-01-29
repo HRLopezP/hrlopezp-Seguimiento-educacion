@@ -151,7 +151,6 @@ const TheoryManagement = () => {
                             </div>
 
                             <div className="card-body p-0">
-                                {/* CAMBIO: Quitamos table-light de thead y usamos theory-table */}
                                 <table className="table table-sigssep theory-table mb-0">
                                     <thead>
                                         <tr>

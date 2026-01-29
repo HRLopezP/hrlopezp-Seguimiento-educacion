@@ -110,13 +110,13 @@
   background-color: transparent !important;
   margin-bottom: 0;
 }
-
+/* 
 .theory-page-wrapper .theory-table td {
   color: var(--text-primary) !important;
   border-bottom: 1px solid rgba(128, 128, 128, 0.1) !important;
   padding: 0.6rem 1.2rem !important;
   vertical-align: middle;
-}
+} */
 
 /* 6. BOTONES Y ACCIONES */
 .theory-page-wrapper .btn-add-theory {
