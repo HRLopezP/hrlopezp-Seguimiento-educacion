@@ -1,0 +1,76 @@
+/* TheoryConsole.css - Específico para la vista de Outputs/Outcomes */
+
+/* 1 & 2. ARMONÍA DE COLORES Y MODO OSCURO */
+.console-container {
+    padding: 2rem;
+    min-height: 80vh;
+}
+
+/* El botón de volver (Punto 5) */
+.btn-back-custom {
+    display: inline-flex;
+    align-items: center;
+    color: var(--accent-color);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 8px 15px;
+    border-radius: 8px;
+    background: rgba(82, 183, 136, 0.1);
+    transition: all 0.3s ease;
+    margin-bottom: 1.5rem;
+}
+
+.btn-back-custom:hover {
+    background: var(--accent-color);
+    color: white !important;
+    transform: translateX(-5px);
+}
+
+/* 3. FILA DE "MODO" MÁS PEQUEÑA (Eje Y reducido) */
+.result-card-header {
+    background-color: rgba(27, 38, 59, 0.05); /* Gris muy suave */
+    padding: 0.5rem 1rem !important; /* Reducimos el padding vertical de 1rem a 0.5rem */
+    font-size: 0.95rem;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+[data-theme="dark"] .result-card-header {
+    background-color: rgba(255, 255, 255, 0.03);
+    color: #ffffff;
+}
+
+/* 4. BOTÓN "AÑADIR INDICADOR" MÁS DISCRETO */
+.btn-add-indicator-row {
+    padding: 0.4rem !important; /* Reducción de ancho */
+    font-size: 0.85rem;
+    background-color: transparent;
+    border: none;
+    color: var(--accent-color) !important;
+    opacity: 0.8;
+}
+
+.btn-add-indicator-row:hover {
+    opacity: 1;
+    background-color: rgba(82, 183, 136, 0.05);
+}
+
+/* CORRECCIÓN MODO OSCURO PARA LA TABLA INTERNA */
+[data-theme="dark"] .result-card {
+    background-color: #1b263b; /* Azul Oxford para que resalte sobre el fondo Azul Noche */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .table-sigssep thead th {
+    color: #52b788; /* Verde esmeralda para los encabezados */
+    background-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Ajuste de los bordes de la tabla para que no desaparezcan */
+.table-sigssep td {
+    border-color: rgba(128, 128, 128, 0.1) !important;
+}
+
+[data-theme="dark"] .table-sigssep td {
+    border-color: rgba(255, 255, 255, 0.05) !important;
+}

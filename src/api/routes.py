@@ -748,21 +748,26 @@ def update_result(id):
 @manager_required
 def create_indicator():
     data = request.json
+    name = data.get("name")
     code = data.get("code")
     description = data.get("description")
     result_id = data.get("result_id")
 
     if not all([code, description, result_id]):
-        return jsonify({"message": "Código, descripción y ID de resultado son obligatorios"}), 400
+        return jsonify({"message": "Código, nombre, descripción y ID de resultado son obligatorios"}), 400
 
     # Verificamos si el código ya existe (es unique en el modelo)
     if IndicatorTemplate.query.filter_by(code=code).first():
         return jsonify({"message": f"El código de indicador {code} ya está en uso"}), 400
 
-    new_indicator = IndicatorTemplate(code=code, description=description, result_id=result_id)
-    db.session.add(new_indicator)
-    db.session.commit()
-    return jsonify({"id": new_indicator.id, "code": new_indicator.code, "description": new_indicator.description}), 201
+    new_indicator = IndicatorTemplate(code=code, name=name, description=description, result_id=result_id)
+    try:
+        db.session.add(new_indicator)
+        db.session.commit()
+        return jsonify(new_indicator.serialize()), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Error al guardar", "error": str(e)}), 500
 
 
 @api.route('/indicators/<int:id>', methods=['PUT'])

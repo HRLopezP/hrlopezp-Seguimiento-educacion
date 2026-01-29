@@ -144,6 +144,7 @@ class IndicatorTemplate(db.Model):
     __tablename__ = 'indicator_template'
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    name = db.Column(db.String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
 
     result_id: Mapped[int] = mapped_column(ForeignKey('result_template.id'))
@@ -154,6 +155,7 @@ class IndicatorTemplate(db.Model):
         return {
             "id": self.id,
             "code": self.code,
+            "name": self.name,
             "description": self.description,
             "result_id": self.result_id
             # No pongas "result" aquí para evitar bucles infinitos

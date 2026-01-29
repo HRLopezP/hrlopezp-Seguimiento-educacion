@@ -46,13 +46,14 @@
 
 /* 3. TARJETAS DE COMPETENCIA */
 .theory-page-wrapper .theory-section-card {
-  background-color: var(--card-bg) !important;
-  border-radius: 15px;
-  border: 1px solid rgba(128, 128, 128, 0.1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
-  margin-bottom: 2.5rem;
-  animation: fadeInUp 0.6s ease backwards;
+    background-color: var(--card-bg) !important;
+    border-radius: 15px;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08) !important;
+    overflow: hidden;
+    margin-bottom: 2.5rem;
+    /* Quitamos el padding interno de la card para que la tabla llegue a los bordes */
+    padding: 0 !important; 
 }
 
 /* Efecto Cascada para las primeras 3 tarjetas */
@@ -68,12 +69,40 @@
 
 /* 4. ENCABEZADO DE COMPETENCIA (Azul Oxford) */
 .theory-page-wrapper .theory-section-header {
-  background-color: #1b263b !important;
-  color: #ffffff !important;
-  padding: 1rem 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+    background-color: #1b263b !important;
+    color: #ffffff !important;
+    padding: 1.5rem 2rem !important;
+    border-top-left-radius: 15px;
+    border-top-right-radius: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: none !important;
+    margin-bottom: 0 !important; /* IMPORTANTE: Para que no haya huecos */
+}
+
+.theory-section-header h2 {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #ffffff !important;
+}
+
+.theory-page-wrapper .theory-table thead th {
+    background-color: #eceef0 !important; /* Un gris sólido que se note sobre el blanco */
+    color: #1b263b !important; /* Texto oscuro para legibilidad */
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 1rem 1.2rem !important;
+    border-bottom: 2px solid var(--accent-color) !important;
+    border-top: none !important;
+}
+
+[data-theme="dark"] .theory-page-wrapper .theory-table thead th {
+    background-color: #252d3d !important; /* Gris azulado profundo */
+    color: #ffffff !important;
+    border-bottom: 2px solid var(--accent-color) !important;
 }
 
 /* 5. TABLA COMPACTA (Eje Y reducido) */
@@ -116,6 +145,12 @@
 
 .theory-page-wrapper .text-primary {
   color: #1b263b !important;
+}
+
+.table-sigssep td {
+    vertical-align: middle;
+    white-space: normal; /* Permite que el texto baje de línea */
+    word-break: break-word;
 }
 
 [data-theme="dark"] .theory-page-wrapper .text-primary {
@@ -168,18 +203,28 @@
 }
 
 .result-card-header {
-    background-color: rgba(27, 38, 59, 0.03);
+    background-color: rgba(255, 255, 255, 0.05); /* Cambiamos azul oscuro por un brillo blanco sutil */
     padding: 1rem;
     font-weight: 700;
+    color: var(--text-primary); /* Aseguramos que el texto siga la variable */
+    border-bottom: 1px solid rgba(128, 128, 128, 0.1);
 }
 
+[data-theme="dark"] .result-card-header {
+    background-color: rgba(255, 255, 255, 0.1); 
+}
 
 /* Ajuste de la tabla interna de indicadores */
 .result-card .table-sigssep thead th {
     background-color: transparent !important;
-    border-bottom: 1px solid var(--accent-color) !important;
-    padding: 0.5rem !important;
-    font-size: 0.7rem;
+    border-bottom: 2px solid var(--accent-color) !important;
+    padding: 0.8rem 0.5rem !important;
+    font-size: 0.75rem;
+    color: var(--text-primary) !important; /* Forzamos color de variable */
+}
+
+[data-theme="dark"] .result-card .table-sigssep tbody td {
+    color: #e0e1dd !important; /* Blanco hueso para las filas de indicadores */
 }
 
 .result-card .table-sigssep tbody td {
@@ -200,3 +245,27 @@
     background-color: var(--bg-color) !important;
     color: var(--text-primary) !important;
 }
+
+.theory-page-wrapper .management-title,
+.theory-console-wrapper .management-title {
+    color: var(--text-primary) !important;
+}
+
+.theory-page-wrapper .management-subtitle,
+.theory-console-wrapper .management-subtitle {
+    color: var(--text-primary) !important;
+    opacity: 0.9; /* Mayor visibilidad en oscuro */
+}
+
+/* El botón "Volver a Gestión" que se ve azul oscuro en tu captura */
+.theory-console-wrapper .btn-link.text-primary {
+    color: var(--accent-color) !important; /* Usamos el esmeralda para que resalte */
+}
+
+
+.theory-section-header p {
+    color: rgba(255, 255, 255, 0.85) !important;
+    margin: 5px 0 0 0 !important;
+    font-size: 0.95rem;
+}
+
