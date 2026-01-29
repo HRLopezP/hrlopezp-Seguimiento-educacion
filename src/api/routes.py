@@ -2,13 +2,14 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 from flask import Flask, request, jsonify, url_for, Blueprint
-from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate
+from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator
 from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from .manager_decorator import manager_required
 from flask_mail import Message
+from datetime import datetime
 from api.extensions import mail
 import os
 from .CloudinaryService import CloudinaryService
@@ -814,3 +815,151 @@ def get_theory_full_details(id):
     # Gracias a que mejoramos el serialize() en el modelo, 
     # este objeto ya incluirá sus outcomes, outputs e indicadores anidados.
     return jsonify(theory.serialize()), 200
+
+
+@api.route('/projects', methods=['POST'])
+@jwt_required()
+@manager_required
+def create_project():
+    data = request.get_json()
+    
+    # 1. Validación mínima: El código es lo único obligatorio para el guardado parcial
+    code = data.get("code")
+    if not code:
+        return jsonify({"message": "El código único del proyecto es obligatorio"}), 400
+    
+    # 2. Verificar si el código ya existe
+    if Project.query.filter_by(code=code).first():
+        return jsonify({"message": f"Ya existe un proyecto con el código {code}"}), 400
+
+    try:
+        # 3. Crear la instancia del Proyecto (Paso 1 del Stepper)
+        # Usamos .get() para que si no viene el campo, se guarde como None (nullable)
+        new_project = Project(
+            code=code,
+            project_name=data.get("project_name"),
+            donor_name=data.get("donor_name"),
+            main_objective=data.get("main_objective"),
+            start_date=datetime.strptime(data.get("start_date"), "%Y-%m-%d") if data.get("start_date") else None,
+            end_date=datetime.strptime(data.get("end_date"), "%Y-%m-%d") if data.get("end_date") else None,
+            target_total=data.get("target_total", 0.0),
+            target_men=data.get("target_men", 0.0),
+            target_women=data.get("target_women", 0.0),
+            target_disability=data.get("target_disability", 0.0),
+            status="En Progreso"
+        )
+        
+        db.session.add(new_project)
+        db.session.flush() # Flush nos da el ID de new_project sin terminar la transacción
+
+        # 4. Procesar Ubicaciones (Paso 2 del Stepper)
+        # Esperamos una lista de objetos: [{"province": "...", "municipality": "..."}, ...]
+        locations_data = data.get("locations", [])
+        created_locations = {} # Para mapear localmente y usar en indicadores
+        
+        for loc in locations_data:
+            new_loc = Location(
+                province=loc.get("province"),
+                municipality=loc.get("municipality"),
+                parish=loc.get("parish"),
+                community_institution=loc.get("community_institution"),
+                project_id=new_project.id_project
+            )
+            db.session.add(new_loc)
+            db.session.flush()
+            # Guardamos una referencia para el paso de metas
+            key = f"{new_loc.province}-{new_loc.municipality}"
+            created_locations[key] = new_loc.id_location
+
+        # 5. Procesar Indicadores y Metas por Ubicación (Paso 3 del Stepper)
+        # Estructura esperada: [{"template_id": 1, "location_goals": [...]}, ...]
+        indicators_data = data.get("indicators", [])
+        for ind_data in indicators_data:
+            new_indicator = Indicator(
+                template_id=ind_data.get("template_id"),
+                project_id=new_project.id_project,
+                target_total=ind_data.get("target_total", 0.0)
+            )
+            db.session.add(new_indicator)
+            db.session.flush()
+
+            # Metas por ubicación para este indicador
+            goals = ind_data.get("location_goals", [])
+            for goal in goals:
+                # Buscamos el ID de la ubicación que creamos arriba
+                loc_key = f"{goal.get('province')}-{goal.get('municipality')}"
+                loc_id = created_locations.get(loc_key)
+                
+                if loc_id:
+                    new_goal = IndicatorLocationGoal(
+                        indicator_id=new_indicator.id_indicator,
+                        location_id=loc_id,
+                        total_target=goal.get("total", 0.0),
+                        men=goal.get("men", 0.0),
+                        women=goal.get("women", 0.0),
+                        disability=goal.get("disability", 0.0)
+                    )
+                    db.session.add(new_goal)
+
+        # 6. Asignar Competencias y Managers (Gestión)
+        # Esperamos: {"competences": [{"id": 1, "manager_id": 2}, ...]}
+        comp_data = data.get("competences", [])
+        for cp in comp_data:
+            assignment = ProjectCompetence(
+                project_id=new_project.id_project,
+                competence_id=cp.get("id"),
+                manager_id=cp.get("manager_id")
+            )
+            db.session.add(assignment)
+
+        db.session.commit()
+        return jsonify({
+            "message": "Proyecto guardado exitosamente",
+            "project_id": new_project.id_project
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error al crear proyecto: {str(e)}")
+        return jsonify({"message": "Error interno", "error": str(e)}), 500
+    
+
+@api.route('/manager/projects', methods=['GET'])
+@jwt_required()
+@manager_required
+def get_manager_projects():
+    projects = Project.query.all()
+    results = []
+
+    for project in projects:
+        # 1. Calculamos el progreso porcentual (Lógica de negocio SIGSSEP)
+        # Sumamos todas las metas de los indicadores de este proyecto
+        total_goal = sum(ind.target_total for ind in project.indicators) or 1 # Evitar división por cero
+        
+        # Sumamos todos los logros registrados en las actividades de esos indicadores
+        total_achieved = 0
+        for indicator in project.indicators:
+            # Buscamos todas las actividades ligadas a este indicador
+            activities = Activity.query.filter_by(indicator_id=indicator.id_indicator, status="Completada").all()
+            for act in activities:
+                # El logro total es la suma de hombres + mujeres
+                total_achieved += (act.achievement_men + act.achievement_women)
+
+        progress_percentage = round((total_achieved / total_goal) * 100, 2)
+
+        # --- 🚀 LOGICA DE AUTO-COMPLETADO (Cambio de Status) ---
+        # Si el progreso es 100% o más y el estatus no es "Completado" todavía...
+        if progress_percentage >= 100 and project.status != "Completado":
+            project.status = "Completado"
+            db.session.commit() # Guardamos el cambio de estatus automáticamente
+        # -------------------------------------------------------
+
+        # 2. Preparamos la data para el Dashboard
+        project_data = project.serialize() # Usamos el serialize que ya mejoramos
+        project_data["progress"] = min(progress_percentage, 100) # No exceder el 100% visualmente
+        project_data["total_achieved"] = total_achieved
+        
+        results.append(project_data)
+
+    return jsonify(results), 200
+

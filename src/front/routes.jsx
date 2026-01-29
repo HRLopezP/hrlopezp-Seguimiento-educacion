@@ -20,6 +20,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import CompetenceManagement from "./pages/CompetenceManagement";
 import TheoryManagement from "./pages/TheoryManagement";
 import TheoryConsole from "./pages/TheoryConsole";
+import CreateProject from "./pages/CreateProject";
 import Profile from "./pages/Profile";
 
 export const router = createBrowserRouter(
@@ -86,6 +87,16 @@ export const router = createBrowserRouter(
           </ProtectedRoute>
         }
       />
+
+      <Route
+        path="/manager/projects/create"
+        element={
+          <ProtectedRoute>
+            <CreateProject />
+          </ProtectedRoute>
+        }
+      />
+
     </Route>
   )
 );

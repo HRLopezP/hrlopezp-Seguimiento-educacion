@@ -180,7 +180,11 @@ class Project(db.Model):
         DateTime, nullable=True)
     end_date: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True)
-    status: Mapped[str] = mapped_column(String(20), default="En Progreso")
+    status: Mapped[str] = mapped_column(String(20), default="En Progreso", nullable=False)
+    target_total: Mapped[float] = mapped_column(Float, default=0.0)
+    target_men: Mapped[float] = mapped_column(Float, default=0.0)
+    target_women: Mapped[float] = mapped_column(Float, default=0.0)
+    target_disability: Mapped[float] = mapped_column(Float, default=0.0)
 
     @hybrid_property
     def remaining_days(self):
@@ -199,6 +203,7 @@ class Project(db.Model):
         back_populates="project")
     indicators: Mapped[List["Indicator"]] = relationship(
         back_populates="project")
+    competence_assignments: Mapped[List["ProjectCompetence"]] = relationship(back_populates="project")
 
     def serialize(self):
         return {
@@ -206,10 +211,22 @@ class Project(db.Model):
             "code": self.code,
             "project_name": self.project_name,
             "donor_name": self.donor_name,
+            "main_objective": self.main_objective, # ¡Importante añadirlo!
+            "start_date": self.start_date.strftime("%Y-%m-%d") if self.start_date else None,
+            "end_date": self.end_date.strftime("%Y-%m-%d") if self.end_date else None,
             "status": self.status,
-            "remaining_days": self.remaining_days,  # Tu hybrid_property
+            "remaining_days": self.remaining_days,
+            # Nuevos campos de Beneficiarios Únicos
+            "targets": {
+                "total": self.target_total,
+                "men": self.target_men,
+                "women": self.target_women,
+                "disability": self.target_disability
+            },
             "locations": [loc.serialize() for loc in self.locations],
-            "indicators": [ind.serialize() for ind in self.indicators]
+            "indicators": [ind.serialize() for ind in self.indicators],
+            # Añadimos las competencias para que el gerente vea quiénes participan
+            "competences": [cp.serialize() for cp in self.competence_assignments]
         }
 
 
@@ -336,15 +353,8 @@ class Competence(db.Model):
         return {
             "id": self.id_competence,
             "name": self.name,
-            # Útil para el frontend ver cuántas teorías tiene
-            "theories_count": len(self.theories) if self.theories else 0 
-        }
-    
-
-    def serialize(self):
-        return {
-            "id": self.id_competence,
-            "name": self.name
+            # Útil para el Stepper paso 3
+            "theories": [t.serialize() for t in self.theories] if self.theories else []
         }
 
 # --- RELACIONES DE GESTIÓN ---
@@ -363,6 +373,7 @@ class ProjectCompetence(db.Model):
     competence: Mapped["Competence"] = relationship(
         back_populates="project_assignments")
     manager: Mapped["User"] = relationship()
+    project: Mapped["Project"] = relationship(back_populates="competence_assignments")
 
     def serialize(self):
         return {
