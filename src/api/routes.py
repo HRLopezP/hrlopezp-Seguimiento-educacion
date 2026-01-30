@@ -2,7 +2,7 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 from flask import Flask, request, jsonify, url_for, Blueprint
-from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator
+from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish
 from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -963,3 +963,169 @@ def get_manager_projects():
 
     return jsonify(results), 200
 
+
+@api.route('/provinces', methods=['GET'])
+@jwt_required()
+def get_provinces():
+    provinces = Province.query.all()
+    return jsonify([p.serialize() for p in provinces]), 200
+
+
+@api.route('/provinces', methods=['POST'])
+@jwt_required()
+@manager_required
+def add_province():
+    data = request.json
+    if not data.get("name"):
+        return jsonify({"msg": "Nombre requerido"}), 400
+    
+    new_province = Province(name=data["name"])
+    db.session.add(new_province)
+    db.session.commit()
+    return jsonify(new_province.serialize()), 201
+
+
+@api.route('/provinces/<int:id>', methods=['PUT'])
+@jwt_required()
+@manager_required
+def update_province(id):
+    province = Province.query.get(id)
+    if not province:
+        return jsonify({"msg": "No encontrada"}), 404
+    
+    data = request.json
+    province.name = data.get("name", province.name)
+    db.session.commit()
+    return jsonify(province.serialize()), 200
+
+
+@api.route('/provinces/<int:id>', methods=['DELETE'])
+@jwt_required()
+@manager_required
+def delete_province(id):
+    province = Province.query.get(id)
+    if not province:
+        return jsonify({"msg": "No encontrada"}), 404
+    
+    db.session.delete(province)
+    db.session.commit()
+    return jsonify({"msg": "Provincia eliminada"}), 200
+
+
+@api.route('/provinces/<int:province_id>/municipalities', methods=['GET'])
+@jwt_required()
+def get_municipalities_by_province(province_id):
+    """Obtiene municipios filtrados por una provincia específica"""
+    municipalities = Municipality.query.filter_by(province_id=province_id).all()
+    return jsonify([m.serialize() for m in municipalities]), 200
+
+
+@api.route('/municipalities', methods=['POST'])
+@jwt_required()
+@manager_required
+def add_municipality():
+    """Crea un nuevo municipio vinculado a una provincia"""
+    data = request.json
+    # Validación básica
+    if not data.get("name") or not data.get("province_id"):
+        return jsonify({"msg": "Faltan datos requeridos (name, province_id)"}), 400
+    
+    new_muni = Municipality(
+        name=data["name"],
+        province_id=data["province_id"]
+    )
+    db.session.add(new_muni)
+    db.session.commit()
+    return jsonify(new_muni.serialize()), 201
+
+# --- ENDPOINTS PARA PARROQUIAS ---
+
+@api.route('/municipalities/<int:municipality_id>/parishes', methods=['GET'])
+@jwt_required()
+def get_parishes_by_municipality(municipality_id):
+    """Obtiene parroquias filtradas por municipio"""
+    parishes = Parish.query.filter_by(municipality_id=municipality_id).all()
+    return jsonify([p.serialize() for p in parishes]), 200
+
+
+@api.route('/parishes', methods=['POST'])
+@jwt_required()
+@manager_required
+def add_parish():
+    """Crea una nueva parroquia vinculada a un municipio"""
+    data = request.json
+    if not data.get("name") or not data.get("municipality_id"):
+        return jsonify({"msg": "Faltan datos requeridos"}), 400
+    
+    new_parish = Parish(
+        name=data["name"],
+        municipality_id=data["municipality_id"]
+    )
+    db.session.add(new_parish)
+    db.session.commit()
+    return jsonify(new_parish.serialize()), 201
+
+
+# --- ENDPOINTS PARA MUNICIPIOS (CRUD RESTANTE) ---
+
+@api.route('/municipalities/<int:id>', methods=['PUT'])
+@jwt_required()
+@manager_required
+def update_municipality(id):
+    municipality = Municipality.query.get(id)
+    if not municipality:
+        return jsonify({"msg": "Municipio no encontrado"}), 404
+    
+    data = request.json
+    # Podemos actualizar el nombre o incluso moverlo de provincia si hubo un error
+    municipality.name = data.get("name", municipality.name)
+    municipality.province_id = data.get("province_id", municipality.province_id)
+    
+    db.session.commit()
+    return jsonify(municipality.serialize()), 200
+
+@api.route('/municipalities/<int:id>', methods=['DELETE'])
+@jwt_required()
+@manager_required
+def delete_municipality(id):
+    municipality = Municipality.query.get(id)
+    if not municipality:
+        return jsonify({"msg": "Municipio no encontrado"}), 404
+    
+    try:
+        db.session.delete(municipality)
+        db.session.commit()
+        return jsonify({"msg": "Municipio y sus parroquias eliminados correctamente"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Error al eliminar", "error": str(e)}), 500
+
+
+# --- ENDPOINTS PARA PARROQUIAS (CRUD RESTANTE) ---
+
+@api.route('/parishes/<int:id>', methods=['PUT'])
+@jwt_required()
+@manager_required
+def update_parish(id):
+    parish = Parish.query.get(id)
+    if not parish:
+        return jsonify({"msg": "Parroquia no encontrada"}), 404
+    
+    data = request.json
+    parish.name = data.get("name", parish.name)
+    parish.municipality_id = data.get("municipality_id", parish.municipality_id)
+    
+    db.session.commit()
+    return jsonify(parish.serialize()), 200
+
+@api.route('/parishes/<int:id>', methods=['DELETE'])
+@jwt_required()
+@manager_required
+def delete_parish(id):
+    parish = Parish.query.get(id)
+    if not parish:
+        return jsonify({"msg": "Parroquia no encontrada"}), 404
+    
+    db.session.delete(parish)
+    db.session.commit()
+    return jsonify({"msg": "Parroquia eliminada correctamente"}), 200

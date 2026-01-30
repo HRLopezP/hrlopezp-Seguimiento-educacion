@@ -21,6 +21,7 @@ import CompetenceManagement from "./pages/CompetenceManagement";
 import TheoryManagement from "./pages/TheoryManagement";
 import TheoryConsole from "./pages/TheoryConsole";
 import CreateProject from "./pages/CreateProject";
+import LocationManagement from "./pages/LocationManagement";
 import Profile from "./pages/Profile";
 
 export const router = createBrowserRouter(
@@ -93,6 +94,15 @@ export const router = createBrowserRouter(
         element={
           <ProtectedRoute>
             <CreateProject />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/manager/locations"
+        element={
+          <ProtectedRoute>
+            <LocationManagement />
           </ProtectedRoute>
         }
       />

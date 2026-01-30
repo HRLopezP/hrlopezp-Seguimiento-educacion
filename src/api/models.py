@@ -271,30 +271,32 @@ class Indicator(db.Model):
 class Location(db.Model):
     __tablename__ = 'location'
     id_location: Mapped[int] = mapped_column(primary_key=True)
-    province: Mapped[str] = mapped_column(
-        String(100), nullable=False)  # Estado
-    municipality: Mapped[str] = mapped_column(String(100), nullable=False)
-    parish: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+    province_id: Mapped[int] = mapped_column(ForeignKey('province.id'), nullable=False)
+    municipality_id: Mapped[int] = mapped_column(ForeignKey('municipality.id'), nullable=False)
+    parish_id: Mapped[Optional[int]] = mapped_column(ForeignKey('parish.id'), nullable=True)
+
     community_institution: Mapped[Optional[str]
                                   ] = mapped_column(String(100), nullable=True)
 
     # El "dueño" de esta ubicación es el proyecto
     project_id: Mapped[int] = mapped_column(
         ForeignKey('project.id_project'), nullable=False)
+    
+    # Relaciones para poder acceder al nombre fácilmente
+    province_ref: Mapped["Province"] = relationship()
+    municipality_ref: Mapped["Municipality"] = relationship()
+    parish_ref: Mapped["Parish"] = relationship()
     project: Mapped["Project"] = relationship(back_populates="locations")
-
-    def __repr__(self):
-        return f'<Location {self.province} - {self.municipality}>'
 
     def serialize(self):
         return {
             "id": self.id_location,
-            "province": self.province,
-            "municipality": self.municipality,
-            "parish": self.parish,
+            "province": self.province_ref.name,
+            "municipality": self.municipality_ref.name,
+            "parish": self.parish_ref.name if self.parish_ref else None,
             "community_institution": self.community_institution
         }
-
 
 class IndicatorLocationGoal(db.Model):
     __tablename__ = 'indicator_location_goal'
@@ -422,3 +424,48 @@ class Activity(db.Model):
             "status": self.status,
             "responsible_name": f"{self.responsible.name} {self.responsible.lastname}" if self.responsible else "N/A"
         }
+
+
+# --- CATÁLOGOS DE TERRITORIO (Los que el Admin llena primero) ---
+
+class Province(db.Model):
+    __tablename__ = 'province'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    
+    municipalities: Mapped[List["Municipality"]] = relationship(
+        back_populates="province", 
+        cascade="all, delete-orphan",
+        passive_deletes=True 
+    )
+
+    def serialize(self):
+        return {"id": self.id, "name": self.name}
+
+class Municipality(db.Model):
+    __tablename__ = 'municipality'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    
+    province_id: Mapped[int] = mapped_column(ForeignKey('province.id', ondelete="CASCADE"), nullable=False)
+    province: Mapped["Province"] = relationship(back_populates="municipalities")
+    
+    parishes: Mapped[List["Parish"]] = relationship(
+        back_populates="municipality", 
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+
+    def serialize(self):
+        return {"id": self.id, "name": self.name, "province_id": self.province_id}
+
+class Parish(db.Model):
+    __tablename__ = 'parish'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    
+    municipality_id: Mapped[int] = mapped_column(ForeignKey('municipality.id', ondelete="CASCADE"), nullable=False)
+    municipality: Mapped["Municipality"] = relationship(back_populates="parishes")
+
+    def serialize(self):
+        return {"id": self.id, "name": self.name, "municipality_id": self.municipality_id}
