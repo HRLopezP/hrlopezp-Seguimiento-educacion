@@ -2,7 +2,7 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 from flask import Flask, request, jsonify, url_for, Blueprint
-from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish
+from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish, ProjectProvinceGoal
 from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -819,109 +819,71 @@ def get_theory_full_details(id):
 
 @api.route('/projects', methods=['POST'])
 @jwt_required()
-@manager_required
+@manager_required # Este decorador debe verificar el rol 'Gerente'
 def create_project():
-    data = request.get_json()
+    data = request.json
     
-    # 1. Validación mínima: El código es lo único obligatorio para el guardado parcial
-    code = data.get("code")
-    if not code:
-        return jsonify({"message": "El código único del proyecto es obligatorio"}), 400
-    
-    # 2. Verificar si el código ya existe
-    if Project.query.filter_by(code=code).first():
-        return jsonify({"message": f"Ya existe un proyecto con el código {code}"}), 400
+    if not data.get("unique_code"):
+        return jsonify({"msg": "El código único es obligatorio"}), 400
 
     try:
-        # 3. Crear la instancia del Proyecto (Paso 1 del Stepper)
-        # Usamos .get() para que si no viene el campo, se guarde como None (nullable)
+        # 1. Crear el Proyecto con sus campos base
         new_project = Project(
-            code=code,
-            project_name=data.get("project_name"),
-            donor_name=data.get("donor_name"),
-            main_objective=data.get("main_objective"),
-            start_date=datetime.strptime(data.get("start_date"), "%Y-%m-%d") if data.get("start_date") else None,
-            end_date=datetime.strptime(data.get("end_date"), "%Y-%m-%d") if data.get("end_date") else None,
-            target_total=data.get("target_total", 0.0),
-            target_men=data.get("target_men", 0.0),
-            target_women=data.get("target_women", 0.0),
-            target_disability=data.get("target_disability", 0.0),
+            code=data.get("unique_code"),
+            donor_name=data.get("donor"),
+            project_name=data.get("name"),
+            main_objective=data.get("description"),
+            results_summary=data.get("main_scope"),
+            # Asignamos las metas globales que definiste en el modelo
+            target_total=float(data.get("total_target", 0)),
+            target_men=float(data.get("men_target", 0)),
+            target_women=float(data.get("women_target", 0)),
+            start_date=datetime.strptime(data['start_date'], '%Y-%m-%d') if data.get('start_date') else None,
+            end_date=datetime.strptime(data['end_date'], '%Y-%m-%d') if data.get('end_date') else None,
             status="En Progreso"
         )
-        
+
         db.session.add(new_project)
-        db.session.flush() # Flush nos da el ID de new_project sin terminar la transacción
+        db.session.flush() # Para obtener el id_project
 
-        # 4. Procesar Ubicaciones (Paso 2 del Stepper)
-        # Esperamos una lista de objetos: [{"province": "...", "municipality": "..."}, ...]
-        locations_data = data.get("locations", [])
-        created_locations = {} # Para mapear localmente y usar en indicadores
-        
-        for loc in locations_data:
-            new_loc = Location(
-                province=loc.get("province"),
-                municipality=loc.get("municipality"),
-                parish=loc.get("parish"),
-                community_institution=loc.get("community_institution"),
-                project_id=new_project.id_project
-            )
-            db.session.add(new_loc)
-            db.session.flush()
-            # Guardamos una referencia para el paso de metas
-            key = f"{new_loc.province}-{new_loc.municipality}"
-            created_locations[key] = new_loc.id_location
+        # 2. Guardar Ubicaciones (Locations)
+        if data.get("locations"):
+            for loc in data["locations"]:
+                # Aquí usamos el modelo Location que pasaste
+                new_loc = Location(
+                    province_id=loc['province_id'],
+                    municipality_id=loc['municipality_id'],
+                    parish_id=loc.get('parish_id'), # Es opcional según tu modelo
+                    project_id=new_project.id_project
+                )
+                db.session.add(new_loc)
 
-        # 5. Procesar Indicadores y Metas por Ubicación (Paso 3 del Stepper)
-        # Estructura esperada: [{"template_id": 1, "location_goals": [...]}, ...]
-        indicators_data = data.get("indicators", [])
-        for ind_data in indicators_data:
-            new_indicator = Indicator(
-                template_id=ind_data.get("template_id"),
-                project_id=new_project.id_project,
-                target_total=ind_data.get("target_total", 0.0)
-            )
-            db.session.add(new_indicator)
-            db.session.flush()
-
-            # Metas por ubicación para este indicador
-            goals = ind_data.get("location_goals", [])
-            for goal in goals:
-                # Buscamos el ID de la ubicación que creamos arriba
-                loc_key = f"{goal.get('province')}-{goal.get('municipality')}"
-                loc_id = created_locations.get(loc_key)
-                
-                if loc_id:
-                    new_goal = IndicatorLocationGoal(
-                        indicator_id=new_indicator.id_indicator,
-                        location_id=loc_id,
-                        total_target=goal.get("total", 0.0),
-                        men=goal.get("men", 0.0),
-                        women=goal.get("women", 0.0),
-                        disability=goal.get("disability", 0.0)
-                    )
-                    db.session.add(new_goal)
-
-        # 6. Asignar Competencias y Managers (Gestión)
-        # Esperamos: {"competences": [{"id": 1, "manager_id": 2}, ...]}
-        comp_data = data.get("competences", [])
-        for cp in comp_data:
-            assignment = ProjectCompetence(
-                project_id=new_project.id_project,
-                competence_id=cp.get("id"),
-                manager_id=cp.get("manager_id")
-            )
-            db.session.add(assignment)
+        # 3. Guardar Metas por Provincia (ProjectProvinceGoal)
+        if data.get("province_unique_targets"):
+            for target in data["province_unique_targets"]:
+                new_goal = ProjectProvinceGoal(
+                    project_id=new_project.id_project,
+                    province_id=target['province_id'],
+                    target_total=float(target.get('total', 0)),
+                    target_men=float(target.get('men', 0)),
+                    target_women=float(target.get('women', 0))
+                )
+                db.session.add(new_goal)
 
         db.session.commit()
-        return jsonify({
-            "message": "Proyecto guardado exitosamente",
-            "project_id": new_project.id_project
-        }), 201
+        return jsonify({"msg": "Proyecto SIGSSEP guardado con éxito"}), 201
 
     except Exception as e:
         db.session.rollback()
-        print(f"Error al crear proyecto: {str(e)}")
-        return jsonify({"message": "Error interno", "error": str(e)}), 500
+        return jsonify({"msg": "Error interno", "error": str(e)}), 500
+    
+
+@api.route('/competence-templates', methods=['GET'])
+@jwt_required()
+def get_templates():
+    # Para que el gerente vea qué Teorías e Indicadores puede elegir
+    competences = Competence.query.all()
+    return jsonify([c.serialize() for c in competences]), 200
     
 
 @api.route('/manager/projects', methods=['GET'])
@@ -1129,3 +1091,41 @@ def delete_parish(id):
     db.session.delete(parish)
     db.session.commit()
     return jsonify({"msg": "Parroquia eliminada correctamente"}), 200
+
+
+@api.route('/activities', methods=['POST'])
+@jwt_required()
+def record_activity():
+    data = request.get_json()
+    user_id = get_jwt_identity() # El ID del Oficial logueado
+    
+    try:
+        new_activity = Activity(
+            description=data.get("description"),
+            implementation_date=datetime.strptime(data.get("date"), "%Y-%m-%d"),
+            achievement_men=data.get("men", 0.0),
+            achievement_women=data.get("women", 0.0),
+            achievement_disability=data.get("disability", 0.0),
+            indicator_id=data.get("indicator_id"),
+            location_id=data.get("location_id"),
+            user_id=user_id,
+            status="Completada"
+        )
+        db.session.add(new_activity)
+        db.session.commit()
+        
+        # Aquí es donde tu lógica de get_manager_projects detectará el nuevo progreso
+        return jsonify({"message": "Logro registrado y descontado en tiempo real"}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route('/users/managers', methods=['GET'])
+@jwt_required()
+def get_managers():
+    """Devuelve solo los usuarios con rol de Gerente para asignaciones"""
+    # Suponiendo que el ID del rol Gerente es el que definiste en tu lógica de registro
+    # O podemos buscarlo por nombre
+    managers = User.query.join(Rol).filter(Rol.name_rol == 'Gerente', User.is_active == True).all()
+    return jsonify([m.serialize() for m in managers]), 200

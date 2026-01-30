@@ -6,6 +6,12 @@ import { apiFetch } from '../../utils/api';
 const CreateProject = () => {
     const navigate = useNavigate();
     const [step, setStep] = useState(1);
+    const [allCompetences, setAllCompetences] = useState([]);
+    const [availableManagers, setAvailableManagers] = useState([]);
+    const [tempCompetence, setTempCompetence] = useState({
+        competence_id: '',
+        manager_id: ''
+    });
 
     // Estados para la carga de catálogos
     const [provinces, setProvinces] = useState([]);
@@ -26,9 +32,27 @@ const CreateProject = () => {
         start_date: '',
         end_date: '',
         status: 'En Progreso',
+        total_beneficiaries: 0,
+        male_beneficiaries: 0,
+        female_beneficiaries: 0,
         locations: [], // Guardaremos objetos { province_id, municipality_id, province_name, muni_name }
-        theory_template_id: '',
+        province_unique_targets: [],
+        indicators: [],
+        competences: [],
+        theory_template_id: ''
     });
+
+
+    useEffect(() => {
+        const fetchCatalogos = async () => {
+            const resComp = await apiFetch("/competences");
+            if (resComp?.ok) setAllCompetences(await resComp.json());
+
+            const resMan = await apiFetch("/users/managers");
+            if (resMan?.ok) setAvailableManagers(await resMan.json());
+        };
+        fetchCatalogos();
+    }, []);
 
     // Cargar provincias al montar
     useEffect(() => {
@@ -76,47 +100,126 @@ const CreateProject = () => {
     // --- LÓGICA DE UBICACIONES ---
     const addLocation = () => {
         const { province_id, municipality_id, parish_id } = tempLocation;
-
-        if (!province_id || !municipality_id || !parish_id) {
-            return toast.warning("Debes llegar hasta el nivel de Parroquia, amiguito.");
-        }
+        if (!province_id || !municipality_id || !parish_id) return toast.warning("Faltan datos");
 
         const pName = provinces.find(p => p.id === parseInt(province_id))?.name;
         const mName = municipalities.find(m => m.id === parseInt(municipality_id))?.name;
         const paName = parishes.find(pa => pa.id === parseInt(parish_id))?.name;
 
-        // Evitar duplicados por Parroquia (es el nivel más bajo)
         if (formData.locations.some(l => l.parish_id === parish_id)) {
             return toast.error("Esta parroquia ya está en la lista.");
         }
 
-        setFormData(prev => ({
-            ...prev,
-            locations: [...prev.locations, {
+        setFormData(prev => {
+            // 1. Agregamos la nueva ubicación con todos sus nombres
+            const newLocation = {
                 province_id, municipality_id, parish_id,
                 province_name: pName, muni_name: mName, parish_name: paName
-            }]
-        }));
+            };
 
-        // Reset local
+            // 2. Verificamos si la provincia ya está en la lista de metas
+            const alreadyHasProvince = prev.province_unique_targets.some(pt => pt.province_id === province_id);
+
+            return {
+                ...prev,
+                locations: [...prev.locations, newLocation],
+                province_unique_targets: alreadyHasProvince
+                    ? prev.province_unique_targets
+                    : [...prev.province_unique_targets, { province_id, total: 0, men: 0, women: 0, province_name: pName }]
+            };
+        });
+
         setTempLocation({ province_id: '', municipality_id: '', parish_id: '' });
     };
 
-    const removeLocation = (muniId) => {
-        setFormData(prev => ({
-            ...prev,
-            locations: prev.locations.filter(l => l.municipality_id !== muniId)
-        }));
+    const removeLocation = (parishId) => {
+        setFormData(prev => {
+            const updatedLocations = prev.locations.filter(l => l.parish_id !== parishId);
+
+            // Buscamos qué provincias aún tienen al menos una parroquia registrada
+            const remainingProvinceIds = [...new Set(updatedLocations.map(l => l.province_id))];
+
+            // Filtramos las metas únicas para que solo queden las de las provincias restantes
+            const updatedTargets = prev.province_unique_targets.filter(target =>
+                remainingProvinceIds.includes(target.province_id)
+            );
+
+            return {
+                ...prev,
+                locations: updatedLocations,
+                province_unique_targets: updatedTargets
+            };
+        });
     };
 
     const saveProject = async (isPartial = true) => {
         if (!formData.unique_code) {
             return toast.error("El Código Único es obligatorio amiguito.");
         }
-        console.log("Enviando a SIGSSEP:", formData);
-        toast.success(isPartial ? "Progreso guardado parcialmente" : "¡Proyecto creado con éxito!");
-        if (!isPartial) navigate('/manager/projects');
+
+        try {
+            // Llamamos a tu utilidad apiFetch
+            const response = await apiFetch("/projects", "POST", formData);
+
+            if (response.ok) {
+                toast.success(isPartial ? "Progreso guardado" : "¡Proyecto creado!");
+                // IMPORTANTE: Verifica que esta ruta exista en tu App.js
+                if (!isPartial) navigate('/manager/projects');
+            } else {
+                const errorData = await response.json();
+                toast.error(errorData.msg || "Error al guardar");
+            }
+        } catch (error) {
+            console.error("Error conectando al servidor:", error);
+            toast.error("No se pudo conectar con el servidor");
+        }
     };
+
+
+    const handleProvinceTargetChange = (provinceId, field, value) => {
+        setFormData(prev => ({
+            ...prev,
+            province_unique_targets: prev.province_unique_targets.map(pt =>
+                pt.province_id === provinceId ? { ...pt, [field]: parseInt(value) || 0 } : pt
+            )
+        }));
+    };
+
+
+    const addCompetence = () => {
+        const { competence_id, manager_id } = tempCompetence;
+        if (!competence_id || !manager_id) return toast.warning("Selecciona competencia y gerente, amiguito");
+
+        // Buscamos los nombres para mostrarlos en la UI (badges)
+        const compName = allCompetences.find(c => c.id === parseInt(competence_id))?.name;
+        const managerObj = availableManagers.find(m => m.id === parseInt(manager_id));
+        const managerName = `${managerObj.name} ${managerObj.lastname}`;
+
+        // Evitar duplicados
+        if (formData.competences.some(c => c.competence_id === competence_id)) {
+            return toast.error("Esta competencia ya fue asignada.");
+        }
+
+        setFormData(prev => ({
+            ...prev,
+            competences: [...prev.competences, {
+                competence_id: parseInt(competence_id),
+                manager_id: parseInt(manager_id),
+                comp_name: compName,
+                manager_name: managerName
+            }]
+        }));
+
+        setTempCompetence({ competence_id: '', manager_id: '' });
+    };
+
+    const removeCompetence = (id) => {
+        setFormData(prev => ({
+            ...prev,
+            competences: prev.competences.filter(c => c.competence_id !== id)
+        }));
+    };
+
 
     return (
         <div className="auth-page-container mt-5">
@@ -217,6 +320,57 @@ const CreateProject = () => {
                                     <label className="auth-label">Meta Principal</label>
                                     <textarea name="main_scope" className="auth-input w-100" rows="2" value={formData.main_scope} onChange={handleChange}></textarea>
                                 </div>
+
+                                {/* SECCIÓN DE COMPETENCIAS Y GERENTES */}
+                                <div className="mt-4 p-3 border rounded bg-white shadow-sm fade-in-up">
+                                    <label className="auth-label text-oxford">🏢 Estructura de Gestión (Competencias)</label>
+                                    <p className="small text-muted">Asigna las áreas técnicas y sus responsables.</p>
+
+                                    <div className="row g-2 bg-light p-2 rounded border">
+                                        <div className="col-md-5">
+                                            <select className="form-select auth-input" value={tempCompetence.competence_id}
+                                                onChange={(e) => setTempCompetence({ ...tempCompetence, competence_id: e.target.value })}>
+                                                <option value="">Seleccionar Competencia...</option>
+                                                {allCompetences.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="col-md-5">
+                                            <select className="form-select auth-input" value={tempCompetence.manager_id}
+                                                onChange={(e) => setTempCompetence({ ...tempCompetence, manager_id: e.target.value })}>
+                                                <option value="">Asignar Gerente...</option>
+                                                {availableManagers.map(m => (
+                                                    <option key={m.id} value={m.id}>{m.name} {m.lastname}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="col-md-2">
+                                            <button type="button" className="btn btn-oxford w-100 h-100" onClick={addCompetence}>
+                                                <i className="fas fa-user-plus"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* LISTADO DE COMPETENCIAS ASIGNADAS */}
+                                    <div className="mt-3">
+                                        {formData.competences.map(c => (
+                                            <div key={c.competence_id} className="d-flex justify-content-between align-items-center p-2 mb-2 border-start border-4 border-oxford bg-light rounded">
+                                                <div>
+                                                    <span className="fw-bold text-oxford">{c.comp_name}</span>
+                                                    <br />
+                                                    <small className="text-muted"><i className="fas fa-user-tie me-1"></i>Responsable: {c.manager_name}</small>
+                                                </div>
+                                                <button type="button" className="btn btn-sm btn-outline-danger border-0" onClick={() => removeCompetence(c.competence_id)}>
+                                                    <i className="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {formData.competences.length === 0 && (
+                                            <div className="text-center p-2 border border-dashed rounded text-muted small">
+                                                No hay competencias asignadas aún.
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                                 <div className="row">
                                     <div className="col-md-6 mb-3">
                                         <label className="auth-label">Fecha Inicio</label>
@@ -226,6 +380,37 @@ const CreateProject = () => {
                                         <label className="auth-label">Fecha Fin</label>
                                         <input type="date" name="end_date" className="auth-input w-100" value={formData.end_date} onChange={handleChange} />
                                     </div>
+                                </div>
+                            </div>
+                        )}
+                        {formData.province_unique_targets.length > 0 && (
+                            <div className="mt-4 p-3 border rounded bg-white shadow-sm fade-in-up">
+                                <label className="auth-label text-emerald">📊 Metas de Beneficiarios Únicos por Provincia</label>
+                                <p className="small text-muted">Establece el alcance real (sin repetir personas) por cada estado.</p>
+                                <div className="table-responsive">
+                                    <table className="table table-sm align-middle">
+                                        <thead className="bg-light">
+                                            <tr>
+                                                <th>Provincia</th>
+                                                <th>Meta Total</th>
+                                                <th>Hombres</th>
+                                                <th>Mujeres</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {formData.province_unique_targets.map(pt => (
+                                                <tr key={pt.province_id}>
+                                                    <td className="fw-bold text-oxford">{pt.province_name}</td>
+                                                    <td><input type="number" className="form-control form-control-sm"
+                                                        onChange={(e) => handleProvinceTargetChange(pt.province_id, 'total', e.target.value)} /></td>
+                                                    <td><input type="number" className="form-control form-control-sm"
+                                                        onChange={(e) => handleProvinceTargetChange(pt.province_id, 'men', e.target.value)} /></td>
+                                                    <td><input type="number" className="form-control form-control-sm"
+                                                        onChange={(e) => handleProvinceTargetChange(pt.province_id, 'women', e.target.value)} /></td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         )}
@@ -258,6 +443,18 @@ const CreateProject = () => {
                                                     ))
                                                     : <span className="text-danger small">No hay lugares registrados</span>
                                                 }
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="col-12 mt-3">
+                                        <div className="p-3 border rounded shadow-sm bg-white">
+                                            <label className="text-muted small d-block">Competencias y Responsables</label>
+                                            <div className="d-flex flex-wrap gap-2">
+                                                {formData.competences.map(c => (
+                                                    <span key={c.competence_id} className="badge bg-emerald-soft text-dark border p-2">
+                                                        {c.comp_name} <span className="opacity-50 mx-1">|</span> 👤 {c.manager_name}
+                                                    </span>
+                                                ))}
                                             </div>
                                         </div>
                                     </div>
