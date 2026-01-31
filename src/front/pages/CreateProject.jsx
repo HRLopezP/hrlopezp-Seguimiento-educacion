@@ -158,15 +158,24 @@ const CreateProject = () => {
         }
 
         try {
-            // Llamamos a tu utilidad apiFetch
-            const response = await apiFetch("/projects", "POST", formData);
+            const response = await apiFetch("/projects", {
+                method: "POST",
+                body: JSON.stringify(formData)
+            });
 
-            if (response.ok) {
+            // 201 es el código de éxito para "Creado"
+            if (response && (response.status === 201 || response.ok)) {
                 toast.success(isPartial ? "Progreso guardado" : "¡Proyecto creado!");
-                // IMPORTANTE: Verifica que esta ruta exista en tu App.js
-                if (!isPartial) navigate('/manager/projects');
+
+                if (!isPartial) {
+                    // Damos un pequeño respiro para que el usuario vea el brindis (toast)
+                    setTimeout(() => {
+                        navigate('/manager/projects');
+                    }, 1500);
+                }
             } else {
-                const errorData = await response.json();
+                // Si no es OK, intentamos sacar el error
+                const errorData = await response.json().catch(() => ({ msg: "Error desconocido" }));
                 toast.error(errorData.msg || "Error al guardar");
             }
         } catch (error) {
@@ -174,7 +183,6 @@ const CreateProject = () => {
             toast.error("No se pudo conectar con el servidor");
         }
     };
-
 
     const handleProvinceTargetChange = (provinceId, field, value) => {
         setFormData(prev => ({

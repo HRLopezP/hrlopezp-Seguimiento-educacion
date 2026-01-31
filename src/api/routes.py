@@ -1,7 +1,7 @@
 """
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
-from flask import Flask, request, jsonify, url_for, Blueprint
+from flask import Flask, request, jsonify, url_for, Blueprint, json
 from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish, ProjectProvinceGoal
 from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
@@ -819,63 +819,89 @@ def get_theory_full_details(id):
 
 @api.route('/projects', methods=['POST'])
 @jwt_required()
-@manager_required # Este decorador debe verificar el rol 'Gerente'
+@manager_required
 def create_project():
     data = request.json
+    print("ESTRUCTURA RECIBIDA:", json.dumps(data, indent=4))
     
+    # 1. Validación de seguridad mínima
     if not data.get("unique_code"):
         return jsonify({"msg": "El código único es obligatorio"}), 400
 
     try:
-        # 1. Crear el Proyecto con sus campos base
+        # Extraer targets globales (asumiendo estructura de objeto del frontend)
+        targets = data.get("unique_targets", {})
+
+        # 2. Crear instancia de Proyecto
         new_project = Project(
             code=data.get("unique_code"),
             donor_name=data.get("donor"),
             project_name=data.get("name"),
             main_objective=data.get("description"),
             results_summary=data.get("main_scope"),
-            # Asignamos las metas globales que definiste en el modelo
-            target_total=float(data.get("total_target", 0)),
-            target_men=float(data.get("men_target", 0)),
-            target_women=float(data.get("women_target", 0)),
+            target_total=float(targets.get("total", 0)),
+            target_men=float(targets.get("men", 0)),
+            target_women=float(targets.get("women", 0)),
+            target_disability=float(targets.get("disability", 0)),
             start_date=datetime.strptime(data['start_date'], '%Y-%m-%d') if data.get('start_date') else None,
             end_date=datetime.strptime(data['end_date'], '%Y-%m-%d') if data.get('end_date') else None,
             status="En Progreso"
         )
 
         db.session.add(new_project)
-        db.session.flush() # Para obtener el id_project
+        db.session.flush() 
 
-        # 2. Guardar Ubicaciones (Locations)
+        # 3. Guardar Ubicaciones (Evitando duplicados si el frontend repite)
         if data.get("locations"):
             for loc in data["locations"]:
-                # Aquí usamos el modelo Location que pasaste
                 new_loc = Location(
-                    province_id=loc['province_id'],
-                    municipality_id=loc['municipality_id'],
-                    parish_id=loc.get('parish_id'), # Es opcional según tu modelo
+                    province_id=int(loc['province_id']),
+                    municipality_id=int(loc['municipality_id']),
+                    parish_id=int(loc['parish_id']) if loc.get('parish_id') else None,
                     project_id=new_project.id_project
                 )
                 db.session.add(new_loc)
 
-        # 3. Guardar Metas por Provincia (ProjectProvinceGoal)
+        # 4. Metas por Provincia (El desglose que mencionaste)
         if data.get("province_unique_targets"):
-            for target in data["province_unique_targets"]:
-                new_goal = ProjectProvinceGoal(
+            for p_target in data["province_unique_targets"]:
+                new_p_goal = ProjectProvinceGoal(
                     project_id=new_project.id_project,
-                    province_id=target['province_id'],
-                    target_total=float(target.get('total', 0)),
-                    target_men=float(target.get('men', 0)),
-                    target_women=float(target.get('women', 0))
+                    province_id=int(p_target['province_id']),
+                    target_total=float(p_target.get('total', 0)),
+                    target_men=float(p_target.get('men', 0)),
+                    target_women=float(p_target.get('women', 0))
                 )
-                db.session.add(new_goal)
+                db.session.add(new_p_goal)
+
+        # 5. ¡NUEVO! Guardar Indicadores del Proyecto
+        if data.get("indicators"):
+            for ind_data in data["indicators"]:
+                new_indicator = Indicator(
+                    template_id=ind_data['id'],
+                    project_id=new_project.id_project,
+                    target_total=float(ind_data.get('target', 0))
+                    )
+                db.session.add(new_indicator)
+                db.session.flush() # Para obtener el id_indicator
+                if ind_data.get("location_targets"):
+                    for loc_target in ind_data["location_targets"]:
+                        new_goal = IndicatorLocationGoal(
+                            indicator_id=new_indicator.id_indicator,
+                            province_id=loc_target['province_id'],
+                            total_target=float(loc_target['total']),
+                            men=float(loc_target['men']),
+                            women=float(loc_target['women'])
+                            )
+                        db.session.add(new_goal)
 
         db.session.commit()
-        return jsonify({"msg": "Proyecto SIGSSEP guardado con éxito"}), 201
+        return jsonify({"msg": "Proyecto SIGSSEP guardado con éxito", "id": new_project.id_project}), 201
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Error interno", "error": str(e)}), 500
+        print(f"DEBUG SIGSSEP Error: {str(e)}") # Esto saldrá en tu terminal de Python
+        return jsonify({"msg": "Error de consistencia de datos", "error": str(e)}), 500
     
 
 @api.route('/competence-templates', methods=['GET'])
@@ -913,7 +939,8 @@ def get_manager_projects():
         # Si el progreso es 100% o más y el estatus no es "Completado" todavía...
         if progress_percentage >= 100 and project.status != "Completado":
             project.status = "Completado"
-            db.session.commit() # Guardamos el cambio de estatus automáticamente
+        db.session.commit() # Guardamos el cambio de estatus automáticamente
+        return jsonify(results), 200
         # -------------------------------------------------------
 
         # 2. Preparamos la data para el Dashboard
