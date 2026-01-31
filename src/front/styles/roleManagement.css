@@ -184,3 +184,10 @@
     margin-left: auto;
     margin-right: auto;
 }
+
+
+.hover-opacity-100:hover {
+    opacity: 1 !important;
+    transform: scale(1.1);
+    transition: all 0.2s ease;
+}

@@ -168,37 +168,34 @@ class Project(db.Model):
     __tablename__ = 'project'
     id_project: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
-
-    # Todos estos son opcionales para permitir el "Partial Save"
-    donor_name: Mapped[Optional[str]] = mapped_column(
-        String(100), nullable=True)
-    project_name: Mapped[Optional[str]] = mapped_column(
-        String(200), nullable=True)
+    donor_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    project_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     main_objective: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     results_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    start_date: Mapped[Optional[datetime]] = mapped_column(
-        DateTime, nullable=True)
-    end_date: Mapped[Optional[datetime]] = mapped_column(
-        DateTime, nullable=True)
-    status: Mapped[str] = mapped_column(String(20), default="En Progreso")
+    start_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    end_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="En Progreso", nullable=False)
+    
+    # Estos son los BENEFICIARIOS ÚNICOS (Los 10,000 del ejemplo)
+    target_total: Mapped[float] = mapped_column(Float, default=0.0)
+    target_men: Mapped[float] = mapped_column(Float, default=0.0)
+    target_women: Mapped[float] = mapped_column(Float, default=0.0)
+    target_disability: Mapped[float] = mapped_column(Float, default=0.0)
 
     @hybrid_property
     def remaining_days(self):
         if self.end_date:
-            # Comparamos la fecha de fin con el momento actual
-            # Usamos replace(tzinfo=None) para que ambas sean "naive" y no de error de zona horaria
             now = datetime.now()
-            delta = self.end_date.replace(
-                tzinfo=None) - now.replace(tzinfo=None)
-            # max(0, ...) evita que salgan días negativos si ya venció
+            delta = self.end_date.replace(tzinfo=None) - now.replace(tzinfo=None)
             return max(0, delta.days)
         return 0
 
-    # Relaciones principales
-    locations: Mapped[List["Location"]] = relationship(
-        back_populates="project")
-    indicators: Mapped[List["Indicator"]] = relationship(
-        back_populates="project")
+    # Relaciones
+    locations: Mapped[List["Location"]] = relationship(back_populates="project")
+    indicators: Mapped[List["Indicator"]] = relationship(back_populates="project")
+    competence_assignments: Mapped[List["ProjectCompetence"]] = relationship(back_populates="project")
+    # Nueva relación para el desglose de beneficiarios únicos por provincia
+    province_goals: Mapped[List["ProjectProvinceGoal"]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
     def serialize(self):
         return {
@@ -206,114 +203,109 @@ class Project(db.Model):
             "code": self.code,
             "project_name": self.project_name,
             "donor_name": self.donor_name,
+            "main_objective": self.main_objective,
+            "results_summary": self.results_summary,
+            "start_date": self.start_date.strftime("%Y-%m-%d") if self.start_date else None,
+            "end_date": self.end_date.strftime("%Y-%m-%d") if self.end_date else None,
             "status": self.status,
-            "remaining_days": self.remaining_days,  # Tu hybrid_property
-            "locations": [loc.serialize() for loc in self.locations],
-            "indicators": [ind.serialize() for ind in self.indicators]
-        }
-
-
-class Indicator(db.Model):
-    __tablename__ = 'indicator'
-    id_indicator: Mapped[int] = mapped_column(primary_key=True)
-    template_id: Mapped[int] = mapped_column(
-        ForeignKey('indicator_template.id'), nullable=False)
-    project_id: Mapped[int] = mapped_column(
-        ForeignKey('project.id_project'), nullable=False)
-
-    project: Mapped["Project"] = relationship(back_populates="indicators")
-
-    template: Mapped["IndicatorTemplate"] = relationship()
-    location_goals: Mapped[List["IndicatorLocationGoal"]
-                           ] = relationship(back_populates="indicator")
-
-    # Metas globales
-    target_total: Mapped[float] = mapped_column(Float, default=0.0)
-    target_men: Mapped[float] = mapped_column(Float, default=0.0)
-    target_women: Mapped[float] = mapped_column(Float, default=0.0)
-    target_disability: Mapped[float] = mapped_column(Float, default=0.0)
-
-    def serialize(self):
-        return {
-            "id": self.id_indicator,
-            "template_info": {
-                "code": self.template.code,
-                "description": self.template.description,
-                "type": self.template.result.type if self.template.result else None
-            },
-            "goals": {
+            "remaining_days": self.remaining_days,
+            "unique_targets": {
                 "total": self.target_total,
                 "men": self.target_men,
                 "women": self.target_women,
                 "disability": self.target_disability
             },
-            "location_breakdown": [goal.serialize() for goal in self.location_goals]
+            # Aquí se ven Apure: 4000, Zulia: 6000
+            "province_unique_breakdown": [pg.serialize() for pg in self.province_goals],
+            "locations": [loc.serialize() for loc in self.locations],
+            "indicators": [ind.serialize() for ind in self.indicators],
+            "competences": [cp.serialize() for cp in self.competence_assignments]
         }
+    
+
+class Indicator(db.Model):
+    __tablename__ = 'indicator'
+    id_indicator: Mapped[int] = mapped_column(primary_key=True)
+    template_id: Mapped[int] = mapped_column(ForeignKey('indicator_template.id'), nullable=False)
+    project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
+
+    project: Mapped["Project"] = relationship(back_populates="indicators")
+    template: Mapped["IndicatorTemplate"] = relationship()
+    
+    # Esta relación guarda las metas del indicador por provincia
+    location_goals: Mapped[List["IndicatorLocationGoal"]] = relationship(back_populates="indicator", cascade="all, delete-orphan")
+
+    # Meta de gestión del indicador (Puede ser mayor a los beneficiarios únicos)
+    target_total: Mapped[float] = mapped_column(Float, default=0.0)
+    target_men: Mapped[float] = mapped_column(Float, default=0.0)
+    target_women: Mapped[float] = mapped_column(Float, default=0.0)
+
+    def serialize(self):
+        return {
+            "id": self.id_indicator,
+            "indicator_code": self.template.code,
+            "description": self.template.description,
+            "indicator_targets": {
+                "total": self.target_total,
+                "men": self.target_men,
+                "women": self.target_women
+            },
+            "goals_by_province": [goal.serialize() for goal in self.location_goals]
+        }
+
 
 
 class Location(db.Model):
     __tablename__ = 'location'
     id_location: Mapped[int] = mapped_column(primary_key=True)
-    province: Mapped[str] = mapped_column(
-        String(100), nullable=False)  # Estado
-    municipality: Mapped[str] = mapped_column(String(100), nullable=False)
-    parish: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+    province_id: Mapped[int] = mapped_column(ForeignKey('province.id'), nullable=False)
+    municipality_id: Mapped[int] = mapped_column(ForeignKey('municipality.id'), nullable=False)
+    parish_id: Mapped[Optional[int]] = mapped_column(ForeignKey('parish.id'), nullable=True)
+
     community_institution: Mapped[Optional[str]
                                   ] = mapped_column(String(100), nullable=True)
 
     # El "dueño" de esta ubicación es el proyecto
     project_id: Mapped[int] = mapped_column(
         ForeignKey('project.id_project'), nullable=False)
+    
+    # Relaciones para poder acceder al nombre fácilmente
+    province_ref: Mapped["Province"] = relationship()
+    municipality_ref: Mapped["Municipality"] = relationship()
+    parish_ref: Mapped["Parish"] = relationship()
     project: Mapped["Project"] = relationship(back_populates="locations")
-
-    def __repr__(self):
-        return f'<Location {self.province} - {self.municipality}>'
 
     def serialize(self):
         return {
             "id": self.id_location,
-            "province": self.province,
-            "municipality": self.municipality,
-            "parish": self.parish,
+            "province": self.province_ref.name,
+            "municipality": self.municipality_ref.name,
+            "parish": self.parish_ref.name if self.parish_ref else None,
             "community_institution": self.community_institution
         }
-
 
 class IndicatorLocationGoal(db.Model):
     __tablename__ = 'indicator_location_goal'
     id_ilg: Mapped[int] = mapped_column(primary_key=True)
-
-    # Se conecta al indicador del proyecto
-    indicator_id: Mapped[int] = mapped_column(
-        ForeignKey('indicator.id_indicator'), nullable=False)
-    indicator: Mapped["Indicator"] = relationship(
-        back_populates="location_goals")
-
-    # Se conecta a la ubicación específica del proyecto
-    location_id: Mapped[int] = mapped_column(
-        ForeignKey('location.id_location'), nullable=False)
-    location: Mapped["Location"] = relationship()
-
-    # Metas numéricas para esta ubicación específica
+    indicator_id: Mapped[int] = mapped_column(ForeignKey('indicator.id_indicator'), nullable=False)
+    
+    # Lo vinculamos a la Provincia para saber a qué meta de estado pertenece
+    province_id: Mapped[int] = mapped_column(ForeignKey('province.id'), nullable=False)
+    
+    # Metas que el gerente asigna (Ejemplo: Indicador "Vacunación" en Apure: 4500)
     total_target: Mapped[float] = mapped_column(Float, default=0.0)
     men: Mapped[float] = mapped_column(Float, default=0.0)
     women: Mapped[float] = mapped_column(Float, default=0.0)
-    disability: Mapped[float] = mapped_column(Float, default=0.0)
+
+    indicator: Mapped["Indicator"] = relationship(back_populates="location_goals")
+    province: Mapped["Province"] = relationship()
 
     def serialize(self):
         return {
-            "id": self.id_ilg,
-            "location_id": self.location_id,
-            "province": self.location.province if self.location else None,
-            "municipality": self.location.municipality if self.location else None,
-            "targets": {
-                "total": self.total_target,
-                "men": self.men,
-                "women": self.women,
-                "disability": self.disability
-            }
+            "province_name": self.province.name,
+            "target": self.total_target
         }
-
 
 # --- CATÁLOGOS ADICIONALES ---
 
@@ -336,15 +328,8 @@ class Competence(db.Model):
         return {
             "id": self.id_competence,
             "name": self.name,
-            # Útil para el frontend ver cuántas teorías tiene
-            "theories_count": len(self.theories) if self.theories else 0 
-        }
-    
-
-    def serialize(self):
-        return {
-            "id": self.id_competence,
-            "name": self.name
+            # Útil para el Stepper paso 3
+            "theories": [t.serialize() for t in self.theories] if self.theories else []
         }
 
 # --- RELACIONES DE GESTIÓN ---
@@ -363,6 +348,7 @@ class ProjectCompetence(db.Model):
     competence: Mapped["Competence"] = relationship(
         back_populates="project_assignments")
     manager: Mapped["User"] = relationship()
+    project: Mapped["Project"] = relationship(back_populates="competence_assignments")
 
     def serialize(self):
         return {
@@ -410,4 +396,74 @@ class Activity(db.Model):
             },
             "status": self.status,
             "responsible_name": f"{self.responsible.name} {self.responsible.lastname}" if self.responsible else "N/A"
+        }
+
+
+# --- CATÁLOGOS DE TERRITORIO (Los que el Admin llena primero) ---
+
+class Province(db.Model):
+    __tablename__ = 'province'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    
+    municipalities: Mapped[List["Municipality"]] = relationship(
+        back_populates="province", 
+        cascade="all, delete-orphan",
+        passive_deletes=True 
+    )
+
+    def serialize(self):
+        return {"id": self.id, "name": self.name}
+
+class Municipality(db.Model):
+    __tablename__ = 'municipality'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    
+    province_id: Mapped[int] = mapped_column(ForeignKey('province.id', ondelete="CASCADE"), nullable=False)
+    province: Mapped["Province"] = relationship(back_populates="municipalities")
+    
+    parishes: Mapped[List["Parish"]] = relationship(
+        back_populates="municipality", 
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
+
+    def serialize(self):
+        return {"id": self.id, "name": self.name, "province_id": self.province_id}
+
+class Parish(db.Model):
+    __tablename__ = 'parish'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    
+    municipality_id: Mapped[int] = mapped_column(ForeignKey('municipality.id', ondelete="CASCADE"), nullable=False)
+    municipality: Mapped["Municipality"] = relationship(back_populates="parishes")
+
+    def serialize(self):
+        return {"id": self.id, "name": self.name, "municipality_id": self.municipality_id}
+
+
+class ProjectProvinceGoal(db.Model):
+    __tablename__ = 'project_province_goal'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
+    province_id: Mapped[int] = mapped_column(ForeignKey('province.id'), nullable=False)
+    
+    # Metas por provincia (Apure: 4000...)
+    target_total: Mapped[float] = mapped_column(Float, default=0.0)
+    target_men: Mapped[float] = mapped_column(Float, default=0.0)
+    target_women: Mapped[float] = mapped_column(Float, default=0.0)
+
+    # Relaciones
+    province: Mapped["Province"] = relationship()
+    project: Mapped["Project"] = relationship(back_populates="province_goals")
+
+    def serialize(self):
+        return {
+            "province_id": self.province_id,
+            "province_name": self.province.name,
+            "total": self.target_total,
+            "men": self.target_men,
+            "women": self.target_women
         }

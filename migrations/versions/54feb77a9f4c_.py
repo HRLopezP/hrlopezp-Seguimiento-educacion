@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: 7b138c5917e1
+Revision ID: 54feb77a9f4c
 Revises: 
-Create Date: 2026-01-28 22:41:41.918992
+Create Date: 2026-01-30 21:52:54.215396
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '7b138c5917e1'
+revision = '54feb77a9f4c'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -34,8 +34,18 @@ def upgrade():
     sa.Column('start_date', sa.DateTime(), nullable=True),
     sa.Column('end_date', sa.DateTime(), nullable=True),
     sa.Column('status', sa.String(length=20), nullable=False),
+    sa.Column('target_total', sa.Float(), nullable=False),
+    sa.Column('target_men', sa.Float(), nullable=False),
+    sa.Column('target_women', sa.Float(), nullable=False),
+    sa.Column('target_disability', sa.Float(), nullable=False),
     sa.PrimaryKeyConstraint('id_project'),
     sa.UniqueConstraint('code')
+    )
+    op.create_table('province',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('name')
     )
     op.create_table('rol',
     sa.Column('id_rol', sa.Integer(), nullable=False),
@@ -45,15 +55,23 @@ def upgrade():
     sa.PrimaryKeyConstraint('id_rol'),
     sa.UniqueConstraint('name_rol')
     )
-    op.create_table('location',
-    sa.Column('id_location', sa.Integer(), nullable=False),
-    sa.Column('province', sa.String(length=100), nullable=False),
-    sa.Column('municipality', sa.String(length=100), nullable=False),
-    sa.Column('parish', sa.String(length=100), nullable=True),
-    sa.Column('community_institution', sa.String(length=100), nullable=True),
+    op.create_table('municipality',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('province_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['province_id'], ['province.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('project_province_goal',
+    sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('project_id', sa.Integer(), nullable=False),
+    sa.Column('province_id', sa.Integer(), nullable=False),
+    sa.Column('target_total', sa.Float(), nullable=False),
+    sa.Column('target_men', sa.Float(), nullable=False),
+    sa.Column('target_women', sa.Float(), nullable=False),
     sa.ForeignKeyConstraint(['project_id'], ['project.id_project'], ),
-    sa.PrimaryKeyConstraint('id_location')
+    sa.ForeignKeyConstraint(['province_id'], ['province.id'], ),
+    sa.PrimaryKeyConstraint('id')
     )
     op.create_table('theory_template',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -76,6 +94,13 @@ def upgrade():
     sa.ForeignKeyConstraint(['rol_id'], ['rol.id_rol'], ),
     sa.PrimaryKeyConstraint('id_user'),
     sa.UniqueConstraint('email')
+    )
+    op.create_table('parish',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('municipality_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['municipality_id'], ['municipality.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
     )
     op.create_table('project_competence',
     sa.Column('id_pc', sa.Integer(), nullable=False),
@@ -112,6 +137,19 @@ def upgrade():
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('code')
     )
+    op.create_table('location',
+    sa.Column('id_location', sa.Integer(), nullable=False),
+    sa.Column('province_id', sa.Integer(), nullable=False),
+    sa.Column('municipality_id', sa.Integer(), nullable=False),
+    sa.Column('parish_id', sa.Integer(), nullable=True),
+    sa.Column('community_institution', sa.String(length=100), nullable=True),
+    sa.Column('project_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['municipality_id'], ['municipality.id'], ),
+    sa.ForeignKeyConstraint(['parish_id'], ['parish.id'], ),
+    sa.ForeignKeyConstraint(['project_id'], ['project.id_project'], ),
+    sa.ForeignKeyConstraint(['province_id'], ['province.id'], ),
+    sa.PrimaryKeyConstraint('id_location')
+    )
     op.create_table('indicator',
     sa.Column('id_indicator', sa.Integer(), nullable=False),
     sa.Column('template_id', sa.Integer(), nullable=False),
@@ -119,7 +157,6 @@ def upgrade():
     sa.Column('target_total', sa.Float(), nullable=False),
     sa.Column('target_men', sa.Float(), nullable=False),
     sa.Column('target_women', sa.Float(), nullable=False),
-    sa.Column('target_disability', sa.Float(), nullable=False),
     sa.ForeignKeyConstraint(['project_id'], ['project.id_project'], ),
     sa.ForeignKeyConstraint(['template_id'], ['indicator_template.id'], ),
     sa.PrimaryKeyConstraint('id_indicator')
@@ -143,13 +180,12 @@ def upgrade():
     op.create_table('indicator_location_goal',
     sa.Column('id_ilg', sa.Integer(), nullable=False),
     sa.Column('indicator_id', sa.Integer(), nullable=False),
-    sa.Column('location_id', sa.Integer(), nullable=False),
+    sa.Column('province_id', sa.Integer(), nullable=False),
     sa.Column('total_target', sa.Float(), nullable=False),
     sa.Column('men', sa.Float(), nullable=False),
     sa.Column('women', sa.Float(), nullable=False),
-    sa.Column('disability', sa.Float(), nullable=False),
     sa.ForeignKeyConstraint(['indicator_id'], ['indicator.id_indicator'], ),
-    sa.ForeignKeyConstraint(['location_id'], ['location.id_location'], ),
+    sa.ForeignKeyConstraint(['province_id'], ['province.id'], ),
     sa.PrimaryKeyConstraint('id_ilg')
     )
     # ### end Alembic commands ###
@@ -160,14 +196,18 @@ def downgrade():
     op.drop_table('indicator_location_goal')
     op.drop_table('activity')
     op.drop_table('indicator')
+    op.drop_table('location')
     op.drop_table('indicator_template')
     op.drop_table('user_competence')
     op.drop_table('result_template')
     op.drop_table('project_competence')
+    op.drop_table('parish')
     op.drop_table('user')
     op.drop_table('theory_template')
-    op.drop_table('location')
+    op.drop_table('project_province_goal')
+    op.drop_table('municipality')
     op.drop_table('rol')
+    op.drop_table('province')
     op.drop_table('project')
     op.drop_table('competence')
     # ### end Alembic commands ###

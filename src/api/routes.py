@@ -1,14 +1,15 @@
 """
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
-from flask import Flask, request, jsonify, url_for, Blueprint
-from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate
+from flask import Flask, request, jsonify, url_for, Blueprint, json
+from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish, ProjectProvinceGoal
 from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from .manager_decorator import manager_required
 from flask_mail import Message
+from datetime import datetime
 from api.extensions import mail
 import os
 from .CloudinaryService import CloudinaryService
@@ -814,3 +815,344 @@ def get_theory_full_details(id):
     # Gracias a que mejoramos el serialize() en el modelo, 
     # este objeto ya incluirá sus outcomes, outputs e indicadores anidados.
     return jsonify(theory.serialize()), 200
+
+
+@api.route('/projects', methods=['POST'])
+@jwt_required()
+@manager_required
+def create_project():
+    data = request.json
+    print("ESTRUCTURA RECIBIDA:", json.dumps(data, indent=4))
+    
+    # 1. Validación de seguridad mínima
+    if not data.get("unique_code"):
+        return jsonify({"msg": "El código único es obligatorio"}), 400
+
+    try:
+        # Extraer targets globales (asumiendo estructura de objeto del frontend)
+        targets = data.get("unique_targets", {})
+
+        # 2. Crear instancia de Proyecto
+        new_project = Project(
+            code=data.get("unique_code"),
+            donor_name=data.get("donor"),
+            project_name=data.get("name"),
+            main_objective=data.get("description"),
+            results_summary=data.get("main_scope"),
+            target_total=float(targets.get("total", 0)),
+            target_men=float(targets.get("men", 0)),
+            target_women=float(targets.get("women", 0)),
+            target_disability=float(targets.get("disability", 0)),
+            start_date=datetime.strptime(data['start_date'], '%Y-%m-%d') if data.get('start_date') else None,
+            end_date=datetime.strptime(data['end_date'], '%Y-%m-%d') if data.get('end_date') else None,
+            status="En Progreso"
+        )
+
+        db.session.add(new_project)
+        db.session.flush() 
+
+        # 3. Guardar Ubicaciones (Evitando duplicados si el frontend repite)
+        if data.get("locations"):
+            for loc in data["locations"]:
+                new_loc = Location(
+                    province_id=int(loc['province_id']),
+                    municipality_id=int(loc['municipality_id']),
+                    parish_id=int(loc['parish_id']) if loc.get('parish_id') else None,
+                    project_id=new_project.id_project
+                )
+                db.session.add(new_loc)
+
+        # 4. Metas por Provincia (El desglose que mencionaste)
+        if data.get("province_unique_targets"):
+            for p_target in data["province_unique_targets"]:
+                new_p_goal = ProjectProvinceGoal(
+                    project_id=new_project.id_project,
+                    province_id=int(p_target['province_id']),
+                    target_total=float(p_target.get('total', 0)),
+                    target_men=float(p_target.get('men', 0)),
+                    target_women=float(p_target.get('women', 0))
+                )
+                db.session.add(new_p_goal)
+
+        # 5. ¡NUEVO! Guardar Indicadores del Proyecto
+        if data.get("indicators"):
+            for ind_data in data["indicators"]:
+                new_indicator = Indicator(
+                    template_id=ind_data['id'],
+                    project_id=new_project.id_project,
+                    target_total=float(ind_data.get('target', 0))
+                    )
+                db.session.add(new_indicator)
+                db.session.flush() # Para obtener el id_indicator
+                if ind_data.get("location_targets"):
+                    for loc_target in ind_data["location_targets"]:
+                        new_goal = IndicatorLocationGoal(
+                            indicator_id=new_indicator.id_indicator,
+                            province_id=loc_target['province_id'],
+                            total_target=float(loc_target['total']),
+                            men=float(loc_target['men']),
+                            women=float(loc_target['women'])
+                            )
+                        db.session.add(new_goal)
+
+        db.session.commit()
+        return jsonify({"msg": "Proyecto SIGSSEP guardado con éxito", "id": new_project.id_project}), 201
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"DEBUG SIGSSEP Error: {str(e)}") # Esto saldrá en tu terminal de Python
+        return jsonify({"msg": "Error de consistencia de datos", "error": str(e)}), 500
+    
+
+@api.route('/competence-templates', methods=['GET'])
+@jwt_required()
+def get_templates():
+    # Para que el gerente vea qué Teorías e Indicadores puede elegir
+    competences = Competence.query.all()
+    return jsonify([c.serialize() for c in competences]), 200
+    
+
+@api.route('/manager/projects', methods=['GET'])
+@jwt_required()
+@manager_required
+def get_manager_projects():
+    projects = Project.query.all()
+    results = []
+
+    for project in projects:
+        # 1. Calculamos el progreso porcentual (Lógica de negocio SIGSSEP)
+        # Sumamos todas las metas de los indicadores de este proyecto
+        total_goal = sum(ind.target_total for ind in project.indicators) or 1 # Evitar división por cero
+        
+        # Sumamos todos los logros registrados en las actividades de esos indicadores
+        total_achieved = 0
+        for indicator in project.indicators:
+            # Buscamos todas las actividades ligadas a este indicador
+            activities = Activity.query.filter_by(indicator_id=indicator.id_indicator, status="Completada").all()
+            for act in activities:
+                # El logro total es la suma de hombres + mujeres
+                total_achieved += (act.achievement_men + act.achievement_women)
+
+        progress_percentage = round((total_achieved / total_goal) * 100, 2)
+
+        # --- 🚀 LOGICA DE AUTO-COMPLETADO (Cambio de Status) ---
+        # Si el progreso es 100% o más y el estatus no es "Completado" todavía...
+        if progress_percentage >= 100 and project.status != "Completado":
+            project.status = "Completado"
+        db.session.commit() # Guardamos el cambio de estatus automáticamente
+        return jsonify(results), 200
+        # -------------------------------------------------------
+
+        # 2. Preparamos la data para el Dashboard
+        project_data = project.serialize() # Usamos el serialize que ya mejoramos
+        project_data["progress"] = min(progress_percentage, 100) # No exceder el 100% visualmente
+        project_data["total_achieved"] = total_achieved
+        
+        results.append(project_data)
+
+    return jsonify(results), 200
+
+
+@api.route('/provinces', methods=['GET'])
+@jwt_required()
+def get_provinces():
+    provinces = Province.query.all()
+    return jsonify([p.serialize() for p in provinces]), 200
+
+
+@api.route('/provinces', methods=['POST'])
+@jwt_required()
+@manager_required
+def add_province():
+    data = request.json
+    if not data.get("name"):
+        return jsonify({"msg": "Nombre requerido"}), 400
+    
+    new_province = Province(name=data["name"])
+    db.session.add(new_province)
+    db.session.commit()
+    return jsonify(new_province.serialize()), 201
+
+
+@api.route('/provinces/<int:id>', methods=['PUT'])
+@jwt_required()
+@manager_required
+def update_province(id):
+    province = Province.query.get(id)
+    if not province:
+        return jsonify({"msg": "No encontrada"}), 404
+    
+    data = request.json
+    province.name = data.get("name", province.name)
+    db.session.commit()
+    return jsonify(province.serialize()), 200
+
+
+@api.route('/provinces/<int:id>', methods=['DELETE'])
+@jwt_required()
+@manager_required
+def delete_province(id):
+    province = Province.query.get(id)
+    if not province:
+        return jsonify({"msg": "No encontrada"}), 404
+    
+    db.session.delete(province)
+    db.session.commit()
+    return jsonify({"msg": "Provincia eliminada"}), 200
+
+
+@api.route('/provinces/<int:province_id>/municipalities', methods=['GET'])
+@jwt_required()
+def get_municipalities_by_province(province_id):
+    """Obtiene municipios filtrados por una provincia específica"""
+    municipalities = Municipality.query.filter_by(province_id=province_id).all()
+    return jsonify([m.serialize() for m in municipalities]), 200
+
+
+@api.route('/municipalities', methods=['POST'])
+@jwt_required()
+@manager_required
+def add_municipality():
+    """Crea un nuevo municipio vinculado a una provincia"""
+    data = request.json
+    # Validación básica
+    if not data.get("name") or not data.get("province_id"):
+        return jsonify({"msg": "Faltan datos requeridos (name, province_id)"}), 400
+    
+    new_muni = Municipality(
+        name=data["name"],
+        province_id=data["province_id"]
+    )
+    db.session.add(new_muni)
+    db.session.commit()
+    return jsonify(new_muni.serialize()), 201
+
+# --- ENDPOINTS PARA PARROQUIAS ---
+
+@api.route('/municipalities/<int:municipality_id>/parishes', methods=['GET'])
+@jwt_required()
+def get_parishes_by_municipality(municipality_id):
+    """Obtiene parroquias filtradas por municipio"""
+    parishes = Parish.query.filter_by(municipality_id=municipality_id).all()
+    return jsonify([p.serialize() for p in parishes]), 200
+
+
+@api.route('/parishes', methods=['POST'])
+@jwt_required()
+@manager_required
+def add_parish():
+    """Crea una nueva parroquia vinculada a un municipio"""
+    data = request.json
+    if not data.get("name") or not data.get("municipality_id"):
+        return jsonify({"msg": "Faltan datos requeridos"}), 400
+    
+    new_parish = Parish(
+        name=data["name"],
+        municipality_id=data["municipality_id"]
+    )
+    db.session.add(new_parish)
+    db.session.commit()
+    return jsonify(new_parish.serialize()), 201
+
+
+# --- ENDPOINTS PARA MUNICIPIOS (CRUD RESTANTE) ---
+
+@api.route('/municipalities/<int:id>', methods=['PUT'])
+@jwt_required()
+@manager_required
+def update_municipality(id):
+    municipality = Municipality.query.get(id)
+    if not municipality:
+        return jsonify({"msg": "Municipio no encontrado"}), 404
+    
+    data = request.json
+    # Podemos actualizar el nombre o incluso moverlo de provincia si hubo un error
+    municipality.name = data.get("name", municipality.name)
+    municipality.province_id = data.get("province_id", municipality.province_id)
+    
+    db.session.commit()
+    return jsonify(municipality.serialize()), 200
+
+@api.route('/municipalities/<int:id>', methods=['DELETE'])
+@jwt_required()
+@manager_required
+def delete_municipality(id):
+    municipality = Municipality.query.get(id)
+    if not municipality:
+        return jsonify({"msg": "Municipio no encontrado"}), 404
+    
+    try:
+        db.session.delete(municipality)
+        db.session.commit()
+        return jsonify({"msg": "Municipio y sus parroquias eliminados correctamente"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Error al eliminar", "error": str(e)}), 500
+
+
+# --- ENDPOINTS PARA PARROQUIAS (CRUD RESTANTE) ---
+
+@api.route('/parishes/<int:id>', methods=['PUT'])
+@jwt_required()
+@manager_required
+def update_parish(id):
+    parish = Parish.query.get(id)
+    if not parish:
+        return jsonify({"msg": "Parroquia no encontrada"}), 404
+    
+    data = request.json
+    parish.name = data.get("name", parish.name)
+    parish.municipality_id = data.get("municipality_id", parish.municipality_id)
+    
+    db.session.commit()
+    return jsonify(parish.serialize()), 200
+
+@api.route('/parishes/<int:id>', methods=['DELETE'])
+@jwt_required()
+@manager_required
+def delete_parish(id):
+    parish = Parish.query.get(id)
+    if not parish:
+        return jsonify({"msg": "Parroquia no encontrada"}), 404
+    
+    db.session.delete(parish)
+    db.session.commit()
+    return jsonify({"msg": "Parroquia eliminada correctamente"}), 200
+
+
+@api.route('/activities', methods=['POST'])
+@jwt_required()
+def record_activity():
+    data = request.get_json()
+    user_id = get_jwt_identity() # El ID del Oficial logueado
+    
+    try:
+        new_activity = Activity(
+            description=data.get("description"),
+            implementation_date=datetime.strptime(data.get("date"), "%Y-%m-%d"),
+            achievement_men=data.get("men", 0.0),
+            achievement_women=data.get("women", 0.0),
+            achievement_disability=data.get("disability", 0.0),
+            indicator_id=data.get("indicator_id"),
+            location_id=data.get("location_id"),
+            user_id=user_id,
+            status="Completada"
+        )
+        db.session.add(new_activity)
+        db.session.commit()
+        
+        # Aquí es donde tu lógica de get_manager_projects detectará el nuevo progreso
+        return jsonify({"message": "Logro registrado y descontado en tiempo real"}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route('/users/managers', methods=['GET'])
+@jwt_required()
+def get_managers():
+    """Devuelve solo los usuarios con rol de Gerente para asignaciones"""
+    # Suponiendo que el ID del rol Gerente es el que definiste en tu lógica de registro
+    # O podemos buscarlo por nombre
+    managers = User.query.join(Rol).filter(Rol.name_rol == 'Gerente', User.is_active == True).all()
+    return jsonify([m.serialize() for m in managers]), 200
