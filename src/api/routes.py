@@ -920,36 +920,30 @@ def get_manager_projects():
     results = []
 
     for project in projects:
-        # 1. Calculamos el progreso porcentual (Lógica de negocio SIGSSEP)
-        # Sumamos todas las metas de los indicadores de este proyecto
-        total_goal = sum(ind.target_total for ind in project.indicators) or 1 # Evitar división por cero
-        
-        # Sumamos todos los logros registrados en las actividades de esos indicadores
+        # Lógica de progreso...
+        total_goal = sum(ind.target_total for ind in project.indicators) or 1
         total_achieved = 0
+        
         for indicator in project.indicators:
-            # Buscamos todas las actividades ligadas a este indicador
             activities = Activity.query.filter_by(indicator_id=indicator.id_indicator, status="Completada").all()
-            for act in activities:
-                # El logro total es la suma de hombres + mujeres
-                total_achieved += (act.achievement_men + act.achievement_women)
+            total_achieved += sum((act.achievement_men + act.achievement_women) for act in activities)
 
         progress_percentage = round((total_achieved / total_goal) * 100, 2)
 
-        # --- 🚀 LOGICA DE AUTO-COMPLETADO (Cambio de Status) ---
-        # Si el progreso es 100% o más y el estatus no es "Completado" todavía...
+        # Actualizamos el status si es necesario
         if progress_percentage >= 100 and project.status != "Completado":
             project.status = "Completado"
-        db.session.commit() # Guardamos el cambio de estatus automáticamente
-        return jsonify(results), 200
-        # -------------------------------------------------------
+            # No hagas return aquí, deja que el bucle siga
 
-        # 2. Preparamos la data para el Dashboard
-        project_data = project.serialize() # Usamos el serialize que ya mejoramos
-        project_data["progress"] = min(progress_percentage, 100) # No exceder el 100% visualmente
+        # Preparamos la data
+        project_data = project.serialize()
+        project_data["progress"] = min(progress_percentage, 100)
         project_data["total_achieved"] = total_achieved
         
         results.append(project_data)
 
+    # 🚨 IMPORTANTE: El commit y el return van FUERA del for
+    db.session.commit() 
     return jsonify(results), 200
 
 
