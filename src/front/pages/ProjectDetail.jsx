@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from "../../utils/api";
+import "../styles/projectDetail.css";
 import { toast, Toaster } from 'sonner';
 import Swal from 'sweetalert2';
 
@@ -46,133 +47,159 @@ const ProjectDetail = () => {
     if (!project) return null;
 
     return (
-        <div className="container mt-4 mb-5 fade-in">
-            <Toaster richColors />
-            
-            {/* HEADER CON CRONÓMETRO */}
-            <div className="auth-card-unified mb-4 shadow-sm">
-                <div className="auth-header d-flex justify-content-between align-items-center flex-wrap px-4 py-3 bg-oxford text-white">
-                    <div className="text-start">
-                        <h2 className="mb-0 fs-3">{project.project_name || "Proyecto sin nombre"}</h2>
-                        <span className="badge bg-emerald-soft text-white mt-1">CÓDIGO: {project.code}</span>
+        <div className="project-detail-main-container fade-in py-4">
+            <div className="container-fluid mt-4 mb-5 px-4 fade-in" style={{ maxWidth: '1200px' }}>
+                <Toaster richColors />
+
+                {/* HEADER PRINCIPAL */}
+                <div className="sigssep-table-container mb-4 shadow-lg overflow-hidden border-0">
+                    <div className="auth-header d-flex justify-content-between align-items-center flex-wrap px-4 py-4 bg-oxford text-white">
+                        <div className="text-start">
+                            <h2 className="mb-1 fw-bold fs-2">{project.project_name || "Proyecto sin nombre"}</h2>
+                            <span className="badge bg-emerald-soft text-dark fw-bold">ID: {project.code}</span>
+                        </div>
+
+                        <div className="time-display-container text-center shadow-sm mt-2 mt-md-0">
+                            <small className="time-label">TIEMPO RESTANTE</small>
+                            <span className="time-counter">
+                                {project.remaining_time_detailed?.years || 0}a {project.remaining_time_detailed?.months || 0}m {project.remaining_time_detailed?.days || 0}d
+                            </span>
+                        </div>
                     </div>
-                    {/* Cronómetro usando remaining_time_detailed del endpoint */}
-                    <div className="text-center bg-white text-dark rounded-pill px-4 py-2 shadow-sm border border-emerald">
-                        <small className="d-block fw-bold text-muted">TIEMPO RESTANTE</small>
-                        <span className="text-oxford fw-bold fs-5">
-                            {project.remaining_time_detailed?.years || 0}a {project.remaining_time_detailed?.months || 0}m {project.remaining_time_detailed?.days || 0}d
-                        </span>
+
+                    <div className="p-4" style={{ backgroundColor: 'var(--card-bg)' }}>
+                        <div className="row g-4">
+                            {/* COLUMNA IZQUIERDA: FICHA TÉCNICA */}
+                            <div className="col-lg-4 border-end-dynamic">
+                                <h5 className="text-oxford-dynamic fw-bold mb-4 d-flex align-items-center">
+                                    <i className="fas fa-clipboard-list me-2 text-emerald"></i> Ficha Técnica
+                                </h5>
+                                <div className="tech-info-grid">
+                                    <div className="mb-3">
+                                        {/* Esta clase text-muted ahora es controlada por el CSS que pusimos arriba */}
+                                        <label className="small text-muted d-block">DONANTE</label>
+                                        <span className="fw-bold">{project.donor_name || "No asignado"}</span>
+                                    </div>
+                                    <div className="row mb-3">
+                                        <div className="col-6">
+                                            <label className="small text-muted d-block">INICIO</label>
+                                            <span className="fw-bold text-oxford-dynamic">{project.start_date}</span>
+                                        </div>
+                                        <div className="col-6">
+                                            <label className="small text-muted d-block">CIERRE</label>
+                                            <span className="fw-bold text-oxford-dynamic">{project.end_date}</span>
+                                        </div>
+                                    </div>
+                                    <div className="mb-4">
+                                        <label className="small text-muted d-block fw-bold mb-1">ESTADO DEL PROYECTO</label>
+                                        <span className="status-badge bg-emerald shadow-sm">
+                                            {project.status || "En Progreso"}
+                                        </span>
+                                    </div>
+
+                                    <h6 className="fw-bold mt-4 mb-3 small text-muted text-uppercase">Metas por Provincia</h6>
+                                    <div className="d-flex flex-wrap gap-3">
+                                        {project.province_unique_breakdown?.map((pb, i) => (
+                                            <div key={i} className="province-badge-detailed">
+                                                <div className="province-header d-flex justify-content-between">
+                                                    <span>{pb.province_name}</span>
+                                                    <span className="text-emerald">{pb.total}</span>
+                                                </div>
+                                                <div className="gender-split">
+                                                    <span className="m-color">H: {pb.men || 0}</span>
+                                                    <span className="w-color">M: {pb.women || 0}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* COLUMNA DERECHA: BENEFICIARIOS Y OBJETIVO */}
+                            <div className="col-lg-8 ps-lg-5">
+                                <h5 className="text-oxford-dynamic fw-bold mb-4 text-center">
+                                    <i className="fas fa-users me-2 text-emerald"></i>Beneficiarios Únicos
+                                </h5>
+
+                                <div className="beneficiaries-container mb-4">
+                                    {/* FILA SUPERIOR: TOTAL CENTRADO */}
+                                    <div className="d-flex justify-content-center mb-3">
+                                        <div className="b-item total-main shadow-sm">
+                                            <span className="num-large">{project.unique_targets?.total || 0}</span>
+                                            <label className="label-text">Total Beneficiarios</label>
+                                        </div>
+                                    </div>
+
+                                    {/* FILA INFERIOR: DESGLOSE */}
+                                    <div className="beneficiaries-grid">
+                                        <div className="b-item secondary men">
+                                            <span className="num-medium">{project.unique_targets?.men || 0}</span>
+                                            <label className="label-text">Hombres</label>
+                                        </div>
+                                        <div className="b-item secondary women">
+                                            <span className="num-medium">{project.unique_targets?.women || 0}</span>
+                                            <label className="label-text">Mujeres</label>
+                                        </div>
+                                        <div className="b-item secondary disability">
+                                            <span className="num-medium">{project.unique_targets?.disability || 0}</span>
+                                            <label className="label-text">Discapacidad</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="objective-box p-4 rounded-4 shadow-sm">
+                                    <h6 className="fw-bold text-emerald mb-2"><i className="fas fa-bullseye me-2"></i>Objetivo Estratégico</h6>
+                                    <p className="mb-0 fs-5 lh-sm italic-management">
+                                        "{project.main_objective || "No definido."}"
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="auth-body bg-white p-4">
-                    <div className="row g-4">
-                        {/* FICHA TÉCNICA COMPLETA */}
-                        <div className="col-md-4 border-end">
-                            <h5 className="text-oxford fw-bold border-bottom pb-2">📋 Ficha Técnica</h5>
-                            <ul className="list-unstyled">
-                                <li className="mb-2"><strong>Donante:</strong> {project.donor_name || "No asignado"}</li>
-                                <li className="mb-2"><strong>Inicio:</strong> {project.start_date || "---"}</li>
-                                <li className="mb-2"><strong>Cierre:</strong> {project.end_date || "---"}</li>
-                                <li className="mb-3"><strong>Estado:</strong> 
-                                    <span className="ms-2 badge bg-emerald text-white">{project.status}</span>
-                                </li>
-                                <li className="mt-3 small text-muted">
-                                    <strong>Resumen de Resultados:</strong><br/>
-                                    {project.results_summary || "Sin resumen registrado."}
-                                </li>
-                            </ul>
-                        </div>
-
-                        {/* BENEFICIARIOS ÚNICOS - DASHBOARD STYLE */}
-                        <div className="col-md-8">
-                            <h5 className="text-oxford fw-bold border-bottom pb-2 text-center">👥 Beneficiarios Únicos (Metas Generales)</h5>
-                            <div className="row text-center mt-3">
-                                <div className="col-3 border-end">
-                                    <h3 className="text-emerald fw-bold">{project.unique_targets?.total || 0}</h3>
-                                    <small className="text-muted">TOTAL</small>
-                                </div>
-                                <div className="col-3 border-end">
-                                    <h3 className="text-primary fw-bold">{project.unique_targets?.men || 0}</h3>
-                                    <small className="text-muted">HOMBRES</small>
-                                </div>
-                                <div className="col-3 border-end">
-                                    <h3 className="text-danger fw-bold">{project.unique_targets?.women || 0}</h3>
-                                    <small className="text-muted">MUJERES</small>
-                                </div>
-                                <div className="col-3">
-                                    <h3 className="text-warning fw-bold">{project.unique_targets?.disability || 0}</h3>
-                                    <small className="text-muted">DISCAPACIDAD</small>
-                                </div>
-                            </div>
-                            
-                            {/* OBJETIVO PRINCIPAL DESTACADO */}
-                            <div className="mt-4 p-3 rounded bg-light border-start border-4 border-oxford">
-                                <h6 className="fw-bold text-oxford">Objetivo Principal:</h6>
-                                <p className="text-muted mb-0">{project.main_objective || "No se ha definido un objetivo principal."}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* DESGLOSE POR PROVINCIA (OPCIONAL/ADICIONAL) */}
-                    {project.province_unique_breakdown?.length > 0 && (
-                        <div className="mt-4">
-                            <h6 className="text-muted fw-bold small mb-2">METAS ÚNICAS POR PROVINCIA:</h6>
-                            <div className="d-flex flex-wrap gap-2">
-                                {project.province_unique_breakdown.map((pb, i) => (
-                                    <span key={i} className="badge border text-oxford bg-light">
-                                        {pb.province_name}: {pb.total}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* TABLA DE LUGARES DE INTERVENCIÓN */}
-                    <div className="mt-5">
-                        <h5 className="text-oxford fw-bold mb-3">
-                            <i className="fas fa-map-marker-alt me-2 text-emerald"></i>Lugares de Intervención
-                        </h5>
-                        <div className="sigssep-table-container shadow-sm rounded">
-                            <table className="table-sigssep table-hover">
-                                <thead>
-                                    <tr>
-                                        <th className="ps-4">Estado/Provincia</th>
-                                        <th>Municipio</th>
-                                        <th>Parroquia</th>
-                                        <th>Comunidad / Institución</th>
+                {/* TABLA DE UBICACIONES (ANCHO COMPLETO) */}
+                <div className="mb-5">
+                    <h5 className="text-oxford-dynamic fw-bold mb-3 px-2">
+                        <i className="fas fa-map-marked-alt me-2 text-emerald"></i>Lugares de Intervención
+                    </h5>
+                    <div className="sigssep-table-container shadow-sm border-0">
+                        <table className="table-sigssep">
+                            <thead>
+                                <tr>
+                                    <th className="ps-4">Estado / Provincia</th>
+                                    <th>Municipio</th>
+                                    <th>Parroquia</th>
+                                    <th>Comunidad / Institución</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {project.locations?.map((loc, idx) => (
+                                    <tr key={idx}>
+                                        <td className="ps-4 fw-bold">{loc.province}</td>
+                                        <td>{loc.municipality}</td>
+                                        <td>{loc.parish || '---'}</td>
+                                        <td>{loc.community_institution || '---'}</td>
                                     </tr>
-                                </thead>
-                                <tbody>{project.locations && project.locations.length > 0 ? (
-                                        project.locations.map((loc, idx) => (
-                                            <tr key={idx}>
-                                                <td className="ps-4 fw-bold text-oxford">{loc.province}</td>
-                                                <td>{loc.municipality}</td>
-                                                <td>{loc.parish || '---'}</td>
-                                                <td>{loc.community_institution || '---'}</td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr><td colSpan="4" className="text-center py-3">No hay ubicaciones registradas.</td></tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-            </div>
-            
-            <div className="d-flex justify-content-between">
-                <button className="btn btn-outline-secondary px-4 shadow-sm" onClick={() => navigate('/manager/projects')}>
-                    <i className="fas fa-arrow-left me-2"></i>Volver a la lista
-                </button>
-                <div className="d-flex gap-2">
-                    <button className="btn btn-oxford text-white px-4 shadow-sm">
-                        <i className="fas fa-print me-2"></i>Exportar PDF
+
+                {/* BOTONES DE ACCIÓN */}
+                <div className="d-flex justify-content-between align-items-center bg-card-dynamic p-4 rounded-4 shadow-sm border border-light-subtle mt-4">
+                    <button className="btn btn-outline-oxford px-4" onClick={() => navigate('/manager/projects')}>
+                        <i className="fas fa-arrow-left me-2"></i>Volver a la lista
                     </button>
-                    <button className="btn btn-emerald text-white px-4 shadow-sm">
-                        <i className="fas fa-edit me-2"></i>Editar Proyecto
-                    </button>
+                    <div className="d-flex gap-3">
+                        <button className="btn btn-oxford px-4 shadow-sm text-white d-flex align-items-center">
+                            <i className="fas fa-file-pdf me-2"></i> Exportar PDF
+                        </button>
+                        <button className="btn btn-emerald px-4 shadow-sm text-white d-flex align-items-center">
+                            <i className="fas fa-edit me-2"></i> Editar Proyecto
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

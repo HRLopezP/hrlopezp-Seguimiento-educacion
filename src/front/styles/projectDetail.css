@@ -1,0 +1,308 @@
+/* projectDetail.css - SIGSSEP Profesional */
+
+/* --- Variables de Apoyo (Asegúrate que coincidan con tu index o úsalas aquí) --- */
+:root {
+  --emerald: #52b788;
+  --oxford: #1b263b;
+  --emerald-soft: #d8f3dc;
+}
+
+/* --- Ajustes de Contenedores y Temas --- */
+[data-theme="dark"] .auth-body,
+[data-theme="dark"] .bg-card-dynamic {
+  background-color: var(--card-bg) !important; /* Fondo oscuro profundo */
+}
+
+/* Solución al fondo blanco en modo oscuro */
+[data-theme="dark"] body {
+  background-color: #0d1b2a !important;
+}
+
+/* --- Ficha Técnica y Estado --- */
+.status-badge {
+  display: inline-block;
+  padding: 8px 20px;
+  border-radius: 50px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  /* Sombras para que resalte en modo claro */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.bg-emerald {
+  background-color: var(--emerald) !important;
+  color: white !important;
+}
+
+/* --- Metas por Provincia (Versión Detallada) --- */
+.province-badge-detailed {
+  background-color: var(--card-bg) !important; /* Dinámico */
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .border-end-dynamic {
+  border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+@media (max-width: 991px) {
+  .border-end-dynamic {
+    border-right: none !important;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+    padding-bottom: 2rem;
+  }
+}
+
+.province-header {
+  border-bottom: 2px solid var(--emerald);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  font-weight: bold;
+  color: var(--text-primary);
+}
+
+.gender-split {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  gap: 10px;
+}
+
+.gender-split span {
+  font-weight: 600;
+}
+.m-color {
+  color: #3a86ff;
+} /* Hombres */
+.w-color {
+  color: #e91e63;
+} /* Mujeres */
+
+/* --- Botones y Contraste --- */
+.btn-oxford {
+  background-color: var(--oxford) !important;
+  border-color: var(--oxford) !important;
+  color: #ffffff !important;
+}
+
+.btn-outline-oxford {
+  border: 2px solid var(--oxford) !important;
+  color: var(--text-primary) !important;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .btn-outline-oxford {
+  border-color: var(--emerald) !important;
+  color: #ffffff !important;
+}
+
+/* --- Dashboard de Beneficiarios --- */
+.beneficiaries-dashboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+.b-item {
+  background-color: rgba(128, 128, 128, 0.05);
+  border-radius: 15px;
+  padding: 1.2rem;
+  border: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+/* Colores Dinámicos de Texto para que no se pierdan */
+.text-muted-dynamic {
+  color: var(--text-primary) !important;
+  opacity: 0.7;
+}
+
+.text-oxford-dynamic {
+  color: var(--text-primary) !important;
+}
+
+/* Contenedor dinámico: en claro será gris muy suave, en oscuro azul noche */
+.time-display-container {
+  background-color: var(--bg-color) !important;
+  border: 1px solid var(--accent-color) !important;
+  padding: 0.5rem 1.5rem;
+  border-radius: 50px;
+  min-width: 200px;
+}
+
+/* El texto pequeño "TIEMPO RESTANTE" */
+.time-label {
+  color: var(
+    --text-primary
+  ) !important; /* Oxford Grey en claro, Blanco Hueso en oscuro */
+  font-weight: 800;
+  font-size: 0.7rem;
+  letter-spacing: 1px;
+  opacity: 1 !important; /* Forzamos que se vea sin transparencia */
+  display: block;
+  margin-bottom: -2px;
+}
+
+/* El contador (números) siempre en Esmeralda */
+.time-counter {
+  color: #52b788 !important; /* Esmeralda brillante */
+  font-weight: 800;
+  font-size: 1.4rem;
+}
+
+.beneficiaries-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Item del Total (Principal) */
+.b-item.total-main {
+  background-color: var(--card-bg);
+  border: 2px solid var(--emerald);
+  border-radius: 20px;
+  padding: 1.5rem 3rem;
+  text-align: center;
+  min-width: 280px;
+  transition: transform 0.3s ease;
+}
+
+.num-large {
+  display: block;
+  font-size: 2.8rem; /* Grande pero no exagerado */
+  font-weight: 850;
+  color: var(--emerald);
+  line-height: 1;
+  margin-bottom: 5px;
+}
+
+/* Grid para los secundarios */
+.beneficiaries-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+}
+
+.b-item.secondary {
+  background-color: rgba(128, 128, 128, 0.05);
+  border-radius: 15px;
+  padding: 1rem;
+  text-align: center;
+  border: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+.num-medium {
+  display: block;
+  font-size: 1.8rem; /* Tamaño intermedio muy legible */
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+/* Colores específicos para los secundarios */
+.men .num-medium {
+  color: #3a86ff;
+}
+.women .num-medium {
+  color: #e91e63;
+}
+.disability .num-medium {
+  color: #f39c12;
+}
+
+/* Estilo para las etiquetas de texto */
+.label-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-primary);
+  opacity: 0.8;
+}
+
+/* Ajuste Modo Oscuro para que los fondos no se vean "gris sucio" */
+[data-theme="dark"] .b-item.secondary {
+  background-color: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.tech-info-grid label.text-muted,
+.tech-info-grid h6.text-muted {
+  color: var(--text-primary) !important;
+  opacity: 0.6 !important; /* Un poco de transparencia para jerarquía, pero legible */
+  font-weight: 700 !important;
+}
+
+/* El contenido de los datos (Nombre del donante, fechas) */
+.tech-info-grid span.fw-bold {
+  color: var(--text-primary) !important;
+}
+
+/* Caja del Objetivo Estratégico */
+.objective-box {
+  background-color: var(
+    --bg-color
+  ) !important; /* Usa el fondo dinámico del proyecto */
+  border: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+[data-theme="dark"] .objective-box {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+  border-color: var(
+    --accent-color
+  ); /* Un borde esmeralda sutil en oscuro queda elegante */
+}
+
+/* Texto del objetivo (las comillas) */
+.italic-management {
+  color: var(--text-primary) !important;
+  font-style: italic;
+}
+
+/* Título "Metas por Provincia" */
+.text-uppercase.text-muted {
+  color: var(--text-primary) !important;
+  letter-spacing: 1px;
+}
+
+[data-theme="dark"] .sigssep-table-container,
+[data-theme="dark"] .objective-box,
+[data-theme="dark"] .b-item.total-main {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+[data-theme="dark"] .auth-header.bg-oxford {
+  background-color: #1b263b !important; /* Azul Oxford para gestión */
+  border-bottom: 2px solid var(--accent-color) !important;
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.vh-100 {
+  background-color: var(--bg-color) !important;
+}
+
+/* Forzamos el fondo en el contenedor principal del componente */
+.project-detail-main-container {
+  background-color: var(--bg-color) !important;
+  min-height: 100vh;
+}
+
+/* Corregimos la clase que mencionaste: Cambiamos .auth-body por .bg-card-dynamic */
+[data-theme="dark"] .bg-card-dynamic,
+[data-theme="dark"] .sigssep-detail-card {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}

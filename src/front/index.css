@@ -611,3 +611,9 @@ html,
 .btn-add-theory:hover i {
     color: #0d1b2a !important;
 }
+
+[data-theme="dark"] html, 
+[data-theme="dark"] body, 
+[data-theme="dark"] #root {
+    background-color: #0d1b2a !important; /* Azul Noche */
+}
