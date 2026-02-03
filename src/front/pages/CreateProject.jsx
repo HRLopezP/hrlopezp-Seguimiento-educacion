@@ -154,45 +154,89 @@ const CreateProject = () => {
 
     const saveProject = async (isPartial = true) => {
         if (!formData.unique_code) {
-            return toast.error("El Código Único es obligatorio amiguito.");
+            return toast.error("El Código Único es obligatorio, amiguito.");
         }
+
+        // 1. Calculamos los totales globales sumando las metas de cada provincia
+        // Esto garantiza consistencia: el total del proyecto es la suma de sus partes.
+        const calculatedTotal = formData.province_unique_targets.reduce((acc, pt) => acc + Number(pt.total || 0), 0);
+        const calculatedMen = formData.province_unique_targets.reduce((acc, pt) => acc + Number(pt.men || 0), 0);
+        const calculatedWomen = formData.province_unique_targets.reduce((acc, pt) => acc + Number(pt.women || 0), 0);
+
+        // 2. Preparamos el payload con la estructura EXACTA que espera el backend
+        const payload = {
+            unique_code: formData.unique_code,
+            name: formData.name,
+            donor: formData.donor,
+            description: formData.description,
+            main_scope: formData.main_scope,
+            start_date: formData.start_date,
+            end_date: formData.end_date,
+            status: isPartial ? "Borrador" : "En Progreso", // Usamos el estado Draft si es parcial
+
+            // El objeto que el backend busca con .get("unique_targets")
+            unique_targets: {
+                total: calculatedTotal,
+                men: calculatedMen,
+                women: calculatedWomen,
+                disability: 0 // Puedes añadir un campo en el form para esto luego
+            },
+
+            // Ubicaciones geográficas
+            locations: formData.locations.map(loc => ({
+                province_id: parseInt(loc.province_id),
+                municipality_id: parseInt(loc.municipality_id),
+                parish_id: parseInt(loc.parish_id)
+            })),
+
+            // Metas por provincia (Desagregadas)
+            province_unique_targets: formData.province_unique_targets.map(pt => ({
+                province_id: parseInt(pt.province_id),
+                total: Number(pt.total),
+                men: Number(pt.men),
+                women: Number(pt.women)
+            })),
+
+            // Por ahora enviamos indicadores vacíos ya que se configuran en otro paso
+            indicators: []
+        };
 
         try {
             const response = await apiFetch("/projects", {
                 method: "POST",
-                body: JSON.stringify(formData)
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
             });
 
-            // 201 es el código de éxito para "Creado"
-            if (response && (response.status === 201 || response.ok)) {
-                toast.success(isPartial ? "Progreso guardado" : "¡Proyecto creado!");
+            const result = await response.json();
 
+            if (response.ok) {
+                toast.success(isPartial ? "Progreso guardado como borrador" : "¡Proyecto creado con éxito!");
                 if (!isPartial) {
-                    // Damos un pequeño respiro para que el usuario vea el brindis (toast)
-                    setTimeout(() => {
-                        navigate('/manager/projects');
-                    }, 1500);
+                    setTimeout(() => navigate('/manager/projects'), 1500);
                 }
             } else {
-                // Si no es OK, intentamos sacar el error
-                const errorData = await response.json().catch(() => ({ msg: "Error desconocido" }));
-                toast.error(errorData.msg || "Error al guardar");
+                toast.error(result.msg || "Error al guardar");
             }
         } catch (error) {
-            console.error("Error conectando al servidor:", error);
-            toast.error("No se pudo conectar con el servidor");
+            console.error("Error en la petición:", error);
+            toast.error("Error de conexión con el servidor");
         }
     };
 
     const handleProvinceTargetChange = (provinceId, field, value) => {
+        // Convertimos a número, pero manejamos el vacío para que no salte el 0 de inmediato
+        const numericValue = value === '' ? '' : parseInt(value);
+
         setFormData(prev => ({
             ...prev,
             province_unique_targets: prev.province_unique_targets.map(pt =>
-                pt.province_id === provinceId ? { ...pt, [field]: parseInt(value) || 0 } : pt
+                pt.province_id === provinceId
+                    ? { ...pt, [field]: numericValue }
+                    : pt
             )
         }));
     };
-
 
     const addCompetence = () => {
         const { competence_id, manager_id } = tempCompetence;
@@ -227,6 +271,19 @@ const CreateProject = () => {
             competences: prev.competences.filter(c => c.competence_id !== id)
         }));
     };
+
+
+    const calculatedTotal = formData.province_unique_targets.reduce((acc, pt) => acc + Number(pt.total || 0), 0);
+    const hasMathErrors = formData.province_unique_targets.some(
+        pt => Number(pt.men || 0) + Number(pt.women || 0) !== Number(pt.total || 0)
+    );
+    const dateError = formData.start_date && formData.end_date &&
+        new Date(formData.end_date) <= new Date(formData.start_date);
+
+    // Combinamos errores para el botón (ahora el botón se bloquea por matemáticas o por fechas)
+    const canProceed = !hasMathErrors && !dateError;
+    const calculatedMen = formData.province_unique_targets.reduce((acc, pt) => acc + Number(pt.men || 0), 0);
+    const calculatedWomen = formData.province_unique_targets.reduce((acc, pt) => acc + Number(pt.women || 0), 0);
 
 
     return (
@@ -379,15 +436,37 @@ const CreateProject = () => {
                                         )}
                                     </div>
                                 </div>
-                                <div className="row">
+                                <div className="row mt-4 p-3 bg-white border rounded shadow-sm">
                                     <div className="col-md-6 mb-3">
                                         <label className="auth-label">Fecha Inicio</label>
-                                        <input type="date" name="start_date" className="auth-input w-100" value={formData.start_date} onChange={handleChange} />
+                                        <input
+                                            type="date"
+                                            name="start_date"
+                                            className={`auth-input w-100 ${dateError ? 'border-danger' : ''}`}
+                                            value={formData.start_date}
+                                            onChange={handleChange}
+                                        />
                                     </div>
                                     <div className="col-md-6 mb-3">
                                         <label className="auth-label">Fecha Fin</label>
-                                        <input type="date" name="end_date" className="auth-input w-100" value={formData.end_date} onChange={handleChange} />
+                                        <input
+                                            type="date"
+                                            name="end_date"
+                                            className={`auth-input w-100 ${dateError ? 'border-danger' : ''}`}
+                                            value={formData.end_date}
+                                            onChange={handleChange}
+                                        />
                                     </div>
+
+                                    {/* Mensaje de error de fecha */}
+                                    {dateError && (
+                                        <div className="col-12">
+                                            <p className="text-danger small mb-0">
+                                                <i className="fas fa-calendar-times me-1"></i>
+                                                La fecha de finalización debe ser posterior a la fecha de inicio.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -406,21 +485,76 @@ const CreateProject = () => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {formData.province_unique_targets.map(pt => (
-                                                <tr key={pt.province_id}>
-                                                    <td className="fw-bold text-oxford">{pt.province_name}</td>
-                                                    <td><input type="number" className="form-control form-control-sm"
-                                                        onChange={(e) => handleProvinceTargetChange(pt.province_id, 'total', e.target.value)} /></td>
-                                                    <td><input type="number" className="form-control form-control-sm"
-                                                        onChange={(e) => handleProvinceTargetChange(pt.province_id, 'men', e.target.value)} /></td>
-                                                    <td><input type="number" className="form-control form-control-sm"
-                                                        onChange={(e) => handleProvinceTargetChange(pt.province_id, 'women', e.target.value)} /></td>
-                                                </tr>
-                                            ))}
+                                            {formData.province_unique_targets.map(pt => {
+                                                // 1. Calculamos el error para esta fila específica
+                                                const isInvalid = Number(pt.men || 0) + Number(pt.women || 0) !== Number(pt.total || 0);
+
+                                                return (
+                                                    <React.Fragment key={pt.province_id}>
+                                                        {/* FILA DE INPUTS */}
+                                                        <tr className={isInvalid ? "table-danger-light" : ""}>
+                                                            <td className="fw-bold text-oxford">{pt.province_name}</td>
+                                                            <td>
+                                                                <input type="number"
+                                                                    className={`form-control form-control-sm ${isInvalid ? 'border-danger' : ''}`}
+                                                                    value={pt.total}
+                                                                    onChange={(e) => handleProvinceTargetChange(pt.province_id, 'total', e.target.value)}
+                                                                />
+                                                            </td>
+                                                            <td>
+                                                                <input type="number"
+                                                                    className={`form-control form-control-sm ${isInvalid ? 'border-danger' : ''}`}
+                                                                    value={pt.men}
+                                                                    onChange={(e) => handleProvinceTargetChange(pt.province_id, 'men', e.target.value)}
+                                                                />
+                                                            </td>
+                                                            <td>
+                                                                <input type="number"
+                                                                    className={`form-control form-control-sm ${isInvalid ? 'border-danger' : ''}`}
+                                                                    value={pt.women}
+                                                                    onChange={(e) => handleProvinceTargetChange(pt.province_id, 'women', e.target.value)}
+                                                                />
+                                                            </td>
+                                                        </tr>
+                                                        {/* FILA DE MENSAJE DE ERROR (Solo aparece si isInvalid es true) */}
+                                                        {isInvalid && (
+                                                            <tr>
+                                                                <td colSpan="4" className="text-danger py-0 border-0" style={{ fontSize: '0.75rem' }}>
+                                                                    <i className="fas fa-exclamation-circle me-1"></i>
+                                                                    La suma de hombres ({pt.men || 0}) + mujeres ({pt.women || 0}) debe ser {pt.total || 0}.
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </React.Fragment>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
+                                {/* RESUMEN DE TOTALES CALCULADOS */}
+                                <div className="mt-3 p-3 bg-light border-start border-4 border-emerald rounded shadow-sm">
+                                    <div className="row text-center">
+                                        <div className="col-4">
+                                            <small className="text-muted d-block">Total Proyecto</small>
+                                            <span className="h5 mb-0 fw-bold text-oxford">{calculatedTotal}</span>
+                                        </div>
+                                        <div className="col-4">
+                                            <small className="text-muted d-block">Total Hombres</small>
+                                            <span className="h5 mb-0 fw-bold text-primary">{calculatedMen}</span>
+                                        </div>
+                                        <div className="col-4">
+                                            <small className="text-muted d-block">Total Mujeres</small>
+                                            <span className="h5 mb-0 fw-bold text-danger">{calculatedWomen}</span>
+                                        </div>
+                                    </div>
+                                    <div className="mt-2 text-center">
+                                        <small className="text-muted" style={{ fontSize: '0.75rem' }}>
+                                            * Estos valores se calculan automáticamente sumando las metas de cada provincia.
+                                        </small>
+                                    </div>
+                                </div>
                             </div>
+
                         )}
 
                         {step === 3 && (
@@ -480,9 +614,18 @@ const CreateProject = () => {
                                     <i className="fas fa-save me-1"></i> Guardar Parcial
                                 </button>
                                 {step < 3 ? (
-                                    <button type="button" className="auth-btn-submit px-4" onClick={handleNext}>Siguiente</button>
+                                    <button
+                                        type="button"
+                                        className={`auth-btn-submit px-4 ${(hasMathErrors || dateError) && step === 2 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        onClick={handleNext}
+                                        disabled={(hasMathErrors || dateError) && step === 2}
+                                    >
+                                        {(hasMathErrors || dateError) && step === 2 ? "Corregir Errores..." : "Siguiente"}
+                                    </button>
                                 ) : (
-                                    <button type="button" className="auth-btn-submit px-4 bg-emerald" onClick={() => saveProject(false)}>Crear Proyecto</button>
+                                    <button type="button" className="auth-btn-submit px-4 bg-emerald" onClick={() => saveProject(false)}>
+                                        Crear Proyecto
+                                    </button>
                                 )}
                             </div>
                         </div>

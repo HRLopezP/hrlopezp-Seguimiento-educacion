@@ -23,6 +23,7 @@ import TheoryConsole from "./pages/TheoryConsole";
 import CreateProject from "./pages/CreateProject";
 import LocationManagement from "./pages/LocationManagement";
 import ProjectList from "./pages/ProjectList";
+import ProjectDetail from "./pages/ProjectDetail";
 import Profile from "./pages/Profile";
 
 export const router = createBrowserRouter(
@@ -118,6 +119,14 @@ export const router = createBrowserRouter(
         }
       />
 
+      <Route
+        path="/manager/projects/:id"
+        element={
+          <ProtectedRoute>
+            <ProjectDetail />
+          </ProtectedRoute>
+        }
+      />
     </Route>
   )
 );

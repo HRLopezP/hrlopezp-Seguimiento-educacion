@@ -10,6 +10,7 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 from .manager_decorator import manager_required
 from flask_mail import Message
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from api.extensions import mail
 import os
 from .CloudinaryService import CloudinaryService
@@ -822,38 +823,43 @@ def get_theory_full_details(id):
 @manager_required
 def create_project():
     data = request.json
-    print("ESTRUCTURA RECIBIDA:", json.dumps(data, indent=4))
     
     # 1. Validación de seguridad mínima
-    if not data.get("unique_code"):
-        return jsonify({"msg": "El código único es obligatorio"}), 400
+    if not data or not data.get("unique_code"):
+        return jsonify({"msg": "El código único del proyecto es obligatorio"}), 400
 
     try:
-        # Extraer targets globales (asumiendo estructura de objeto del frontend)
+        # --- PASO 1: CREAR EL PROYECTO (DATOS GLOBALES) ---
+        # Extraemos targets con .get() para evitar KeyErrors si el campo no existe
         targets = data.get("unique_targets", {})
-
-        # 2. Crear instancia de Proyecto
+        
         new_project = Project(
             code=data.get("unique_code"),
             donor_name=data.get("donor"),
             project_name=data.get("name"),
             main_objective=data.get("description"),
             results_summary=data.get("main_scope"),
+            # Beneficiarios Únicos Totales
             target_total=float(targets.get("total", 0)),
             target_men=float(targets.get("men", 0)),
             target_women=float(targets.get("women", 0)),
             target_disability=float(targets.get("disability", 0)),
+            # Manejo seguro de fechas
             start_date=datetime.strptime(data['start_date'], '%Y-%m-%d') if data.get('start_date') else None,
             end_date=datetime.strptime(data['end_date'], '%Y-%m-%d') if data.get('end_date') else None,
             status="En Progreso"
         )
 
         db.session.add(new_project)
-        db.session.flush() 
+        db.session.flush() # Obtenemos el ID del proyecto para las relaciones
 
-        # 3. Guardar Ubicaciones (Evitando duplicados si el frontend repite)
+        # --- PASO 2: UBICACIONES (GEOGRAFÍA DEL PROYECTO) ---
         if data.get("locations"):
             for loc in data["locations"]:
+                # Verificamos IDs obligatorios antes de crear
+                if not loc.get('province_id') or not loc.get('municipality_id'):
+                    continue
+                
                 new_loc = Location(
                     province_id=int(loc['province_id']),
                     municipality_id=int(loc['municipality_id']),
@@ -862,46 +868,65 @@ def create_project():
                 )
                 db.session.add(new_loc)
 
-        # 4. Metas por Provincia (El desglose que mencionaste)
-        if data.get("province_unique_targets"):
-            for p_target in data["province_unique_targets"]:
-                new_p_goal = ProjectProvinceGoal(
-                    project_id=new_project.id_project,
-                    province_id=int(p_target['province_id']),
-                    target_total=float(p_target.get('total', 0)),
-                    target_men=float(p_target.get('men', 0)),
-                    target_women=float(p_target.get('women', 0))
-                )
-                db.session.add(new_p_goal)
+        # --- PASO 3: BENEFICIARIOS ÚNICOS POR PROVINCIA ---
+        # (La suma de estos 'total' debe coincidir con el total del proyecto)
+        province_targets = data.get("province_unique_targets", [])
+        for p_target in province_targets:
+            new_p_goal = ProjectProvinceGoal(
+                project_id=new_project.id_project,
+                province_id=int(p_target['province_id']),
+                target_total=float(p_target.get('total', 0)),
+                target_men=float(p_target.get('men', 0)),
+                target_women=float(p_target.get('women', 0))
+            )
+            db.session.add(new_p_goal)
 
-        # 5. ¡NUEVO! Guardar Indicadores del Proyecto
+        # --- PASO 4: INDICADORES Y SUS METAS PROPIAS ---
+        # (Recordemos: estas metas son de gestión y son independientes de los únicos)
         if data.get("indicators"):
             for ind_data in data["indicators"]:
-                new_indicator = Indicator(
-                    template_id=ind_data['id'],
-                    project_id=new_project.id_project,
-                    target_total=float(ind_data.get('target', 0))
-                    )
-                db.session.add(new_indicator)
-                db.session.flush() # Para obtener el id_indicator
-                if ind_data.get("location_targets"):
-                    for loc_target in ind_data["location_targets"]:
-                        new_goal = IndicatorLocationGoal(
-                            indicator_id=new_indicator.id_indicator,
-                            province_id=loc_target['province_id'],
-                            total_target=float(loc_target['total']),
-                            men=float(loc_target['men']),
-                            women=float(loc_target['women'])
-                            )
-                        db.session.add(new_goal)
+                # El 'id' aquí se refiere al ID del Template (el catálogo)
+                t_id = ind_data.get('id') or ind_data.get('template_id')
+                if not t_id: continue
 
+                new_indicator = Indicator(
+                    template_id=int(t_id),
+                    project_id=new_project.id_project,
+                    target_total=float(ind_data.get('target', 0)),
+                    # Si el frontend envía desglose global del indicador:
+                    target_men=float(ind_data.get('men', 0)),
+                    target_women=float(ind_data.get('women', 0))
+                )
+                db.session.add(new_indicator)
+                db.session.flush() # Obtenemos id_indicator para las metas provinciales
+
+                # Metas de este indicador desglosadas por estado
+                loc_targets = ind_data.get("location_targets", [])
+                for loc_t in loc_targets:
+                    new_goal = IndicatorLocationGoal(
+                        indicator_id=new_indicator.id_indicator,
+                        province_id=int(loc_t['province_id']),
+                        total_target=float(loc_t.get('total', 0)),
+                        men=float(loc_t.get('men', 0)),
+                        women=float(loc_t.get('women', 0))
+                    )
+                    db.session.add(new_goal)
+
+        # --- FINALIZACIÓN ---
         db.session.commit()
-        return jsonify({"msg": "Proyecto SIGSSEP guardado con éxito", "id": new_project.id_project}), 201
+        return jsonify({
+            "msg": "Proyecto y metas guardados con éxito",
+            "project_id": new_project.id_project
+        }), 201
 
     except Exception as e:
         db.session.rollback()
-        print(f"DEBUG SIGSSEP Error: {str(e)}") # Esto saldrá en tu terminal de Python
-        return jsonify({"msg": "Error de consistencia de datos", "error": str(e)}), 500
+        # El print es vital para que tú veas el error real en la terminal
+        print(f"ERROR EN CREATE_PROJECT: {str(e)}")
+        return jsonify({
+            "msg": "Error al procesar los datos",
+            "error": str(e)
+        }), 500
     
 
 @api.route('/competence-templates', methods=['GET'])
@@ -920,37 +945,61 @@ def get_manager_projects():
     results = []
 
     for project in projects:
-        # 1. Calculamos el progreso porcentual (Lógica de negocio SIGSSEP)
-        # Sumamos todas las metas de los indicadores de este proyecto
-        total_goal = sum(ind.target_total for ind in project.indicators) or 1 # Evitar división por cero
-        
-        # Sumamos todos los logros registrados en las actividades de esos indicadores
+        # Lógica de progreso...
+        total_goal = sum(ind.target_total for ind in project.indicators) or 1
         total_achieved = 0
+        
         for indicator in project.indicators:
-            # Buscamos todas las actividades ligadas a este indicador
             activities = Activity.query.filter_by(indicator_id=indicator.id_indicator, status="Completada").all()
-            for act in activities:
-                # El logro total es la suma de hombres + mujeres
-                total_achieved += (act.achievement_men + act.achievement_women)
+            total_achieved += sum((act.achievement_men + act.achievement_women) for act in activities)
 
         progress_percentage = round((total_achieved / total_goal) * 100, 2)
 
-        # --- 🚀 LOGICA DE AUTO-COMPLETADO (Cambio de Status) ---
-        # Si el progreso es 100% o más y el estatus no es "Completado" todavía...
+        # Actualizamos el status si es necesario
         if progress_percentage >= 100 and project.status != "Completado":
             project.status = "Completado"
-        db.session.commit() # Guardamos el cambio de estatus automáticamente
-        return jsonify(results), 200
-        # -------------------------------------------------------
+            # No hagas return aquí, deja que el bucle siga
 
-        # 2. Preparamos la data para el Dashboard
-        project_data = project.serialize() # Usamos el serialize que ya mejoramos
-        project_data["progress"] = min(progress_percentage, 100) # No exceder el 100% visualmente
+        # Preparamos la data
+        project_data = project.serialize()
+        project_data["progress"] = min(progress_percentage, 100)
         project_data["total_achieved"] = total_achieved
         
         results.append(project_data)
 
+    # 🚨 IMPORTANTE: El commit y el return van FUERA del for
+    db.session.commit() 
     return jsonify(results), 200
+
+
+@api.route('/manager/projects/<int:id>', methods=['GET'])
+@jwt_required()
+@manager_required
+def get_project_detail(id):
+    try:
+        project = Project.query.get_or_404(id)
+        
+        # Usamos tu propio método serialize del modelo Project
+        data = project.serialize()
+        
+        # Agregamos el cálculo detallado de tiempo para el cronómetro del frontend
+        if project.end_date:
+            now = datetime.now()
+            if project.end_date > now:
+                rd = relativedelta(project.end_date, now)
+                data["remaining_time_detailed"] = {
+                    "years": rd.years,
+                    "months": rd.months,
+                    "days": rd.days
+                }
+            else:
+                data["remaining_time_detailed"] = {"years": 0, "months": 0, "days": 0}
+        
+        return jsonify(data), 200
+
+    except Exception as e:
+        print(f"❌ Error en SIGSSEP Detail: {str(e)}")
+        return jsonify({"error": "Error al cargar detalles", "details": str(e)}), 500
 
 
 @api.route('/provinces', methods=['GET'])
