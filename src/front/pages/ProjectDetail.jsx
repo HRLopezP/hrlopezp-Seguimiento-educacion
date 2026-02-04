@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { apiFetch } from "../../utils/api";
 import "../styles/projectDetail.css";
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { toast, Toaster } from 'sonner';
 import Swal from 'sweetalert2';
 
@@ -10,6 +12,53 @@ const ProjectDetail = () => {
     const navigate = useNavigate();
     const [project, setProject] = useState(null);
     const [loading, setLoading] = useState(true);
+
+    const exportToPDF = async () => {
+        const input = document.querySelector('.project-detail-main-container');
+        const actionButtons = document.querySelector('.d-flex.justify-content-between.align-items-center.bg-card-dynamic'); // El contenedor de botones
+
+        // 1. Efecto visual: Notificar que estamos procesando
+        const toastId = toast.loading("Generando documento oficial...");
+
+        try {
+            // 2. Ocultar botones para que no salgan en el PDF
+            if (actionButtons) actionButtons.style.visibility = 'hidden';
+
+            // 3. Configurar html2canvas para alta calidad
+            const canvas = await html2canvas(input, {
+                scale: 2, // Mejora la resolución del texto
+                useCORS: true,
+                backgroundColor: "#ffffff", // Forzamos fondo blanco para el documento
+                onclone: (clonedDoc) => {
+                    // Truco Pro: Modificar el clon para que el texto sea oscuro en el PDF
+                    const container = clonedDoc.querySelector('.project-detail-main-container');
+                    container.style.color = "#1b263b"; // Oxford Grey
+                    // Forzamos que todos los textos "muted" se vean negros en el PDF
+                    clonedDoc.querySelectorAll('.text-muted-dynamic, .text-oxford-dynamic').forEach(el => {
+                        el.style.color = "#1b263b";
+                    });
+                }
+            });
+
+            // 4. Cálculos para el tamaño A4
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`SIGSSEP_Reporte_${project.code}.pdf`);
+
+            toast.success("PDF descargado con éxito", { id: toastId });
+        } catch (error) {
+            console.error("Error generando PDF:", error);
+            toast.error("Error al generar el PDF", { id: toastId });
+        } finally {
+            // 5. Volver a mostrar los botones
+            if (actionButtons) actionButtons.style.visibility = 'visible';
+        }
+    };
+
 
     useEffect(() => {
         const fetchProjectDetail = async () => {
@@ -75,37 +124,37 @@ const ProjectDetail = () => {
                                     <i className="fas fa-clipboard-list me-2 text-emerald"></i> Ficha Técnica
                                 </h5>
                                 <div className="tech-info-grid">
-                                    <div className="mb-3">
+                                    <div className="mb-4">
                                         {/* Esta clase text-muted ahora es controlada por el CSS que pusimos arriba */}
-                                        <label className="small text-muted d-block">DONANTE</label>
-                                        <span className="fw-bold">{project.donor_name || "No asignado"}</span>
+                                        <label className="small text-muted d-block fs-5">DONANTE</label>
+                                        <span className="fw-bold fs-4">{project.donor_name || "No asignado"}</span>
                                     </div>
-                                    <div className="row mb-3">
+                                    <div className="row mb-5">
                                         <div className="col-6">
                                             <label className="small text-muted d-block">INICIO</label>
-                                            <span className="fw-bold text-oxford-dynamic">{project.start_date}</span>
+                                            <span className="fw-bold fs-5 text-oxford-dynamic">{project.start_date}</span>
                                         </div>
                                         <div className="col-6">
                                             <label className="small text-muted d-block">CIERRE</label>
-                                            <span className="fw-bold text-oxford-dynamic">{project.end_date}</span>
+                                            <span className="fw-bold fs-5 text-oxford-dynamic">{project.end_date}</span>
                                         </div>
                                     </div>
-                                    <div className="mb-4">
+                                    <div className="mb-5">
                                         <label className="small text-muted d-block fw-bold mb-1">ESTADO DEL PROYECTO</label>
                                         <span className="status-badge bg-emerald shadow-sm">
                                             {project.status || "En Progreso"}
                                         </span>
                                     </div>
 
-                                    <h6 className="fw-bold mt-4 mb-3 small text-muted text-uppercase">Metas por Provincia</h6>
-                                    <div className="d-flex flex-wrap gap-3">
+                                    <h6 className="fw-bold mt-4 mb-3 text-muted text-uppercase">Metas por Provincia</h6>
+                                    <div className="d-flex flex-wrap fs-4 gap-3">
                                         {project.province_unique_breakdown?.map((pb, i) => (
-                                            <div key={i} className="province-badge-detailed">
+                                            <div key={i} className="province-badge-detailed p-1">
                                                 <div className="province-header d-flex justify-content-between">
                                                     <span>{pb.province_name}</span>
-                                                    <span className="text-emerald">{pb.total}</span>
+                                                    <span className="text-emerald ms-2">{pb.total}</span>
                                                 </div>
-                                                <div className="gender-split">
+                                                <div className="gender-split fs-6">
                                                     <span className="m-color">H: {pb.men || 0}</span>
                                                     <span className="w-color">M: {pb.women || 0}</span>
                                                 </div>
@@ -216,7 +265,7 @@ const ProjectDetail = () => {
                                             </div>
                                             <div>
                                                 <h6 className="fw-bold mb-1 text-oxford-dynamic">{comp.name}</h6>
-                                                <p className="small text-muted mb-0">Gerente Responsable:</p>
+                                                <p className="small text-muted-dynamic mb-0">Gerente Responsable:</p>
                                                 <span className="fw-bold text-emerald">{comp.manager_name}</span>
                                             </div>
                                         </div>
@@ -237,7 +286,10 @@ const ProjectDetail = () => {
                         <i className="fas fa-arrow-left me-2"></i>Volver a la lista
                     </button>
                     <div className="d-flex gap-3">
-                        <button className="btn btn-oxford px-4 shadow-sm text-white d-flex align-items-center">
+                        <button
+                            className="btn btn-oxford px-4 shadow-sm text-white d-flex align-items-center"
+                            onClick={exportToPDF}
+                        >
                             <i className="fas fa-file-pdf me-2"></i> Exportar PDF
                         </button>
                         <Link
