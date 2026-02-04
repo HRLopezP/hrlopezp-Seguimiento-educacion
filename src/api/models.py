@@ -310,6 +310,9 @@ class Location(db.Model):
             "province": self.province_ref.name,
             "municipality": self.municipality_ref.name,
             "parish": self.parish_ref.name if self.parish_ref else None,
+            "province_id": self.province_id,
+            "municipality_id": self.municipality_id,
+            "parish_id": self.parish_id,
             "community_institution": self.community_institution
         }
 

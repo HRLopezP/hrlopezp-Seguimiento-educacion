@@ -831,7 +831,7 @@ def create_project():
     data = request.json
 
     # 1. Validación de seguridad mínima
-    if not data or not data.get("unique_code"):
+    if not data or not data.get("code"):
         return jsonify({"msg": "El código único del proyecto es obligatorio"}), 400
 
     try:
@@ -840,11 +840,11 @@ def create_project():
         targets = data.get("unique_targets", {})
 
         new_project = Project(
-            code=data.get("unique_code"),
-            donor_name=data.get("donor"),
-            project_name=data.get("name"),
-            main_objective=data.get("description"),
-            results_summary=data.get("main_scope"),
+            code=data.get("code"),
+            donor_name=data.get("donor_name"),      # CAMBIADO
+            project_name=data.get("project_name"),   # CAMBIADO
+            main_objective=data.get("main_objective"),  # CAMBIADO
+            results_summary=data.get("results_summary"),  # CAMBIADO
             # Beneficiarios Únicos Totales
             target_total=float(targets.get("total", 0)),
             target_men=float(targets.get("men", 0)),
@@ -921,6 +921,21 @@ def create_project():
                         women=float(loc_t.get('women', 0))
                     )
                     db.session.add(new_goal)
+
+        # --- PASO 5: ESTRUCTURA DE GESTIÓN (COMPETENCIAS Y GERENTES) ---
+        if data.get("competences"):
+            for comp in data["competences"]:
+                # Validamos que vengan ambos IDs necesarios
+                c_id = comp.get('competence_id')
+                m_id = comp.get('manager_id')
+
+                if c_id and m_id:
+                    new_pc = ProjectCompetence(
+                        project_id=new_project.id_project,
+                        competence_id=int(c_id),
+                        manager_id=int(m_id)
+                    )
+                    db.session.add(new_pc)
 
         # --- FINALIZACIÓN ---
         db.session.commit()
@@ -1029,37 +1044,56 @@ def update_project(id):
     data = request.json
 
     try:
-        # 1. Datos básicos
-        fields = ['project_name', 'donor_name',
-                  'main_objective', 'results_summary', 'status']
+        # 1. Datos básicos (Añadimos 'code' para que puedas corregir errores)
+        fields = ['project_name', 'donor_name', 'main_objective', 
+                  'results_summary', 'status', 'code'] # <-- 'code' añadido aquí
         for field in fields:
             if field in data:
                 setattr(project, field, data[field])
 
-        # 2. Fechas
+        # 2. Beneficiarios Únicos Globales (Actualizamos la tabla Project)
+        # Tu frontend envía esto dentro de 'unique_targets'
+        if 'unique_targets' in data:
+            targets = data['unique_targets']
+            project.target_total = float(targets.get('total', project.target_total))
+            project.target_men = float(targets.get('men', project.target_men))
+            project.target_women = float(targets.get('women', project.target_women))
+            project.target_disability = float(targets.get('disability', project.target_disability))
+
+        # 3. Fechas
         if data.get('start_date'):
-            project.start_date = datetime.strptime(
-                data['start_date'], '%Y-%m-%d')
+            project.start_date = datetime.strptime(data['start_date'], '%Y-%m-%d')
         if data.get('end_date'):
             project.end_date = datetime.strptime(data['end_date'], '%Y-%m-%d')
 
-        # 3. Localizaciones (Limpieza y Carga)
+        # 4. Localizaciones (Limpieza y Carga)
         if 'locations' in data:
-            # Usamos synchronize_session=False para mayor velocidad en el delete
-            Location.query.filter_by(project_id=id).delete(
-                synchronize_session=False)
+            Location.query.filter_by(project_id=id).delete(synchronize_session=False)
             for loc in data['locations']:
                 new_loc = Location(
                     project_id=id,
                     province_id=int(loc['province_id']),
                     municipality_id=int(loc['municipality_id']),
-                    parish_id=int(loc['parish_id']) if loc.get(
-                        'parish_id') else None,
+                    parish_id=int(loc['parish_id']) if loc.get('parish_id') else None,
                     community_institution=loc.get('community_institution')
                 )
                 db.session.add(new_loc)
 
-        # 4. COMPETENCIAS (Aquí es donde fallaba)
+        # 5. Metas por Provincia (Beneficiarios desglosados)
+        if 'province_unique_targets' in data:
+            # Borramos las metas anteriores para evitar duplicados o basura
+            ProjectProvinceGoal.query.filter_by(project_id=id).delete()
+            for p_goal in data['province_unique_targets']:
+                new_p_goal = ProjectProvinceGoal(
+                    project_id=id,
+                    province_id=int(p_goal['province_id']),
+                    target_total=float(p_goal.get('total', 0)),
+                    target_men=float(p_goal.get('men', 0)),
+                    target_women=float(p_goal.get('women', 0))
+                )
+                db.session.add(new_p_goal)
+
+        # 6. COMPETENCIAS
         if 'competences' in data:
             ProjectCompetence.query.filter_by(project_id=id).delete()
             for comp in data['competences']:
@@ -1068,7 +1102,7 @@ def update_project(id):
                         project_id=id,
                         competence_id=int(comp['competence_id']),
                         manager_id=int(comp['manager_id'])
-                        )
+                    )
                     db.session.add(new_pc)
 
         db.session.commit()

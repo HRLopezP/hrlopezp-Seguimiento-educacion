@@ -111,91 +111,76 @@ const CreateProject = () => {
 
 
     useEffect(() => {
-        if (isEdit) {
+        if (isEdit && id) {
             const fetchProjectData = async () => {
                 const res = await apiFetch(`/projects/${id}`);
                 if (res?.ok) {
                     const data = await res.json();
-
-                    // "Mapeamos" lo que viene del backend a tu estructura de formData
-                    setFormData({
-                        unique_code: data.code,
-                        name: data.project_name,
-                        donor: data.donor_name,
-                        description: data.main_objective,
-                        main_scope: data.results_summary,
-                        start_date: data.start_date,
-                        end_date: data.end_date,
-                        status: data.status,
-                        // Mapeamos localizaciones para que se vean en tus tablas
-                        locations: data.locations.map(loc => ({
-                            province_id: loc.province_id, // Asegúrate que el backend envíe los IDs
+                    setFormData(prev => ({
+                        ...prev,
+                        unique_code: data.code || '',
+                        name: data.project_name || '',
+                        donor: data.donor_name || '',
+                        description: data.main_objective || '',
+                        main_scope: data.results_summary || '',
+                        start_date: data.start_date || '',
+                        end_date: data.end_date || '',
+                        status: data.status || 'En Progreso',
+                        locations: (data.locations || []).map(loc => ({
+                            // IDs (para lógica y selectores)
+                            province_id: loc.province_id,
                             municipality_id: loc.municipality_id,
                             parish_id: loc.parish_id,
-                            province_name: loc.province,
-                            muni_name: loc.municipality,
-                            parish_name: loc.parish
+
+                            // Nombres (usando las llaves exactas de tu serialize híbrido)
+                            province_name: loc.province,    // Mapeamos 'province' del server a 'province_name'
+                            muni_name: loc.municipality,    // Mapeamos 'municipality' del server a 'muni_name'
+                            parish_name: loc.parish,        // Mapeamos 'parish' del server a 'parish_name'
+
+                            community_institution: loc.community_institution
                         })),
-                        // Mapeamos metas por provincia
-                        province_unique_targets: data.province_unique_breakdown.map(pt => ({
-                            province_id: pt.province_id,
-                            total: pt.total,
-                            men: pt.men,
-                            women: pt.women,
-                            province_name: pt.province_name
-                        })),
-                        // Mapeamos competencias
+                        province_unique_targets: (data.province_unique_breakdown || []),
+                        // Guardamos las competencias tal cual vienen
                         competences: (data.competences || []).map(cp => ({
                             competence_id: Number(cp.competence_id),
                             manager_id: Number(cp.manager_id),
-                            // Dejamos los nombres vacíos o como vienen, no importa aún
-                            comp_name: cp.name || "",
+                            comp_name: cp.name || "", // El backend ya debería enviar el nombre
                             manager_name: cp.manager_name || ""
                         })),
-                        indicators: data.indicators || []
-                    });
+                    }));
                 }
             };
             fetchProjectData();
         }
-    }, [id, isEdit, allCompetences, availableManagers]);
+    }, [id, isEdit]); // Eliminamos los catálogos de aquí para que no refresque el form constantemente
+
 
     useEffect(() => {
-        // 1. Verificamos que tengamos datos en los catálogos y en el formulario
-        const catalogsReady = allCompetences.length > 0 && availableManagers.length > 0;
-        const hasCompetencesToEnrich = formData.competences.length > 0;
+        // Si ya tenemos catálogos y hay competencias sin nombre, las enriquecemos
+        if (allCompetences.length > 0 && availableManagers.length > 0 && formData.competences.length > 0) {
 
-        if (catalogsReady && hasCompetencesToEnrich) {
-            // 2. Solo actuamos si al menos una competencia no tiene nombre real
-            // Comprobamos si el nombre es vacío o el placeholder "Área técnica"
-            const needsEnrichment = formData.competences.some(
-                c => !c.comp_name || c.comp_name === "Área técnica" || c.comp_name === ""
-            );
+            const needsName = formData.competences.some(c => !c.comp_name || !c.manager_name);
 
-            if (needsEnrichment) {
+            if (needsName) {
                 const enriched = formData.competences.map(c => {
-                    // TRUCO: Forzamos a Number para que la comparación sea infalible
-                    const targetCompId = Number(c.competence_id);
-                    const targetManId = Number(c.manager_id);
-
-                    const foundComp = allCompetences.find(ac => Number(ac.id) === targetCompId);
-                    const foundMan = availableManagers.find(am => Number(am.id) === targetManId);
+                    const foundComp = allCompetences.find(ac => Number(ac.id) === Number(c.competence_id));
+                    const foundMan = availableManagers.find(am => Number(am.id) === Number(c.manager_id));
 
                     return {
                         ...c,
-                        // Si no lo encuentra, mantiene lo que tenía para no borrar datos por error
-                        comp_name: foundComp ? foundComp.name : (c.comp_name || "Cargando..."),
+                        comp_name: foundComp ? foundComp.name : c.comp_name,
                         manager_name: foundMan
                             ? `${foundMan.name} ${foundMan.lastname}`
-                            : (c.manager_name || "Cargando...")
+                            : (c.manager_name || "Sin nombre")
                     };
                 });
 
-                // Solo actualizamos si realmente hubo cambios para evitar bucles infinitos
+                // Solo actualizamos si los nombres realmente cambiaron
                 setFormData(prev => ({ ...prev, competences: enriched }));
             }
         }
-    }, [allCompetences, availableManagers, formData.competences]);
+    }, [allCompetences, availableManagers]); // Solo cuando cargan los catálogos
+
     // Quitamos el .length y ponemos el array completo para que detecte el cambio de contenido
 
     const handleNext = () => setStep(prev => prev + 1);
@@ -281,11 +266,11 @@ const CreateProject = () => {
 
         // 2. Preparamos el payload con la estructura EXACTA que espera el backend
         const payload = {
-            unique_code: formData.unique_code,
-            name: formData.name,
-            donor: formData.donor,
-            description: formData.description,
-            main_scope: formData.main_scope,
+            code: formData.unique_code,
+            project_name: formData.name,       // CAMBIADO: de 'name' a 'project_name'
+            donor_name: formData.donor,        // CAMBIADO: de 'donor' a 'donor_name'
+            main_objective: formData.description, // CAMBIADO: de 'description' a 'main_objective'
+            results_summary: formData.main_scope, // CAMBIADO: de 'main_scope' a 'results_summary'
             start_date: formData.start_date,
             end_date: formData.end_date,
             status: isPartial ? "Borrador" : "En Progreso", // Usamos el estado Draft si es parcial
@@ -496,12 +481,22 @@ const CreateProject = () => {
                                     <div className="mt-3 d-flex flex-wrap gap-2">
                                         {formData.locations.map((loc, index) => (
                                             <span
-                                                // Combinamos el ID con el índice para asegurar que NUNCA se repita
-                                                key={`loc-${loc.parish_id || 'no-id'}-${index}`}
-                                                className="badge ..."
+                                                key={`loc-${loc.parish_id || index}`}
+                                                className="badge bg-oxford text-white p-2 d-flex align-items-center gap-2"
+                                                style={{ fontSize: '0.85rem', fontWeight: '400', borderRadius: '6px' }}
                                             >
-                                                {loc.parish_name}
-                                                {/* ... tu botón de borrar ... */}
+                                                <i className="fas fa-map-marker-alt text-emerald"></i>
+                                                {/* Formato jerárquico: Provincia - Municipio - Parroquia */}
+                                                <span>
+                                                    {loc.province_name} - {loc.muni_name} - {loc.parish_name}
+                                                </span>
+
+                                                <button
+                                                    type="button"
+                                                    className="btn-close btn-close-white ms-2"
+                                                    style={{ fontSize: '0.5rem' }}
+                                                    onClick={() => removeLocation(loc.parish_id)}
+                                                ></button>
                                             </span>
                                         ))}
                                     </div>
