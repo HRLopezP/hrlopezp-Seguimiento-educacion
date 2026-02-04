@@ -56,13 +56,13 @@ const ProjectDetail = () => {
                     <div className="auth-header d-flex justify-content-between align-items-center flex-wrap px-4 py-4 bg-oxford text-white">
                         <div className="text-start">
                             <h2 className="mb-1 fw-bold fs-2">{project.project_name || "Proyecto sin nombre"}</h2>
-                            <span className="badge bg-emerald-soft text-dark fw-bold">ID: {project.code}</span>
+                            <span className="badge bg-emerald-soft text-dark fw-bold">Código: {project.code}</span>
                         </div>
 
                         <div className="time-display-container text-center shadow-sm mt-2 mt-md-0">
                             <small className="time-label">TIEMPO RESTANTE</small>
                             <span className="time-counter">
-                                {project.remaining_time_detailed?.years || 0}a {project.remaining_time_detailed?.months || 0}m {project.remaining_time_detailed?.days || 0}d
+                                años: {project.remaining_time_detailed?.years || 0} meses: {project.remaining_time_detailed?.months || 0}  días: {project.remaining_time_detailed?.days || 0}
                             </span>
                         </div>
                     </div>
@@ -147,11 +147,24 @@ const ProjectDetail = () => {
                                     </div>
                                 </div>
 
-                                <div className="objective-box p-4 rounded-4 shadow-sm">
-                                    <h6 className="fw-bold text-emerald mb-2"><i className="fas fa-bullseye me-2"></i>Objetivo Estratégico</h6>
-                                    <p className="mb-0 fs-5 lh-sm italic-management">
-                                        "{project.main_objective || "No definido."}"
-                                    </p>
+                                <div className="mt-4">
+                                    <div className="objective-box p-4 rounded-4 shadow-sm mb-3" style={{ borderLeft: '5px solid var(--oxford-grey)' }}>
+                                        <h6 className="fw-bold text-oxford-dynamic mb-2">
+                                            <i className="fas fa-align-left me-2 text-emerald"></i>Descripción General
+                                        </h6>
+                                        <p className="mb-0 fs-6 lh-sm text-oxford-dynamic">
+                                            {project.results_summary || "No hay una descripción detallada para este proyecto."}
+                                        </p>
+                                    </div>
+
+                                    <div className="objective-box p-4 rounded-4 shadow-sm">
+                                        <h6 className="fw-bold text-emerald mb-2">
+                                            <i className="fas fa-bullseye me-2"></i>Resultados Esperados (Objetivo Principal)
+                                        </h6>
+                                        <p className="mb-0 fs-5 lh-sm italic-management text-oxford-dynamic">
+                                            "{project.main_objective || "No definido."}"
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -184,6 +197,37 @@ const ProjectDetail = () => {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+
+                {/* SECCIÓN DE COMPETENCIAS Y RESPONSABLES */}
+                <div className="mb-5 fade-in">
+                    <h5 className="text-oxford-dynamic fw-bold mb-3 px-2">
+                        <i className="fas fa-sitemap me-2 text-emerald"></i>Estructura de Gestión y Competencias
+                    </h5>
+                    <div className="row g-3">
+                        {project.competences && project.competences.length > 0 ? (
+                            project.competences.map((comp, idx) => (
+                                <div key={idx} className="col-md-6 col-lg-4">
+                                    <div className="competence-card p-3 shadow-sm rounded-3 border-0 h-100 bg-card-dynamic">
+                                        <div className="d-flex align-items-start">
+                                            <div className="competence-icon-avatar bg-oxford text-white me-3 rounded-circle d-flex align-items-center justify-content-center" style={{ width: '45px', height: '45px' }}>
+                                                <i className="fas fa-user-tie"></i>
+                                            </div>
+                                            <div>
+                                                <h6 className="fw-bold mb-1 text-oxford-dynamic">{comp.name}</h6>
+                                                <p className="small text-muted mb-0">Gerente Responsable:</p>
+                                                <span className="fw-bold text-emerald">{comp.manager_name}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="col-12 text-center py-4 bg-light rounded-4">
+                                <p className="text-muted mb-0">No hay competencias asignadas a este proyecto.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
