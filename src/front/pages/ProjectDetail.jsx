@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { apiFetch } from "../../utils/api";
 import "../styles/projectDetail.css";
 import { toast, Toaster } from 'sonner';
@@ -196,9 +196,12 @@ const ProjectDetail = () => {
                         <button className="btn btn-oxford px-4 shadow-sm text-white d-flex align-items-center">
                             <i className="fas fa-file-pdf me-2"></i> Exportar PDF
                         </button>
-                        <button className="btn btn-emerald px-4 shadow-sm text-white d-flex align-items-center">
+                        <Link
+                            to={`/manager/projects/edit/${id}`}
+                            className="btn btn-emerald px-4 shadow-sm text-white d-flex align-items-center"
+                        >
                             <i className="fas fa-edit me-2"></i> Editar Proyecto
-                        </button>
+                        </Link>
                     </div>
                 </div>
             </div>

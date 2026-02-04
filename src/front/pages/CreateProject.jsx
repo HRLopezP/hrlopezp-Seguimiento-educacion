@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { toast, Toaster } from 'sonner';
 import { apiFetch } from '../../utils/api';
 
 const CreateProject = () => {
     const navigate = useNavigate();
+    const { id } = useParams(); // Si existe 'id', estamos editando
+    const isEdit = Boolean(id);
     const [step, setStep] = useState(1);
     const [allCompetences, setAllCompetences] = useState([]);
     const [availableManagers, setAvailableManagers] = useState([]);
@@ -45,11 +47,29 @@ const CreateProject = () => {
 
     useEffect(() => {
         const fetchCatalogos = async () => {
-            const resComp = await apiFetch("/competences");
-            if (resComp?.ok) setAllCompetences(await resComp.json());
+            try {
+                // 1. Cargar Competencias
+                const resComp = await apiFetch("/competences");
 
-            const resMan = await apiFetch("/users/managers");
-            if (resMan?.ok) setAvailableManagers(await resMan.json());
+                // TRUCO DE EXPERTO: Si resComp ya es el arreglo, lo usamos directamente.
+                // Si es la respuesta cruda de fetch, usamos .json().
+                const dataComp = resComp?.json ? await resComp.json() : resComp;
+
+                if (dataComp && Array.isArray(dataComp)) {
+                    setAllCompetences(dataComp);
+                    console.log("Competencias cargadas:", dataComp); // Mira esto en la consola
+                }
+
+                // 2. Cargar Gerentes (por separado para que no se estorben)
+                const resMan = await apiFetch("/users/managers");
+                const dataMan = resMan?.json ? await resMan.json() : resMan;
+
+                if (dataMan && Array.isArray(dataMan)) {
+                    setAvailableManagers(dataMan);
+                }
+            } catch (error) {
+                console.error("Error en la carga:", error);
+            }
         };
         fetchCatalogos();
     }, []);
@@ -89,6 +109,95 @@ const CreateProject = () => {
         }
     }, [tempLocation.municipality_id]);
 
+
+    useEffect(() => {
+        if (isEdit) {
+            const fetchProjectData = async () => {
+                const res = await apiFetch(`/projects/${id}`);
+                if (res?.ok) {
+                    const data = await res.json();
+
+                    // "Mapeamos" lo que viene del backend a tu estructura de formData
+                    setFormData({
+                        unique_code: data.code,
+                        name: data.project_name,
+                        donor: data.donor_name,
+                        description: data.main_objective,
+                        main_scope: data.results_summary,
+                        start_date: data.start_date,
+                        end_date: data.end_date,
+                        status: data.status,
+                        // Mapeamos localizaciones para que se vean en tus tablas
+                        locations: data.locations.map(loc => ({
+                            province_id: loc.province_id, // Asegúrate que el backend envíe los IDs
+                            municipality_id: loc.municipality_id,
+                            parish_id: loc.parish_id,
+                            province_name: loc.province,
+                            muni_name: loc.municipality,
+                            parish_name: loc.parish
+                        })),
+                        // Mapeamos metas por provincia
+                        province_unique_targets: data.province_unique_breakdown.map(pt => ({
+                            province_id: pt.province_id,
+                            total: pt.total,
+                            men: pt.men,
+                            women: pt.women,
+                            province_name: pt.province_name
+                        })),
+                        // Mapeamos competencias
+                        competences: (data.competences || []).map(cp => ({
+                            competence_id: Number(cp.competence_id),
+                            manager_id: Number(cp.manager_id),
+                            // Dejamos los nombres vacíos o como vienen, no importa aún
+                            comp_name: cp.name || "",
+                            manager_name: cp.manager_name || ""
+                        })),
+                        indicators: data.indicators || []
+                    });
+                }
+            };
+            fetchProjectData();
+        }
+    }, [id, isEdit, allCompetences, availableManagers]);
+
+    useEffect(() => {
+        // 1. Verificamos que tengamos datos en los catálogos y en el formulario
+        const catalogsReady = allCompetences.length > 0 && availableManagers.length > 0;
+        const hasCompetencesToEnrich = formData.competences.length > 0;
+
+        if (catalogsReady && hasCompetencesToEnrich) {
+            // 2. Solo actuamos si al menos una competencia no tiene nombre real
+            // Comprobamos si el nombre es vacío o el placeholder "Área técnica"
+            const needsEnrichment = formData.competences.some(
+                c => !c.comp_name || c.comp_name === "Área técnica" || c.comp_name === ""
+            );
+
+            if (needsEnrichment) {
+                const enriched = formData.competences.map(c => {
+                    // TRUCO: Forzamos a Number para que la comparación sea infalible
+                    const targetCompId = Number(c.competence_id);
+                    const targetManId = Number(c.manager_id);
+
+                    const foundComp = allCompetences.find(ac => Number(ac.id) === targetCompId);
+                    const foundMan = availableManagers.find(am => Number(am.id) === targetManId);
+
+                    return {
+                        ...c,
+                        // Si no lo encuentra, mantiene lo que tenía para no borrar datos por error
+                        comp_name: foundComp ? foundComp.name : (c.comp_name || "Cargando..."),
+                        manager_name: foundMan
+                            ? `${foundMan.name} ${foundMan.lastname}`
+                            : (c.manager_name || "Cargando...")
+                    };
+                });
+
+                // Solo actualizamos si realmente hubo cambios para evitar bucles infinitos
+                setFormData(prev => ({ ...prev, competences: enriched }));
+            }
+        }
+    }, [allCompetences, availableManagers, formData.competences]);
+    // Quitamos el .length y ponemos el array completo para que detecte el cambio de contenido
+
     const handleNext = () => setStep(prev => prev + 1);
     const handleBack = () => setStep(prev => prev - 1);
 
@@ -99,33 +208,40 @@ const CreateProject = () => {
 
     // --- LÓGICA DE UBICACIONES ---
     const addLocation = () => {
-        const { province_id, municipality_id, parish_id } = tempLocation;
-        if (!province_id || !municipality_id || !parish_id) return toast.warning("Faltan datos");
+        // 1. Convertimos a número inmediatamente para evitar problemas de tipos
+        const pId = Number(tempLocation.province_id);
+        const mId = Number(tempLocation.municipality_id);
+        const paId = Number(tempLocation.parish_id);
 
-        const pName = provinces.find(p => p.id === parseInt(province_id))?.name;
-        const mName = municipalities.find(m => m.id === parseInt(municipality_id))?.name;
-        const paName = parishes.find(pa => pa.id === parseInt(parish_id))?.name;
+        if (!pId || !mId || !paId) return toast.warning("Faltan datos");
 
-        if (formData.locations.some(l => l.parish_id === parish_id)) {
+        const pName = provinces.find(p => p.id === pId)?.name;
+        const mName = municipalities.find(m => m.id === mId)?.name;
+        const paName = parishes.find(pa => pa.id === paId)?.name;
+
+        // 2. Ahora la validación es segura porque comparamos número con número
+        if (formData.locations.some(l => Number(l.parish_id) === paId)) {
             return toast.error("Esta parroquia ya está en la lista.");
         }
 
         setFormData(prev => {
-            // 1. Agregamos la nueva ubicación con todos sus nombres
             const newLocation = {
-                province_id, municipality_id, parish_id,
-                province_name: pName, muni_name: mName, parish_name: paName
+                province_id: pId,
+                municipality_id: mId,
+                parish_id: paId,
+                province_name: pName,
+                muni_name: mName,
+                parish_name: paName
             };
 
-            // 2. Verificamos si la provincia ya está en la lista de metas
-            const alreadyHasProvince = prev.province_unique_targets.some(pt => pt.province_id === province_id);
+            const alreadyHasProvince = prev.province_unique_targets.some(pt => Number(pt.province_id) === pId);
 
             return {
                 ...prev,
                 locations: [...prev.locations, newLocation],
                 province_unique_targets: alreadyHasProvince
                     ? prev.province_unique_targets
-                    : [...prev.province_unique_targets, { province_id, total: 0, men: 0, women: 0, province_name: pName }]
+                    : [...prev.province_unique_targets, { province_id: pId, total: 0, men: 0, women: 0, province_name: pName }]
             };
         });
 
@@ -196,14 +312,21 @@ const CreateProject = () => {
                 men: Number(pt.men),
                 women: Number(pt.women)
             })),
+            competences: formData.competences.map(c => ({
+                competence_id: c.competence_id,
+                manager_id: c.manager_id
+            })),
 
             // Por ahora enviamos indicadores vacíos ya que se configuran en otro paso
             indicators: []
         };
 
         try {
-            const response = await apiFetch("/projects", {
-                method: "POST",
+            const url = isEdit ? `/projects/${id}` : "/projects";
+            const method = isEdit ? "PATCH" : "POST";
+
+            const response = await apiFetch(url, {
+                method: method,
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
             });
@@ -219,7 +342,6 @@ const CreateProject = () => {
                 toast.error(result.msg || "Error al guardar");
             }
         } catch (error) {
-            console.error("Error en la petición:", error);
             toast.error("Error de conexión con el servidor");
         }
     };
@@ -372,10 +494,14 @@ const CreateProject = () => {
 
                                     {/* Lista de ubicaciones con el nuevo formato */}
                                     <div className="mt-3 d-flex flex-wrap gap-2">
-                                        {formData.locations.map(loc => (
-                                            <span key={loc.parish_id} className="badge bg-oxford p-2 d-flex align-items-center">
-                                                <small className="opacity-75 me-1">{loc.muni_name} -</small> {loc.parish_name}
-                                                <i className="fas fa-times ms-2 cursor-pointer text-danger" onClick={() => removeLocation(loc.parish_id)}></i>
+                                        {formData.locations.map((loc, index) => (
+                                            <span
+                                                // Combinamos el ID con el índice para asegurar que NUNCA se repita
+                                                key={`loc-${loc.parish_id || 'no-id'}-${index}`}
+                                                className="badge ..."
+                                            >
+                                                {loc.parish_name}
+                                                {/* ... tu botón de borrar ... */}
                                             </span>
                                         ))}
                                     </div>
@@ -393,10 +519,23 @@ const CreateProject = () => {
 
                                     <div className="row g-2 bg-light p-2 rounded border">
                                         <div className="col-md-5">
-                                            <select className="form-select auth-input" value={tempCompetence.competence_id}
-                                                onChange={(e) => setTempCompetence({ ...tempCompetence, competence_id: e.target.value })}>
-                                                <option value="">Seleccionar Competencia...</option>
-                                                {allCompetences.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                            <select
+                                                className="form-select auth-input"
+                                                value={tempCompetence.competence_id}
+                                                onChange={(e) => setTempCompetence({ ...tempCompetence, competence_id: e.target.value })}
+                                            >
+                                                <option value="">Seleccionar Competencia ({allCompetences.length})...</option>
+
+                                                {/* Agregamos una validación extra antes del map */}
+                                                {allCompetences && allCompetences.length > 0 ? (
+                                                    allCompetences.map(c => (
+                                                        <option key={`comp-${c.id}`} value={c.id}>
+                                                            {c.name}
+                                                        </option>
+                                                    ))
+                                                ) : (
+                                                    <option disabled>Cargando áreas...</option>
+                                                )}
                                             </select>
                                         </div>
                                         <div className="col-md-5">
@@ -490,7 +629,7 @@ const CreateProject = () => {
                                                 const isInvalid = Number(pt.men || 0) + Number(pt.women || 0) !== Number(pt.total || 0);
 
                                                 return (
-                                                    <React.Fragment key={pt.province_id}>
+                                                    <React.Fragment key={`target-row-${pt.province_id}`}>
                                                         {/* FILA DE INPUTS */}
                                                         <tr className={isInvalid ? "table-danger-light" : ""}>
                                                             <td className="fw-bold text-oxford">{pt.province_name}</td>
