@@ -127,6 +127,15 @@ export const router = createBrowserRouter(
           </ProtectedRoute>
         }
       />
+
+      <Route
+        path="/manager/projects/edit/:id"
+        element={
+          <ProtectedRoute>
+            <CreateProject />
+          </ProtectedRoute>
+        }
+      />
     </Route>
   )
 );
