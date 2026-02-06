@@ -321,9 +321,7 @@ const CreateProject = () => {
 
             if (response.ok) {
                 toast.success(isPartial ? "Progreso guardado como borrador" : "¡Proyecto creado con éxito!");
-                if (!isPartial) {
-                    setTimeout(() => navigate('/manager/projects'), 1500);
-                }
+                setTimeout(() => navigate('/manager/projects'), 1000);
             } else {
                 toast.error(result.msg || "Error al guardar");
             }
@@ -798,14 +796,16 @@ const CreateProject = () => {
                             <button type="button" className="btn btn-outline-secondary" onClick={handleBack} disabled={step === 1}>
                                 Anterior
                             </button>
+
                             <div className="d-flex gap-2">
                                 <button
                                     type="button"
-                                    className="btn btn-outline-oxford shadow-sm" // Usamos tu clase personalizada
+                                    className="btn btn-outline-oxford shadow-sm"
                                     onClick={() => saveProject(true)}
                                 >
                                     <i className="fas fa-save me-1"></i> Guardar Parcial
                                 </button>
+
                                 {step < 3 ? (
                                     <button
                                         type="button"
@@ -816,8 +816,13 @@ const CreateProject = () => {
                                         {(hasMathErrors || dateError) && step === 2 ? "Corregir Errores..." : "Siguiente"}
                                     </button>
                                 ) : (
-                                    <button type="button" className="auth-btn-submit px-4 bg-emerald" onClick={() => saveProject(false)}>
-                                        Crear Proyecto
+                                    <button
+                                        type="button"
+                                        className="auth-btn-submit px-4 bg-emerald"
+                                        onClick={() => saveProject(false)}
+                                    >
+                                        {/* CAMBIO AQUÍ: Texto dinámico según el modo */}
+                                        {isEdit ? "Actualizar Proyecto" : "Crear Proyecto"}
                                     </button>
                                 )}
                             </div>
