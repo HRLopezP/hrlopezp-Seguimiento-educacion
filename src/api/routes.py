@@ -1189,6 +1189,39 @@ def get_project_summary(id):
     }), 200
 
 
+@api.route('/projects/<int:id>', methods=['DELETE'])
+@jwt_required()
+@manager_required
+def delete_project(id):
+    project = Project.query.get(id)
+    if not project:
+        return jsonify({"msg": "Proyecto no encontrado"}), 404
+
+    try:
+        # 1. Limpiamos las dependencias manualmente (si no definiste cascade en SQLAlchemy)
+        # Esto asegura que no queden registros huérfanos
+        Location.query.filter_by(project_id=id).delete()
+        ProjectProvinceGoal.query.filter_by(project_id=id).delete()
+        ProjectCompetence.query.filter_by(project_id=id).delete()
+        
+        # Para los indicadores, hay que borrar primero sus metas
+        indicators = Indicator.query.filter_by(project_id=id).all()
+        for ind in indicators:
+            IndicatorLocationGoal.query.filter_by(indicator_id=ind.id_indicator).delete()
+            db.session.delete(ind)
+
+        # 2. Finalmente borramos el proyecto
+        db.session.delete(project)
+        db.session.commit()
+        
+        return jsonify({"msg": "Proyecto eliminado permanentemente"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"ERROR AL ELIMINAR PROYECTO: {str(e)}")
+        return jsonify({"error": "No se pudo eliminar el proyecto", "details": str(e)}), 500
+    
+
 @api.route('/competence-templates', methods=['GET'])
 @jwt_required()
 def get_templates():
