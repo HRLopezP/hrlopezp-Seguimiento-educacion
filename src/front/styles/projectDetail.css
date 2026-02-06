@@ -307,96 +307,321 @@
   color: var(--text-primary) !important;
 }
 
-.input-group-text, .input-group input {
-    background-color: var(--card-bg) !important;
-    color: var(--text-primary) !important;
+.input-group-text,
+.input-group input {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
 }
 
 .input-group {
-    border: 1px solid rgba(128, 128, 128, 0.2) !important;
-    transition: all 0.3s ease;
+  border: 1px solid rgba(128, 128, 128, 0.2) !important;
+  transition: all 0.3s ease;
 }
 
 .input-group:focus-within {
-    border-color: var(--emerald) !important;
-    box-shadow: 0 0 0 0.25rem rgba(82, 183, 136, 0.1) !important;
+  border-color: var(--emerald) !important;
+  box-shadow: 0 0 0 0.25rem rgba(82, 183, 136, 0.1) !important;
 }
 
 /* Estilo para el encabezado oscuro tipo Management */
 .thead-oxford th {
-    background-color: #1b263b !important; /* Oxford Grey fijo para autoridad */
-    color: #ffffff !important;
-    text-transform: uppercase;
-    font-size: 0.75rem;
-    letter-spacing: 1px;
-    padding: 15px !important;
-    border: none !important;
+  background-color: #1b263b !important; /* Oxford Grey fijo para autoridad */
+  color: #ffffff !important;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  padding: 15px !important;
+  border: none !important;
 }
 
 /* Badges de estado mejorados */
 .status-badge-mini {
-    padding: 5px 12px;
-    border-radius: 50px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  padding: 5px 12px;
+  border-radius: 50px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .status-active {
-    background-color: rgba(82, 183, 136, 0.2);
-    color: #52b788;
-    border: 1px solid #52b788;
+  background-color: rgba(82, 183, 136, 0.2);
+  color: #52b788;
+  border: 1px solid #52b788;
 }
 
 .status-pending {
-    background-color: rgba(27, 38, 59, 0.1);
-    color: var(--text-primary);
-    border: 1px solid rgba(27, 38, 59, 0.3);
+  background-color: rgba(27, 38, 59, 0.1);
+  color: var(--text-primary);
+  border: 1px solid rgba(27, 38, 59, 0.3);
 }
 
 [data-theme="dark"] .status-pending {
-    background-color: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Hover en las filas para que se sienta interactivo */
 .project-row-hover {
-    transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease;
 }
 
 .project-row-hover:hover {
-    background-color: rgba(82, 183, 136, 0.05) !important;
+  background-color: rgba(82, 183, 136, 0.05) !important;
 }
 
 /* --- Refuerzo de visibilidad para el Placeholder del Buscador --- */
 
 /* Estilo general del placeholder en el buscador */
 .project-search-group .form-control::placeholder {
-    color: var(--text-primary);
-    opacity: 0.6; /* Un poco más de presencia */
+  color: var(--text-primary);
+  opacity: 0.6; /* Un poco más de presencia */
 }
 
 /* Refuerzo específico para Modo Oscuro (Basado en tu éxito en Register) */
 [data-theme="dark"] .project-search-group .form-control::placeholder {
-    color: #e0e1dd !important; /* El color que te funcionó */
-    opacity: 0.5 !important;   /* Suficiente para leerse sin distraer */
+  color: #e0e1dd !important; /* El color que te funcionó */
+  opacity: 0.5 !important; /* Suficiente para leerse sin distraer */
 }
 
 /* Compatibilidad con todos los motores de búsqueda */
-[data-theme="dark"] .project-search-group .form-control::-webkit-input-placeholder { 
-    color: #e0e1dd !important; 
+[data-theme="dark"]
+  .project-search-group
+  .form-control::-webkit-input-placeholder {
+  color: #e0e1dd !important;
 }
-[data-theme="dark"] .project-search-group .form-control::-moz-placeholder { 
-    color: #e0e1dd !important; 
+[data-theme="dark"] .project-search-group .form-control::-moz-placeholder {
+  color: #e0e1dd !important;
 }
-[data-theme="dark"] .project-search-group .form-control:-ms-input-placeholder { 
-    color: #e0e1dd !important; 
+[data-theme="dark"] .project-search-group .form-control:-ms-input-placeholder {
+  color: #e0e1dd !important;
 }
 
 /* Extra: Un pequeño efecto al enfocar el buscador para que se sienta vivo */
 .project-search-group:focus-within {
-    border-color: #52b788 !important; /* Brillo esmeralda al escribir */
-    box-shadow: 0 0 8px rgba(82, 183, 136, 0.2) !important;
+  border-color: #52b788 !important; /* Brillo esmeralda al escribir */
+  box-shadow: 0 0 8px rgba(82, 183, 136, 0.2) !important;
+}
+
+/* Animación de salida para la fila */
+.row-fade-out {
+  animation: fadeOutRow 0.5s forwards ease-out;
+  pointer-events: none; /* Evita que el usuario haga clic mientras desaparece */
+}
+
+@keyframes fadeOutRow {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    background-color: rgba(
+      174,
+      32,
+      18,
+      0.1
+    ); /* Un toque rojo sutil al iniciar */
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95);
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin: 0;
+  }
+}
+
+/* --- Ajuste para Selectores y Inputs en Modo Oscuro --- */
+
+/* Aplicamos el fondo Oxford Grey a los selects e inputs cuando el tema es oscuro */
+[data-theme="dark"] .form-select,
+[data-theme="dark"] .form-control {
+  background-color: #1b263b !important; /* Oxford Grey */
+  color: #e0e1dd !important; /* Blanco hueso para legibilidad */
+  border: 1px solid rgba(82, 183, 136, 0.3) !important; /* Borde Esmeralda sutil */
+}
+
+/* Corregir el color de las opciones dentro del select (el menú desplegable) */
+[data-theme="dark"] .form-select option {
+  background-color: #1b263b !important;
+  color: #e0e1dd !important;
+}
+
+/* Cambiar el color del icono de la flecha en los selects de Bootstrap */
+[data-theme="dark"] .form-select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%2352b788' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
+}
+
+/* Estilo cuando el usuario hace clic (Focus) */
+[data-theme="dark"] .form-select:focus,
+[data-theme="dark"] .form-control:focus {
+  border-color: var(--emerald) !important;
+  box-shadow: 0 0 0 0.25rem rgba(82, 183, 136, 0.15) !important;
+  outline: 0;
+}
+
+/* Para los placeholders que mencionamos antes */
+[data-theme="dark"] .form-control::placeholder {
+  color: #e0e1dd !important;
+  opacity: 0.4;
+}
+
+[data-theme="dark"] .table-metas-header {
+  background-color: #1b263b !important; /* Oxford Grey para autoridad */
+  color: #ffffff !important;
+  border-bottom: 2px solid var(--emerald) !important;
+}
+
+/* Estilo para la columna de nombres de Provincia */
+[data-theme="dark"] .province-name-cell {
+  color: #e0e1dd !important; /* Blanco hueso para que resalte */
+  font-weight: 700;
+  background-color: rgba(255, 255, 255, 0.02); /* Un toque de luz sutil */
+}
+
+/* Los inputs dentro de la tabla de metas */
+[data-theme="dark"] .meta-input {
+  background-color: #0d1b2a !important; /* Fondo más oscuro que el card */
+  color: var(
+    --emerald
+  ) !important; /* Los números en Esmeralda para indicar "acción" */
+  border: 1px solid rgba(82, 183, 136, 0.2) !important;
+  text-align: center;
+  font-weight: 800;
+}
+
+/* Contenedor de Totales (El cuadro inferior que se ve blanco en tu captura) */
+[data-theme="dark"] .totals-summary-container {
+  background-color: #1b263b !important; /* Oxford Grey */
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px;
+}
+
+/* Texto de "Total Proyecto", "Total Hombres", etc. */
+[data-theme="dark"] .total-label {
+  color: #e0e1dd !important;
+  opacity: 0.8;
+}
+
+/* Los números de los totales */
+[data-theme="dark"] .total-number {
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.summary-box-dynamic {
+  background-color: rgba(128, 128, 128, 0.08) !important;
+  border: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+[data-theme="dark"] .summary-box-dynamic {
+  background-color: #1b263b !important; /* Oxford Grey en modo oscuro */
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Texto que cambia entre gris oscuro y gris muy claro */
+.text-muted-dynamic {
+  color: var(--text-primary) !important;
+  opacity: 0.7;
+}
+
+/* Nombre de provincia que se adapta */
+.text-oxford-dynamic {
+  color: var(--text-primary) !important;
+}
+
+/* Forzar que la tabla sea transparente y use el color de texto del tema */
+.table-custom-sigssep {
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+  margin-bottom: 0;
+}
+
+/* Evitar que las celdas hereden fondos blancos de Bootstrap */
+.table-custom-sigssep td,
+.table-custom-sigssep th {
+  background-color: transparent !important;
+  border-color: rgba(255, 255, 255, 0.1) !important; /* Bordes sutiles */
+  color: inherit !important;
+}
+
+/* Clase para filas transparentes */
+.tr-transparent {
+  background-color: transparent !important;
+}
+
+/* Ajuste para que los nombres de las provincias se vean bien en ambos modos */
+[data-theme="dark"] .text-oxford-dynamic {
+  color: #e0e0e0 !important; /* Gris muy claro/blanco */
+}
+
+[data-theme="light"] .text-oxford-dynamic {
+  color: #1b263b !important; /* Oxford Grey */
+}
+
+/* Estilo para las etiquetas de título pequeñas */
+.uppercase-label {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+  font-size: 0.65rem !important;
+}
+
+/* Caja de alerta estilo Emerald suave */
+.summary-box-emerald {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+  border-left: 5px solid #10b981 !important;
+}
+
+/* Badge personalizado para competencias */
+.badge-sigssep {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: var(--text-primary);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+.badge-sigssep .separator {
+  margin: 0 8px;
+  opacity: 0.3;
+}
+
+/* Bordes que se adaptan al tema */
+.border-bottom-dynamic {
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+/* Scrollbar elegante para la lista de lugares */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #10b981;
+  border-radius: 10px;
+}
+
+/* Borde sutil esmeralda para destacar el título principal */
+.border-emerald-light {
+    border-color: rgba(16, 185, 129, 0.2) !important;
+}
+
+/* Alineación justificada para el resumen profesional */
+.text-justify {
+    text-align: justify;
+}
+
+/* Estilo para las tarjetas en modo oscuro */
+[data-theme="dark"] .auth-input {
+    background-color: #1a2230 !important; /* Oxford Grey profundo */
+    border-color: #2d3748 !important;
+}
+
+/* Resaltar resultados */
+.bg-emerald-soft {
+    background-color: rgba(16, 185, 129, 0.1) !important;
+    color: #10b981 !important;
 }

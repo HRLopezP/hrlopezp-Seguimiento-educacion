@@ -35,9 +35,16 @@ const ProjectList = () => {
             try {
                 const res = await apiFetch(`/projects/${projectId}`, { method: 'DELETE' });
                 if (res?.ok) {
+
+                    setProjects(prev => prev.map(p =>
+                        p.id === projectId ? { ...p, isDeleting: true } : p
+                    ));
                     toast.success("Proyecto eliminado con éxito");
+                    setTimeout(() => {
+                        setProjects(prev => prev.filter(p => p.id !== projectId));
+                    }, 500);
                     // Actualizamos la lista local eliminando el proyecto borrado
-                    setProjects(prev => prev.filter(p => p.id !== projectId));
+
                 } else {
                     toast.error("Error al intentar eliminar el proyecto");
                 }
@@ -136,7 +143,8 @@ const ProjectList = () => {
                                             </td>
                                         </tr>
                                     ) : filteredProjects.map((p) => (
-                                        <tr key={p.id}>
+                                        <tr key={p.id}
+                                            className={`project-row-hover ${p.isDeleting ? 'row-fade-out' : ''}`}>
                                             <td className="ps-4 fw-bold text-emerald">{p.code}</td>
                                             <td>
                                                 <div className="text-oxford-dynamic">{p.project_name}</div>
