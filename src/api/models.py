@@ -210,6 +210,8 @@ class Project(db.Model):
     province_goals: Mapped[List["ProjectProvinceGoal"]] = relationship(
         back_populates="project", cascade="all, delete-orphan")
 
+    theories_assigned: Mapped[List["ProjectTheory"]] = relationship(back_populates="project")
+
     def serialize(self):
         return {
             "id": self.id_project,
@@ -222,6 +224,7 @@ class Project(db.Model):
             "end_date": self.end_date.strftime("%Y-%m-%d") if self.end_date else None,
             "status": self.status,
             "remaining_days": self.remaining_days,
+            "theories_and_indicators": [t.serialize() for t in self.theories_assigned],
             "unique_targets": {
                 "total": self.target_total,
                 "men": self.target_men,
@@ -255,11 +258,16 @@ class Indicator(db.Model):
         ForeignKey('project.id_project'), nullable=False)
 
     project: Mapped["Project"] = relationship(back_populates="indicators")
-    template: Mapped["IndicatorTemplate"] = relationship()
 
     # Esta relación guarda las metas del indicador por provincia
     location_goals: Mapped[List["IndicatorLocationGoal"]] = relationship(
         back_populates="indicator", cascade="all, delete-orphan")
+    
+    project_result_id: Mapped[Optional[int]] = mapped_column(ForeignKey('project_result.id'), nullable=True)
+    
+    # Relación
+    project_result: Mapped["ProjectResult"] = relationship(back_populates="indicators")
+    template: Mapped["IndicatorTemplate"] = relationship()
 
     # Meta de gestión del indicador (Puede ser mayor a los beneficiarios únicos)
     target_total: Mapped[float] = mapped_column(Float, default=0.0)
@@ -513,3 +521,49 @@ class ProjectProvinceGoal(db.Model):
             "men": self.target_men,
             "women": self.target_women
         }
+
+
+# --- NUEVOS MODELOS DE INSTANCIA ---
+
+class ProjectTheory(db.Model):
+    __tablename__ = 'project_theory'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
+    # Quién es el dueño de esta selección
+    project_competence_id: Mapped[int] = mapped_column(ForeignKey('project_competence.id_pc'), nullable=False)
+    # Qué teoría del catálogo seleccionó
+    theory_template_id: Mapped[int] = mapped_column(ForeignKey('theory_template.id'), nullable=False)
+
+    # Relaciones
+    project: Mapped["Project"] = relationship(back_populates="theories_assigned")
+    theory_template: Mapped["TheoryTemplate"] = relationship()
+    # Esto nos permite llegar a los resultados seleccionados
+    selected_results: Mapped[List["ProjectResult"]] = relationship(back_populates="project_theory", cascade="all, delete-orphan")
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "theory_name": self.theory_template.name,
+            "results": [r.serialize() for r in self.selected_results]
+        }
+
+class ProjectResult(db.Model):
+    __tablename__ = 'project_result'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_theory_id: Mapped[int] = mapped_column(ForeignKey('project_theory.id'), nullable=False)
+    # Qué Output/Outcome del catálogo seleccionó
+    result_template_id: Mapped[int] = mapped_column(ForeignKey('result_template.id'), nullable=False)
+
+    project_theory: Mapped["ProjectTheory"] = relationship(back_populates="selected_results")
+    result_template: Mapped["ResultTemplate"] = relationship()
+    # Conectamos con los indicadores reales que el gerente va a llenar
+    indicators: Mapped[List["Indicator"]] = relationship(back_populates="project_result", cascade="all, delete-orphan")
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "result_name": self.result_template.name,
+            "type": self.result_template.type,
+            "indicators": [i.serialize() for i in self.indicators]
+        }
+
