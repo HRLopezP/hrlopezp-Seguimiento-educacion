@@ -1,0 +1,16 @@
+/* Checkbox Personalizado SIGSSEP */
+.custom-checkbox-sigssep .form-check-input {
+    width: 1.2em;
+    height: 1.2em;
+    border: 2px solid #1B263B; /* Oxford Grey */
+    cursor: pointer;
+}
+
+.custom-checkbox-sigssep .form-check-input:checked {
+    background-color: #10b981; /* Emerald Green */
+    border-color: #10b981;
+}
+
+.text-oxford { color: #1B263B; }
+.text-emerald { color: #10b981; }
+.bg-oxford { background-color: #1B263B !important; color: white; }

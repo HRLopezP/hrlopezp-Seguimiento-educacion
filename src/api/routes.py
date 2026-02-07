@@ -2,7 +2,7 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 from flask import Flask, request, jsonify, url_for, Blueprint, json
-from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish, ProjectProvinceGoal
+from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish, ProjectProvinceGoal, ProjectTheory, ProjectResult
 from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -1441,3 +1441,103 @@ def get_managers():
     managers = User.query.join(Rol).filter(
         Rol.name_rol == 'Gerente', User.is_active == True).all()
     return jsonify([m.serialize() for m in managers]), 200
+
+
+@api.route('/project/<int:proj_id>/assign-technical-data', methods=['POST'])
+@jwt_required()
+@manager_required
+def assign_technical_data(proj_id):
+    data = request.json
+    current_user_id = get_jwt_identity()
+    
+    comp_id = data.get("competence_id")
+    theory_temp_id = data.get("theory_id")
+    selected_ind_ids = data.get("indicator_ids", []) 
+
+    # 1. Validación de permiso
+    pc = ProjectCompetence.query.filter_by(
+        project_id=proj_id, 
+        competence_id=comp_id, 
+        manager_id=current_user_id
+    ).first()
+
+    if not pc:
+        return jsonify({"message": "No tienes permiso para esta competencia"}), 403
+
+    try:
+        # 2. Manejo de ProjectTheory
+        proj_theory = ProjectTheory.query.filter_by(
+            project_id=proj_id, 
+            theory_template_id=theory_temp_id
+        ).first()
+        
+        if not proj_theory:
+            proj_theory = ProjectTheory(
+                project_id=proj_id,
+                project_competence_id=pc.id_pc,
+                theory_template_id=theory_temp_id
+            )
+            db.session.add(proj_theory)
+            db.session.flush() # Para obtener el ID de proj_theory
+
+        # 3. Traer moldes de indicadores
+        ind_templates = IndicatorTemplate.query.filter(IndicatorTemplate.id.in_(selected_ind_ids)).all()
+        
+        # Obtenemos los IDs únicos de los resultados (moldes)
+        result_template_ids = set([it.result_id for it in ind_templates])
+
+        for r_temp_id in result_template_ids:
+            # !! CAMBIO AQUÍ: Buscar por result_template_id (según tu modelo)
+            p_res = ProjectResult.query.filter_by(
+                project_theory_id=proj_theory.id,
+                result_template_id=r_temp_id # Nombre correcto según tu clase ProjectResult
+            ).first()
+            
+            if not p_res:
+                p_res = ProjectResult(
+                    project_theory_id=proj_theory.id,
+                    result_template_id=r_temp_id
+                )
+                db.session.add(p_res)
+                db.session.flush()
+
+            # 4. Vincular indicadores reales
+            for it in ind_templates:
+                if it.result_id == r_temp_id:
+                    exists = Indicator.query.filter_by(
+                        project_id=proj_id, 
+                        template_id=it.id
+                    ).first()
+                    
+                    if not exists:
+                        new_ind = Indicator(
+                            project_id=proj_id,
+                            template_id=it.id,
+                            # !! REVISIÓN: Tu modelo Indicator tiene project_result_id como ForeignKey
+                            project_result_id=p_res.id, 
+                            target_total=0.0
+                        )
+                        db.session.add(new_ind)
+
+        db.session.commit()
+        return jsonify({"message": "¡SIGSSEP actualizado! Plan técnico vinculado."}), 201
+
+    except Exception as e:
+        db.session.rollback()
+        # Imprime el error en la consola de Flask para que lo veamos claro
+        print(f"ERROR EN BACKEND: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route('/competence/<int:comp_id>/theories', methods=['GET'])
+@jwt_required()
+def get_competence_theories(comp_id):
+    # Buscamos la competencia en la base de datos
+    competence = Competence.query.get(comp_id)
+    
+    if not competence:
+        return jsonify({"message": "Competencia no encontrada"}), 404
+    
+    # Esto devuelve la lista de teorías asociadas a esa competencia
+    # Cada teoría ya trae sus resultados e indicadores gracias al .serialize() que definiste
+    return jsonify([theory.serialize() for theory in competence.theories]), 200

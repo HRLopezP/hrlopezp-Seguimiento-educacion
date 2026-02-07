@@ -71,23 +71,35 @@ class User(db.Model):
     activities: Mapped[List["Activity"]] = relationship(
         back_populates="responsible")
 
+    project_assignments: Mapped[List["ProjectCompetence"]] = relationship(back_populates="manager")
+
     def __repr__(self):
         return f'<User {self.email}>'
 
     def serialize(self):
         initials = f"{self.name} {self.lastname}"
+        competences_dict = {}
+        for c in self.competences:
+            competences_dict[c.id_competence] = c.serialize()
+        
+    # 2. Metemos las competencias que vienen de ProjectCompetence
+        if hasattr(self, 'project_assignments'):
+            for pa in self.project_assignments:
+                if pa.competence and pa.competence.id_competence not in competences_dict:
+                    competences_dict[pa.competence.id_competence] = pa.competence.serialize()
+
         return {
-            "id": self.id_user,
-            "name": self.name,
-            "lastname": self.lastname,
-            "email": self.email,
-            "rol_id": self.rol_id,
-            "rol_name": self.rol.name_rol if self.rol else None,
-            "is_active": self.is_active,
-            # Añadimos esto para el Navbar y Claims
-            "competences": [c.serialize() for c in self.competences],
-            "image": self.profile if self.profile else f"https://ui-avatars.com/api/?name={initials.replace(' ', '+')}&size=128&background=random&rounded=true"
-        }
+        "id": self.id_user,
+        "name": self.name,
+        "lastname": self.lastname,
+        "email": self.email,
+        "rol_id": self.rol_id,
+        "rol_name": self.rol.name_rol if self.rol else None,
+        "is_active": self.is_active,
+        # Ahora sí, pasamos los valores del diccionario a una lista
+        "competences": list(competences_dict.values()),
+        "image": self.profile if self.profile else f"https://ui-avatars.com/api/?name={initials.replace(' ', '+')}&size=128&background=random&rounded=true"
+    }
 
 
 # --- CATÁLOGOS / MOLDES (Lo que el Admin define) ---
