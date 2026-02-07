@@ -146,7 +146,7 @@ const ProjectDetail = () => {
                                         </span>
                                     </div>
 
-                                    <h6 className="fw-bold mt-4 mb-3 text-muted text-uppercase">Metas por Provincia</h6>
+                                    <h6 className="fw-bold mt-4 mb-3 text-muted text-uppercase">Metas por Estado</h6>
                                     <div className="d-flex flex-wrap fs-4 gap-3">
                                         {project.province_unique_breakdown?.map((pb, i) => (
                                             <div key={i} className="province-badge-detailed p-1">
@@ -199,7 +199,7 @@ const ProjectDetail = () => {
                                 <div className="mt-4">
                                     <div className="objective-box p-4 rounded-4 shadow-sm mb-3" style={{ borderLeft: '5px solid var(--oxford-grey)' }}>
                                         <h6 className="fw-bold text-oxford-dynamic mb-2">
-                                            <i className="fas fa-align-left me-2 text-emerald"></i>Descripción General
+                                            <i className="fas fa-align-left me-2 text-emerald"></i>Resultados
                                         </h6>
                                         <p className="mb-0 fs-6 lh-sm text-oxford-dynamic">
                                             {project.results_summary || "No hay una descripción detallada para este proyecto."}
@@ -208,7 +208,7 @@ const ProjectDetail = () => {
 
                                     <div className="objective-box p-4 rounded-4 shadow-sm">
                                         <h6 className="fw-bold text-emerald mb-2">
-                                            <i className="fas fa-bullseye me-2"></i>Resultados Esperados (Objetivo Principal)
+                                            <i className="fas fa-bullseye me-2"></i>Resumen
                                         </h6>
                                         <p className="mb-0 fs-5 lh-sm italic-management text-oxford-dynamic">
                                             "{project.main_objective || "No definido."}"

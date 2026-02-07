@@ -321,9 +321,7 @@ const CreateProject = () => {
 
             if (response.ok) {
                 toast.success(isPartial ? "Progreso guardado como borrador" : "¡Proyecto creado con éxito!");
-                if (!isPartial) {
-                    setTimeout(() => navigate('/manager/projects'), 1500);
-                }
+                setTimeout(() => navigate('/manager/projects'), 1000);
             } else {
                 toast.error(result.msg || "Error al guardar");
             }
@@ -450,250 +448,252 @@ const CreateProject = () => {
                         )}
 
                         {step === 2 && (
-                            <div className="fade-in-up">
-                                <div className="mb-4">
-                                    <label className="auth-label text-oxford mb-3">📍 Lugares de Intervención</label>
-                                    <div className="row g-2 auth-input p-4 rounded">
-                                        <div className="col-md-4">
-                                            <select className="form-select auth-input" value={tempLocation.province_id}
-                                                onChange={(e) => setTempLocation({ province_id: e.target.value, municipality_id: '', parish_id: '' })}>
-                                                <option value="">Estado...</option>
-                                                {provinces.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                            </select>
-                                        </div>
-                                        <div className="col-md-4">
-                                            <select className="form-select auth-input" value={tempLocation.municipality_id} disabled={!tempLocation.province_id}
-                                                onChange={(e) => setTempLocation({ ...tempLocation, municipality_id: e.target.value, parish_id: '' })}>
-                                                <option value="">Municipio...</option>
-                                                {municipalities.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                                            </select>
-                                        </div>
-                                        <div className="col-md-4">
-                                            <select className="form-select auth-input" value={tempLocation.parish_id} disabled={!tempLocation.municipality_id}
-                                                onChange={(e) => setTempLocation({ ...tempLocation, parish_id: e.target.value })}>
-                                                <option value="">Parroquia...</option>
-                                                {parishes.map(pa => <option key={pa.id} value={pa.id}>{pa.name}</option>)}
-                                            </select>
-                                        </div>
-                                        <div className="col-12 mt-4">
-                                            <button type="button" className="btn btn-emerald w-100" onClick={addLocation}>
-                                                <i className="fas fa-plus me-2"></i> Agregar a Cobertura
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Lista de ubicaciones con el nuevo formato */}
-                                    <div className="mt-3 d-flex flex-wrap gap-2">
-                                        {formData.locations.map((loc, index) => (
-                                            <span
-                                                key={`loc-${loc.parish_id || index}`}
-                                                className="badge bg-oxford text-white p-2 d-flex align-items-center gap-2"
-                                                style={{ fontSize: '0.85rem', fontWeight: '400', borderRadius: '6px' }}
-                                            >
-                                                <i className="fas fa-map-marker-alt text-emerald"></i>
-                                                {/* Formato jerárquico: Provincia - Municipio - Parroquia */}
-                                                <span>
-                                                    {loc.province_name} - {loc.muni_name} - {loc.parish_name}
-                                                </span>
-
-                                                <button
-                                                    type="button"
-                                                    className="btn-close btn-close-white ms-2"
-                                                    style={{ fontSize: '0.5rem' }}
-                                                    onClick={() => removeLocation(loc.parish_id)}
-                                                ></button>
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="mb-3">
-                                    <label className="auth-label">Resultados</label>
-                                    <textarea name="main_scope" className="auth-input w-100" rows="2" value={formData.main_scope} onChange={handleChange}></textarea>
-                                </div>
-
-                                {/* SECCIÓN DE COMPETENCIAS Y GERENTES */}
-                                <div className="mt-4 p-3 auth-input rounded shadow-sm fade-in-up">
-                                    <label className="auth-label text-oxford">🏢 Estructura de Gestión (Competencias)</label>
-                                    <p className="small text-muted-dynamic">Asigna las áreas técnicas y sus responsables.</p>
-
-                                    <div className="row g-2 auth-input p-4 rounded">
-                                        <div className="col-md-5">
-                                            <select
-                                                className="form-select auth-input border"
-                                                value={tempCompetence.competence_id}
-                                                onChange={(e) => setTempCompetence({ ...tempCompetence, competence_id: e.target.value })}
-                                            >
-                                                <option value="">Seleccionar Competencia ({allCompetences.length})...</option>
-
-                                                {/* Agregamos una validación extra antes del map */}
-                                                {allCompetences && allCompetences.length > 0 ? (
-                                                    allCompetences.map(c => (
-                                                        <option key={`comp-${c.id}`} value={c.id}>
-                                                            {c.name}
-                                                        </option>
-                                                    ))
-                                                ) : (
-                                                    <option disabled>Cargando áreas...</option>
-                                                )}
-                                            </select>
-                                        </div>
-                                        <div className="col-md-5">
-                                            <select className="form-select auth-input border" value={tempCompetence.manager_id}
-                                                onChange={(e) => setTempCompetence({ ...tempCompetence, manager_id: e.target.value })}>
-                                                <option value="">Asignar Gerente...</option>
-                                                {availableManagers.map(m => (
-                                                    <option key={m.id} value={m.id}>{m.name} {m.lastname}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div className="col-md-2">
-                                            <button type="button" className="btn btn-oxford w-100 h-100" onClick={addCompetence}>
-                                                <i className="fas fa-user-plus"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* LISTADO DE COMPETENCIAS ASIGNADAS */}
-                                    <div className="mt-3">
-                                        {formData.competences.map(c => (
-                                            <div key={c.competence_id} className="d-flex justify-content-between align-items-center p-2 mb-3 border-start border-2 border-oxford summary-box-dynamic rounded text-muted-dynamic">
-                                                <div>
-                                                    <span className="fw-bold text-oxford fs-6 pe-4">{c.comp_name}</span>
-                                                    <span className="fs-6"><i className="fas fa-user-tie me-1"></i>Responsable: {c.manager_name}</span>
-                                                </div>
-                                                <button type="button" className="btn btn-sm btn-outline-danger border-0" onClick={() => removeCompetence(c.competence_id)}>
-                                                    <i className="fas fa-trash"></i>
+                            <>
+                                <div className="fade-in-up">
+                                    <div className="mb-4">
+                                        <label className="auth-label text-oxford mb-3">📍 Lugares de Intervención</label>
+                                        <div className="row g-2 auth-input p-4 rounded">
+                                            <div className="col-md-4">
+                                                <select className="form-select auth-input" value={tempLocation.province_id}
+                                                    onChange={(e) => setTempLocation({ province_id: e.target.value, municipality_id: '', parish_id: '' })}>
+                                                    <option value="">Estado...</option>
+                                                    {provinces.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="col-md-4">
+                                                <select className="form-select auth-input" value={tempLocation.municipality_id} disabled={!tempLocation.province_id}
+                                                    onChange={(e) => setTempLocation({ ...tempLocation, municipality_id: e.target.value, parish_id: '' })}>
+                                                    <option value="">Municipio...</option>
+                                                    {municipalities.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="col-md-4">
+                                                <select className="form-select auth-input" value={tempLocation.parish_id} disabled={!tempLocation.municipality_id}
+                                                    onChange={(e) => setTempLocation({ ...tempLocation, parish_id: e.target.value })}>
+                                                    <option value="">Parroquia...</option>
+                                                    {parishes.map(pa => <option key={pa.id} value={pa.id}>{pa.name}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="col-12 mt-4">
+                                                <button type="button" className="btn btn-emerald w-100" onClick={addLocation}>
+                                                    <i className="fas fa-plus me-2"></i> Agregar a Cobertura
                                                 </button>
                                             </div>
-                                        ))}
-                                        {formData.competences.length === 0 && (
-                                            <div className="text-center p-2 border border-dashed rounded text-oxford small">
-                                                No hay competencias asignadas aún.
+                                        </div>
+
+                                        {/* Lista de ubicaciones con el nuevo formato */}
+                                        <div className="mt-3 d-flex flex-wrap gap-2">
+                                            {formData.locations.map((loc, index) => (
+                                                <span
+                                                    key={`loc-${loc.parish_id || index}`}
+                                                    className="badge bg-oxford text-white p-2 d-flex align-items-center gap-2"
+                                                    style={{ fontSize: '0.85rem', fontWeight: '400', borderRadius: '6px' }}
+                                                >
+                                                    <i className="fas fa-map-marker-alt text-emerald"></i>
+                                                    {/* Formato jerárquico: Provincia - Municipio - Parroquia */}
+                                                    <span>
+                                                        {loc.province_name} - {loc.muni_name} - {loc.parish_name}
+                                                    </span>
+
+                                                    <button
+                                                        type="button"
+                                                        className="btn-close btn-close-white ms-2"
+                                                        style={{ fontSize: '0.5rem' }}
+                                                        onClick={() => removeLocation(loc.parish_id)}
+                                                    ></button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="mb-3">
+                                        <label className="auth-label">Resultados</label>
+                                        <textarea name="main_scope" className="auth-input w-100" rows="2" value={formData.main_scope} onChange={handleChange}></textarea>
+                                    </div>
+
+                                    {/* SECCIÓN DE COMPETENCIAS Y GERENTES */}
+                                    <div className="mt-4 p-3 auth-input rounded shadow-sm fade-in-up">
+                                        <label className="auth-label text-oxford">🏢 Estructura de Gestión (Competencias)</label>
+                                        <p className="small text-muted-dynamic">Asigna las áreas técnicas y sus responsables.</p>
+
+                                        <div className="row g-2 auth-input p-4 rounded">
+                                            <div className="col-md-5">
+                                                <select
+                                                    className="form-select auth-input border"
+                                                    value={tempCompetence.competence_id}
+                                                    onChange={(e) => setTempCompetence({ ...tempCompetence, competence_id: e.target.value })}
+                                                >
+                                                    <option value="">Seleccionar Competencia ({allCompetences.length})...</option>
+
+                                                    {/* Agregamos una validación extra antes del map */}
+                                                    {allCompetences && allCompetences.length > 0 ? (
+                                                        allCompetences.map(c => (
+                                                            <option key={`comp-${c.id}`} value={c.id}>
+                                                                {c.name}
+                                                            </option>
+                                                        ))
+                                                    ) : (
+                                                        <option disabled>Cargando áreas...</option>
+                                                    )}
+                                                </select>
+                                            </div>
+                                            <div className="col-md-5">
+                                                <select className="form-select auth-input border" value={tempCompetence.manager_id}
+                                                    onChange={(e) => setTempCompetence({ ...tempCompetence, manager_id: e.target.value })}>
+                                                    <option value="">Asignar Gerente...</option>
+                                                    {availableManagers.map(m => (
+                                                        <option key={m.id} value={m.id}>{m.name} {m.lastname}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="col-md-2">
+                                                <button type="button" className="btn btn-oxford w-100 h-100" onClick={addCompetence}>
+                                                    <i className="fas fa-user-plus"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* LISTADO DE COMPETENCIAS ASIGNADAS */}
+                                        <div className="mt-3">
+                                            {formData.competences.map(c => (
+                                                <div key={c.competence_id} className="d-flex justify-content-between align-items-center p-2 mb-3 border-start border-2 border-oxford summary-box-dynamic rounded text-muted-dynamic">
+                                                    <div>
+                                                        <span className="fw-bold text-oxford fs-6 pe-4">{c.comp_name}</span>
+                                                        <span className="fs-6"><i className="fas fa-user-tie me-1"></i>Responsable: {c.manager_name}</span>
+                                                    </div>
+                                                    <button type="button" className="btn btn-sm btn-outline-danger border-0" onClick={() => removeCompetence(c.competence_id)}>
+                                                        <i className="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {formData.competences.length === 0 && (
+                                                <div className="text-center p-2 border border-dashed rounded text-oxford small">
+                                                    No hay competencias asignadas aún.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="mt-4 p-3 auth-input d-flex justify-content-between rounded shadow-sm fade-in-up">
+                                        <div className="col-md-5 mb-3">
+                                            <label className="auth-label">Fecha Inicio</label>
+                                            <input
+                                                type="date"
+                                                name="start_date"
+                                                className={`auth-input w-100 ${dateError ? 'border-danger' : ''}`}
+                                                value={formData.start_date}
+                                                onChange={handleChange}
+                                            />
+                                        </div>
+                                        <div className="col-md-5 mb-3">
+                                            <label className="auth-label">Fecha Fin</label>
+                                            <input
+                                                type="date"
+                                                name="end_date"
+                                                className={`auth-input w-100 ${dateError ? 'border-danger' : ''}`}
+                                                value={formData.end_date}
+                                                onChange={handleChange}
+                                            />
+                                        </div>
+
+                                        {/* Mensaje de error de fecha */}
+                                        {dateError && (
+                                            <div className="col-12">
+                                                <p className="text-danger small mb-0">
+                                                    <i className="fas fa-calendar-times me-1"></i>
+                                                    La fecha de finalización debe ser posterior a la fecha de inicio.
+                                                </p>
                                             </div>
                                         )}
                                     </div>
                                 </div>
-                                <div className="mt-4 p-3 auth-input d-flex justify-content-between rounded shadow-sm fade-in-up">
-                                    <div className="col-md-5 mb-3">
-                                        <label className="auth-label">Fecha Inicio</label>
-                                        <input
-                                            type="date"
-                                            name="start_date"
-                                            className={`auth-input w-100 ${dateError ? 'border-danger' : ''}`}
-                                            value={formData.start_date}
-                                            onChange={handleChange}
-                                        />
-                                    </div>
-                                    <div className="col-md-5 mb-3">
-                                        <label className="auth-label">Fecha Fin</label>
-                                        <input
-                                            type="date"
-                                            name="end_date"
-                                            className={`auth-input w-100 ${dateError ? 'border-danger' : ''}`}
-                                            value={formData.end_date}
-                                            onChange={handleChange}
-                                        />
-                                    </div>
+                                {formData.province_unique_targets.length > 0 && (
+                                    <div className="mt-4 p-3 rounded auth-input shadow-sm fade-in-up">
+                                        <label className="auth-label text-emerald">📊 Metas de Beneficiarios Únicos por Estado</label>
+                                        <p className="small text-muted-dynamic">Establece el alcance real (sin repetir personas) por cada estado.</p>
+                                        <div className="table-responsive">
+                                            <table className="table table-sm align-middle table-custom-sigssep">
+                                                <thead className="thead-oxford">
+                                                    <tr>
+                                                        <th>Estado</th>
+                                                        <th>Meta Total</th>
+                                                        <th>Hombres</th>
+                                                        <th>Mujeres</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {formData.province_unique_targets.map(pt => {
+                                                        // 1. Calculamos el error para esta fila específica
+                                                        const isInvalid = Number(pt.men || 0) + Number(pt.women || 0) !== Number(pt.total || 0);
 
-                                    {/* Mensaje de error de fecha */}
-                                    {dateError && (
-                                        <div className="col-12">
-                                            <p className="text-danger small mb-0">
-                                                <i className="fas fa-calendar-times me-1"></i>
-                                                La fecha de finalización debe ser posterior a la fecha de inicio.
-                                            </p>
+                                                        return (
+                                                            <React.Fragment key={`target-row-${pt.province_id}`}>
+                                                                {/* FILA DE INPUTS */}
+                                                                <tr className={isInvalid ? "table-danger-light" : "tr-transparent"}>
+                                                                    <td className="fw-bold text-oxford-dynamic">{pt.province_name}</td>
+                                                                    <td>
+                                                                        <input type="number"
+                                                                            className={`form-control form-control-sm ${isInvalid ? 'border-danger' : ''}`}
+                                                                            value={pt.total}
+                                                                            onChange={(e) => handleProvinceTargetChange(pt.province_id, 'total', e.target.value)}
+                                                                        />
+                                                                    </td>
+                                                                    <td>
+                                                                        <input type="number"
+                                                                            className={`form-control form-control-sm ${isInvalid ? 'border-danger' : ''}`}
+                                                                            value={pt.men}
+                                                                            onChange={(e) => handleProvinceTargetChange(pt.province_id, 'men', e.target.value)}
+                                                                        />
+                                                                    </td>
+                                                                    <td>
+                                                                        <input type="number"
+                                                                            className={`form-control form-control-sm ${isInvalid ? 'border-danger' : ''}`}
+                                                                            value={pt.women}
+                                                                            onChange={(e) => handleProvinceTargetChange(pt.province_id, 'women', e.target.value)}
+                                                                        />
+                                                                    </td>
+                                                                </tr>
+                                                                {/* FILA DE MENSAJE DE ERROR (Solo aparece si isInvalid es true) */}
+                                                                {isInvalid && (
+                                                                    <tr>
+                                                                        <td colSpan="4" className="text-danger py-0 border-0" style={{ fontSize: '0.75rem' }}>
+                                                                            <i className="fas fa-exclamation-circle me-1"></i>
+                                                                            La suma de hombres ({pt.men || 0}) + mujeres ({pt.women || 0}) debe ser {pt.total || 0}.
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </React.Fragment>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
                                         </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                        {formData.province_unique_targets.length > 0 && (
-                            <div className="mt-4 p-3 rounded auth-input shadow-sm fade-in-up">
-                                <label className="auth-label text-emerald">📊 Metas de Beneficiarios Únicos por Estado</label>
-                                <p className="small text-muted-dynamic">Establece el alcance real (sin repetir personas) por cada estado.</p>
-                                <div className="table-responsive">
-                                    <table className="table table-sm align-middle table-custom-sigssep">
-                                        <thead className="thead-oxford">
-                                            <tr>
-                                                <th>Estado</th>
-                                                <th>Meta Total</th>
-                                                <th>Hombres</th>
-                                                <th>Mujeres</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {formData.province_unique_targets.map(pt => {
-                                                // 1. Calculamos el error para esta fila específica
-                                                const isInvalid = Number(pt.men || 0) + Number(pt.women || 0) !== Number(pt.total || 0);
-
-                                                return (
-                                                    <React.Fragment key={`target-row-${pt.province_id}`}>
-                                                        {/* FILA DE INPUTS */}
-                                                        <tr className={isInvalid ? "table-danger-light" : "tr-transparent"}>
-                                                            <td className="fw-bold text-oxford-dynamic">{pt.province_name}</td>
-                                                            <td>
-                                                                <input type="number"
-                                                                    className={`form-control form-control-sm ${isInvalid ? 'border-danger' : ''}`}
-                                                                    value={pt.total}
-                                                                    onChange={(e) => handleProvinceTargetChange(pt.province_id, 'total', e.target.value)}
-                                                                />
-                                                            </td>
-                                                            <td>
-                                                                <input type="number"
-                                                                    className={`form-control form-control-sm ${isInvalid ? 'border-danger' : ''}`}
-                                                                    value={pt.men}
-                                                                    onChange={(e) => handleProvinceTargetChange(pt.province_id, 'men', e.target.value)}
-                                                                />
-                                                            </td>
-                                                            <td>
-                                                                <input type="number"
-                                                                    className={`form-control form-control-sm ${isInvalid ? 'border-danger' : ''}`}
-                                                                    value={pt.women}
-                                                                    onChange={(e) => handleProvinceTargetChange(pt.province_id, 'women', e.target.value)}
-                                                                />
-                                                            </td>
-                                                        </tr>
-                                                        {/* FILA DE MENSAJE DE ERROR (Solo aparece si isInvalid es true) */}
-                                                        {isInvalid && (
-                                                            <tr>
-                                                                <td colSpan="4" className="text-danger py-0 border-0" style={{ fontSize: '0.75rem' }}>
-                                                                    <i className="fas fa-exclamation-circle me-1"></i>
-                                                                    La suma de hombres ({pt.men || 0}) + mujeres ({pt.women || 0}) debe ser {pt.total || 0}.
-                                                                </td>
-                                                            </tr>
-                                                        )}
-                                                    </React.Fragment>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                {/* RESUMEN DE TOTALES CALCULADOS */}
-                                <div className="mt-3 p-3 summary-box-dynamic border-start border-4 border-emerald rounded shadow-sm">
-                                    <div className="row text-center">
-                                        <label className="auth-label text-emerald fs-4">📊 Beneficiarios Únicos</label>
-                                        <div className="col-4">
-                                            <small className="text-muted-dynamic d-block fs-5">Total Proyecto</small>
-                                            <span className="h5 mb-0 fw-bold fs-5 text-oxford">{calculatedTotal}</span>
-                                        </div>
-                                        <div className="col-4">
-                                            <small className="text-muted-dynamic d-block fs-5">Total Hombres</small>
-                                            <span className="h5 mb-0 fw-bold fs-5 text-primary">{calculatedMen}</span>
-                                        </div>
-                                        <div className="col-4">
-                                            <small className="text-muted-dynamic fs-5 d-block">Total Mujeres</small>
-                                            <span className="h5 mb-0 fw-bold fs-5 text-danger">{calculatedWomen}</span>
+                                        {/* RESUMEN DE TOTALES CALCULADOS */}
+                                        <div className="mt-3 p-3 summary-box-dynamic border-start border-4 border-emerald rounded shadow-sm">
+                                            <div className="row text-center">
+                                                <label className="auth-label text-emerald fs-4">📊 Beneficiarios Únicos</label>
+                                                <div className="col-4">
+                                                    <small className="text-muted-dynamic d-block fs-5">Total Proyecto</small>
+                                                    <span className="h5 mb-0 fw-bold fs-5 text-oxford">{calculatedTotal}</span>
+                                                </div>
+                                                <div className="col-4">
+                                                    <small className="text-muted-dynamic d-block fs-5">Total Hombres</small>
+                                                    <span className="h5 mb-0 fw-bold fs-5 text-primary">{calculatedMen}</span>
+                                                </div>
+                                                <div className="col-4">
+                                                    <small className="text-muted-dynamic fs-5 d-block">Total Mujeres</small>
+                                                    <span className="h5 mb-0 fw-bold fs-5 text-danger">{calculatedWomen}</span>
+                                                </div>
+                                            </div>
+                                            <div className="mt-2 text-center">
+                                                <small className="text-muted-dynamic" style={{ fontSize: '0.75rem' }}>
+                                                    * Estos valores se calculan automáticamente sumando las metas de cada provincia.
+                                                </small>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="mt-2 text-center">
-                                        <small className="text-muted-dynamic" style={{ fontSize: '0.75rem' }}>
-                                            * Estos valores se calculan automáticamente sumando las metas de cada provincia.
-                                        </small>
-                                    </div>
-                                </div>
-                            </div>
+                                )}
 
+                            </>
                         )}
 
                         {step === 3 && (
@@ -701,7 +701,7 @@ const CreateProject = () => {
                                 {/* Encabezado Principal */}
                                 <div className="alert alert-success border-0 summary-box-emerald mb-4">
                                     <h5 className="alert-heading fw-bold text-emerald mb-1">✅ Confirmación de Datos</h5>
-                                    <p className="small mb-0 opacity-75">Revisa la información antes de finalizar el registro oficial en SIGSSEP.</p>
+                                    <p className="small mb-0 text-muted-dynamic fs-5 opacity-75">Revisa la información antes de finalizar el registro oficial en SIGSSEP.</p>
                                 </div>
 
                                 <div className="row g-3">
@@ -790,6 +790,28 @@ const CreateProject = () => {
                                             </div>
                                         </div>
                                     </div>
+                                    <div className="mt-3 p-3 summary-box-dynamic border-start border-4 border-emerald rounded shadow-sm">
+                                        <div className="row text-center">
+                                            <label className="auth-label text-emerald fs-4">📊 Beneficiarios Únicos</label>
+                                            <div className="col-4">
+                                                <small className="text-muted-dynamic d-block fs-5">Total Proyecto</small>
+                                                <span className="h5 mb-0 fw-bold fs-5 text-muted-dynamic">{calculatedTotal}</span>
+                                            </div>
+                                            <div className="col-4">
+                                                <small className="text-muted-dynamic d-block fs-5">Total Hombres</small>
+                                                <span className="h5 mb-0 fw-bold fs-5 text-primary">{calculatedMen}</span>
+                                            </div>
+                                            <div className="col-4">
+                                                <small className="text-muted-dynamic fs-5 d-block">Total Mujeres</small>
+                                                <span className="h5 mb-0 fw-bold fs-5 text-danger">{calculatedWomen}</span>
+                                            </div>
+                                        </div>
+                                        <div className="mt-2 text-center">
+                                            <small className="text-muted-dynamic" style={{ fontSize: '0.75rem' }}>
+                                                * Estos valores se calculan automáticamente sumando las metas de cada provincia.
+                                            </small>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -798,14 +820,16 @@ const CreateProject = () => {
                             <button type="button" className="btn btn-outline-secondary" onClick={handleBack} disabled={step === 1}>
                                 Anterior
                             </button>
+
                             <div className="d-flex gap-2">
                                 <button
                                     type="button"
-                                    className="btn btn-outline-oxford shadow-sm" // Usamos tu clase personalizada
+                                    className="btn btn-outline-oxford shadow-sm"
                                     onClick={() => saveProject(true)}
                                 >
                                     <i className="fas fa-save me-1"></i> Guardar Parcial
                                 </button>
+
                                 {step < 3 ? (
                                     <button
                                         type="button"
@@ -816,8 +840,13 @@ const CreateProject = () => {
                                         {(hasMathErrors || dateError) && step === 2 ? "Corregir Errores..." : "Siguiente"}
                                     </button>
                                 ) : (
-                                    <button type="button" className="auth-btn-submit px-4 bg-emerald" onClick={() => saveProject(false)}>
-                                        Crear Proyecto
+                                    <button
+                                        type="button"
+                                        className="auth-btn-submit px-4 bg-emerald"
+                                        onClick={() => saveProject(false)}
+                                    >
+                                        {/* CAMBIO AQUÍ: Texto dinámico según el modo */}
+                                        {isEdit ? "Actualizar Proyecto" : "Crear Proyecto"}
                                     </button>
                                 )}
                             </div>
