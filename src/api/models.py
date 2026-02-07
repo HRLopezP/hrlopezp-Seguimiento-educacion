@@ -280,6 +280,8 @@ class Indicator(db.Model):
     # Relación
     project_result: Mapped["ProjectResult"] = relationship(back_populates="indicators")
     template: Mapped["IndicatorTemplate"] = relationship()
+    verification_means: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    observations: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Meta de gestión del indicador (Puede ser mayor a los beneficiarios únicos)
     target_total: Mapped[float] = mapped_column(Float, default=0.0)

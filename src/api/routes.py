@@ -1541,3 +1541,92 @@ def get_competence_theories(comp_id):
     # Esto devuelve la lista de teorías asociadas a esa competencia
     # Cada teoría ya trae sus resultados e indicadores gracias al .serialize() que definiste
     return jsonify([theory.serialize() for theory in competence.theories]), 200
+
+
+#proyectos por gerente
+@api.route('/my-assigned-projects', methods=['GET'])
+@jwt_required()
+@manager_required
+def get_my_assignments():
+    current_user_id = get_jwt_identity()
+    
+    # Buscamos en ProjectCompetence todas las asignaciones de este usuario
+    assignments = ProjectCompetence.query.filter_by(manager_id=current_user_id).all()
+    
+    # Devolvemos los proyectos únicos asociados a esas asignaciones
+    results = []
+    for asig in assignments:
+        results.append({
+            "project_id": asig.project_id,
+            "project_name": asig.project.project_name,
+            "project_code": asig.project.code,
+            "competence_id": asig.competence_id,
+            "competence_name": asig.competence.name,
+            "status": asig.project.status
+        })
+    
+    return jsonify(results), 200
+
+
+#agregar datos técnicos al indicador
+@api.route('/indicators/<int:ind_id>/complete-data', methods=['PUT'])
+@jwt_required()
+@manager_required
+def complete_indicator_data(ind_id):
+    data = request.json
+    indicator = Indicator.query.get(ind_id)
+    
+    if not indicator:
+        return jsonify({"message": "Indicador no encontrado"}), 404
+
+    # Actualizamos los campos de texto (Asegúrate de haberlos añadido al modelo)
+    # Si no los has añadido, puedes usar target_total por ahora
+    indicator.target_total = data.get("target_total", indicator.target_total)
+    indicator.target_men = data.get("target_men", indicator.target_men)
+    indicator.target_women = data.get("target_women", indicator.target_women)
+    
+    # Si añadiste verification_means y observations al modelo:
+    if hasattr(indicator, 'verification_means'):
+        indicator.verification_means = data.get("verification_means", indicator.verification_means)
+    if hasattr(indicator, 'observations'):
+        indicator.observations = data.get("observations", indicator.observations)
+
+    # --- MANEJO DE METAS POR ESTADO/PROVINCIA ---
+    # Si vienen metas por provincia, las actualizamos
+    if 'province_goals' in data:
+        # Borramos las anteriores para este indicador y creamos las nuevas (Upsert)
+        IndicatorLocationGoal.query.filter_by(indicator_id=ind_id).delete()
+        
+        for pg in data['province_goals']:
+            new_goal = IndicatorLocationGoal(
+                indicator_id=ind_id,
+                province_id=pg['province_id'],
+                total_target=pg['total_target'],
+                men=pg.get('men', 0),
+                women=pg.get('women', 0)
+            )
+            db.session.add(new_goal)
+
+    try:
+        db.session.commit()
+        return jsonify({"message": "Datos técnicos actualizados correctamente"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+    
+
+#Obtener progreso de una competencia en un proyecto
+@api.route('/project/<int:proj_id>/competence/<int:comp_id>/technical-status', methods=['GET'])
+@jwt_required()
+def get_technical_status(proj_id, comp_id):
+    # Buscamos la teoría asignada para este proyecto y esta competencia
+    # Primero buscamos la asignación de competencia para obtener el ID de ProjectCompetence
+    pc = ProjectCompetence.query.filter_by(project_id=proj_id, competence_id=comp_id).first()
+    
+    if not pc:
+        return jsonify({"message": "No hay datos para esta competencia en este proyecto"}), 404
+
+    # Buscamos las teorías asignadas a través de esa competencia
+    theories = ProjectTheory.query.filter_by(project_competence_id=pc.id_pc).all()
+    
+    return jsonify([t.serialize() for t in theories]), 200
