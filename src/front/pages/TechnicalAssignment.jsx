@@ -2,125 +2,132 @@ import React, { useEffect, useState, useCallback } from "react";
 import { toast, Toaster } from "sonner";
 import Swal from 'sweetalert2';
 import { apiFetch } from "../../utils/api";
-import { useParams, useNavigate } from "react-router-dom"; // Añadimos useNavigate
+import { useParams, useNavigate } from "react-router-dom";
 import "../styles/management.css";
 
 const TechnicalAssignment = () => {
-    const { id } = useParams(); // ID del proyecto desde la URL
+    const { id } = useParams(); 
     const navigate = useNavigate();
 
+    // ESTADOS
     const [theories, setTheories] = useState([]);
     const [selectedTheory, setSelectedTheory] = useState(null);
     const [selectedIndicators, setSelectedIndicators] = useState([]);
     const [loading, setLoading] = useState(true);
     const [userCompetenceId, setUserCompetenceId] = useState(null);
+    const [project, setProject] = useState(null);
 
-    // 1. Obtener la competencia del usuario actual (Gerente)
-    // Amiguito, aquí podrías sacar esto de tu Global State o JWT
+    // 1. Cargar datos del Proyecto y Perfil en paralelo
     useEffect(() => {
-        const getMyCompetence = async () => {
+        const initData = async () => {
             try {
-                const res = await apiFetch("/user/profile");
-                if (res?.ok) {
-                    const data = await res.json();
-                    console.log("Datos del perfil:", data);
+                setLoading(true);
+                // Traemos perfil y proyecto al mismo tiempo
+                const [profileRes, projectRes] = await Promise.all([
+                    apiFetch("/user/profile"),
+                    apiFetch(`/project/${id}`)
+                ]);
 
-                    // Ajuste basado en tu consola: data.competences es un Array
-                    if (data.competences && data.competences.length > 0) {
-                        // Tomamos el ID de la primera competencia disponible
-                        const firstCompId = data.competences[0].id;
-                        setUserCompetenceId(firstCompId);
-                        // No pongas setLoading(false) aquí, deja que fetchCatalog lo haga
+                if (profileRes?.ok && projectRes?.ok) {
+                    const profileData = await profileRes.json();
+                    const projectData = await projectRes.json();
+
+                    setProject(projectData);
+
+                    if (profileData.competences?.length > 0) {
+                        setUserCompetenceId(profileData.competences[0].id);
                     } else {
-                        toast.error("El usuario no tiene competencias asignadas en su perfil");
-                        setLoading(false);
+                        toast.error("No tienes competencias asignadas.");
                     }
-                } else {
-                    setLoading(false);
                 }
             } catch (error) {
-                toast.error("Error al conectar con el perfil");
+                toast.error("Error al inicializar datos");
+            } finally {
                 setLoading(false);
             }
         };
-        getMyCompetence();
-    }, []);
+        initData();
+    }, [id]);
 
-    // 2. Cargar teorías filtradas (Solo cuando tengamos el userCompetenceId)
-    const fetchCatalog = useCallback(async () => {
+    // 2. Cargar teorías cuando tengamos la competencia
+    useEffect(() => {
         if (!userCompetenceId) return;
-
-        try {
-            setLoading(true);
+        
+        const fetchTheories = async () => {
             const res = await apiFetch(`/competence/${userCompetenceId}/theories`);
             if (res?.ok) {
                 const data = await res.json();
                 setTheories(data);
             }
-        } catch (error) {
-            toast.error("Error al cargar el catálogo técnico");
-        } finally {
-            setLoading(false);
-        }
+        };
+        fetchTheories();
     }, [userCompetenceId]);
 
-    useEffect(() => {
-        fetchCatalog();
-    }, [fetchCatalog]);
+    // 3. Lógica de Selección (Aquí corregimos el error de la imagen)
+    const handleCheckIndicator = (indTemplate) => {
+        // Validación de seguridad: Si el proyecto no ha cargado, no hacemos nada
+        if (!project || !project.locations) {
+            return toast.error("Cargando locaciones del proyecto...");
+        }
 
-    // 3. Lógica de Checkboxes (Impecable como la tenías)
-    const handleCheckIndicator = (indId) => {
-        setSelectedIndicators(prev =>
-            prev.includes(indId) ? prev.filter(item => item !== indId) : [...prev, indId]
-        );
+        const isSelected = selectedIndicators.some(i => i.template_id === indTemplate.id);
+
+        if (isSelected) {
+            setSelectedIndicators(prev => prev.filter(i => i.template_id !== indTemplate.id));
+        } else {
+            // Creamos el objeto con las provincias reales del proyecto
+            const newEntry = {
+                template_id: indTemplate.id,
+                code: indTemplate.code,
+                description: indTemplate.description,
+                province_goals: project.locations.map(loc => ({
+                    province_id: loc.id_location,
+                    province_name: loc.province,
+                    total: 0,
+                    men: 0,
+                    women: 0
+                }))
+            };
+            setSelectedIndicators(prev => [...prev, newEntry]);
+        }
     };
 
-    // 4. Guardar (Usando tus colores Oxford y Esmeralda)
     const handleSavePlan = async () => {
         if (!selectedTheory || selectedIndicators.length === 0) {
             return toast.warning("Selecciona una teoría y al menos un indicador");
         }
 
         const result = await Swal.fire({
-            title: '<span style="color: #1B263B">¿Confirmar Plan Técnico?</span>',
-            html: `Se vincularán <b>${selectedIndicators.length}</b> indicadores a este proyecto.`,
+            title: '¿Confirmar Plan Técnico?',
+            text: `Se vincularán ${selectedIndicators.length} indicadores.`,
             icon: 'question',
             showCancelButton: true,
-            confirmButtonColor: '#10b981',
-            cancelButtonColor: '#1B263B',
-            confirmButtonText: '<i class="fas fa-check-circle me-2"></i>Sí, asignar',
-            cancelButtonText: 'Revisar',
-            background: 'var(--card-bg)',
-            color: 'var(--text-primary)',
-            customClass: {
-                popup: 'role-modal-custom-swal'
-            }
+            confirmButtonColor: '#10b981', // Emerald
+            cancelButtonColor: '#1B263B',  // Oxford
         });
 
         if (result.isConfirmed) {
             try {
-                const res = await apiFetch(`/project/${id}/assign-technical-data`, {
+                const res = await apiFetch(`/indicators/bulk`, {
                     method: "POST",
                     body: JSON.stringify({
-                        competence_id: userCompetenceId,
-                        theory_id: selectedTheory.id,
-                        indicator_ids: selectedIndicators
+                        project_id: parseInt(id),
+                        indicators: selectedIndicators
                     })
                 });
 
                 if (res?.ok) {
-                    toast.success("Estructura técnica vinculada con éxito");
-                    // Pequeño delay para que el usuario vea el éxito antes de irse
-                    setTimeout(() => navigate(`/manager/projects/${id}`), 2000);
+                    toast.success("¡Planificación técnica guardada!");
+                    setTimeout(() => navigate(`/manager/projects/${id}`), 1500);
                 }
             } catch (error) {
-                toast.error("Error de conexión al guardar");
+                toast.error("Error al guardar");
             }
         }
     };
 
-    if (loading && !theories.length) return (
-        <div className="d-flex justify-content-center align-items-center" style={{ height: "400px" }}>
+    if (loading) return (
+        <div className="d-flex justify-content-center align-items-center" style={{ height: "100vh" }}>
             <div className="spinner-border text-success" role="status"></div>
         </div>
     );
@@ -131,17 +138,15 @@ const TechnicalAssignment = () => {
             <div className="container mt-4">
                 <div className="card management-card-unified shadow-lg">
                     <div className="management-card-header bg-oxford">
-                        <div className="text-start">
-                            <h2 className="management-title text-white">Planificación Técnica</h2>
-                            <p className="management-subtitle text-white-50">Configura los indicadores de impacto para este proyecto</p>
-                        </div>
+                        <h2 className="management-title text-white">Planificación Técnica</h2>
+                        <p className="text-white-50">Proyecto: {project?.name || "Cargando..."}</p>
                     </div>
 
                     <div className="card-body p-4">
                         <div className="mb-4">
-                            <label className="swal2-input-label mb-2">Teoría de Cambio Base</label>
+                            <label className="fw-bold mb-2">Teoría de Cambio Base</label>
                             <select
-                                className="form-select role-modal-input"
+                                className="form-select"
                                 onChange={(e) => {
                                     const theory = theories.find(t => t.id === parseInt(e.target.value));
                                     setSelectedTheory(theory);
@@ -153,29 +158,23 @@ const TechnicalAssignment = () => {
                             </select>
                         </div>
 
-                        {selectedTheory ? (
+                        {selectedTheory && (
                             <div className="results-list animate__animated animate__fadeIn">
                                 {selectedTheory.results?.map(res => (
-                                    <div key={res.id} className="result-group mb-4 p-3 rounded bg-light-grey">
-                                        <h5 className="text-oxford fw-bold border-bottom pb-2">
-                                            <i className={`fas ${res.type === 'outcome' ? 'fa-crosshairs' : 'fa-clipboard-check'} me-2`}></i>
-                                            {res.name}
-                                            <span className={`ms-2 badge ${res.type === 'outcome' ? 'bg-primary' : 'bg-info'}`}>
-                                                {res.type.toUpperCase()}
-                                            </span>
-                                        </h5>
-                                        <div className="ms-3 mt-3">
+                                    <div key={res.id} className="result-group mb-4 p-3 rounded bg-light border-start border-4 border-success">
+                                        <h5 className="text-oxford fw-bold">{res.name}</h5>
+                                        <div className="ms-3">
                                             {res.indicators?.map(ind => (
-                                                <div key={ind.id} className="form-check custom-checkbox-sigssep mb-2">
+                                                <div key={ind.id} className="form-check mb-2">
                                                     <input
                                                         className="form-check-input"
                                                         type="checkbox"
                                                         id={`ind-${ind.id}`}
-                                                        checked={selectedIndicators.includes(ind.id)}
-                                                        onChange={() => handleCheckIndicator(ind.id)}
+                                                        checked={selectedIndicators.some(i => i.template_id === ind.id)}
+                                                        onChange={() => handleCheckIndicator(ind)}
                                                     />
                                                     <label className="form-check-label ms-2" htmlFor={`ind-${ind.id}`}>
-                                                        <span className="fw-bold text-emerald">{ind.code}</span> — {ind.description}
+                                                        <span className="text-emerald fw-bold">{ind.code}</span> - {ind.description}
                                                     </label>
                                                 </div>
                                             ))}
@@ -183,16 +182,11 @@ const TechnicalAssignment = () => {
                                     </div>
                                 ))}
                             </div>
-                        ) : (
-                            <div className="text-center p-5 text-muted border rounded dashed">
-                                <i className="fas fa-sitemap fa-3x mb-3 opacity-25"></i>
-                                <p>Por favor, selecciona una teoría para desplegar sus indicadores.</p>
-                            </div>
                         )}
 
-                        <div className="card-footer bg-transparent border-0 text-end">
-                            <button className="btn-action btn-activate px-5" onClick={handleSavePlan}>
-                                <i className="fas fa-save me-2"></i>Vincular al Proyecto
+                        <div className="text-end mt-4">
+                            <button className="btn btn-emerald px-5 py-2 fw-bold shadow" onClick={handleSavePlan}>
+                                <i className="fas fa-save me-2"></i>GUARDAR PLANIFICACIÓN
                             </button>
                         </div>
                     </div>

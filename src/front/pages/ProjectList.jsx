@@ -191,6 +191,13 @@ const ProjectList = () => {
                                                     >
                                                         <i className="fas fa-trash-alt"></i>
                                                     </button>
+                                                    <button
+                                                        className="btn btn-sm btn-outline-oxford rounded-pill shadow-sm"
+                                                        title="Configuración Técnica"
+                                                        onClick={() => navigate(`/manager/projects/${p.id}/setup`)}
+                                                    >
+                                                        <i className="fas fa-cogs me-1"></i> Tech
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>

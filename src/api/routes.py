@@ -1161,13 +1161,16 @@ def bulk_indicators():
             # Limpiamos metas viejas de este indicador para este "upsert"
             IndicatorLocationGoal.query.filter_by(
                 indicator_id=indicator.id_indicator).delete()
-
+            
             for goal in item['goals_by_province']:
                 new_goal = IndicatorLocationGoal(
                     indicator_id=indicator.id_indicator,
                     province_id=goal['province_id'],
-                    total_target=goal['target']
-                )
+                    total_target=goal.get('target', 0), # Cambia 'total' por 'target' según tu serialize
+                    men=goal.get('men', 0),
+                    women=goal.get('women', 0)
+                    )
+                
                 db.session.add(new_goal)
 
     db.session.commit()
