@@ -17,6 +17,22 @@ const ProjectTechnicalSetup = () => {
     const [expandedResults, setExpandedResults] = useState({}); // Para abrir/cerrar Outcomes-Outputs
     const [activeIndicatorId, setActiveIndicatorId] = useState(null);
 
+    const groupedData = selectedIndicators.reduce((acc, ind) => {
+        // Si por algún milagro fallan los nombres, no ponemos "General", 
+        // mejor dejamos el espacio vacío para detectar el error.
+        const tName = ind.theory_name || "Sin Teoría asignada";
+        const rType = ind.result_type || "Output";
+        const rName = ind.result_name || "Sin Resultado asignado";
+
+        if (!acc[tName]) acc[tName] = {};
+        // Agrupamos por TIPO dentro de la teoría
+        if (!acc[tName][rType]) acc[tName][rType] = {};
+        if (!acc[tName][rType][rName]) acc[tName][rType][rName] = [];
+
+        acc[tName][rType][rName].push(ind);
+        return acc;
+    }, {});
+
     const handleMetaChange = (indicatorId, provinceId, field, value) => {
         setSelectedIndicators(prev => prev.map(ind => {
             if (ind.template_id === indicatorId) {
@@ -33,44 +49,73 @@ const ProjectTechnicalSetup = () => {
     };
 
 
-    const handleIndicatorToggle = (indTemplate, isChecked) => {
-        if (!project?.locations) {
-            return toast.error("Los datos de ubicación del proyecto aún no se han cargado.");
-        }
-
+    const handleIndicatorToggle = (ind, isChecked) => {
         if (isChecked) {
-            setSelectedIndicators(prev => {
-                // Evitamos duplicados por si acaso
-                if (prev.find(i => i.template_id === indTemplate.id)) return prev;
+            // 1. Buscamos la Teoría y el Resultado (Esto ya lo tenías bien)
+            const theory = theories.find(t => String(t.id) === String(selectedTheoryId));
+            const result = theory?.results.find(r =>
+                r.indicators.some(indicatorInResult => indicatorInResult.id === ind.id)
+            );
 
-                const newEntry = {
-                    template_id: indTemplate.id,
-                    code: indTemplate.code,
-                    description: indTemplate.description,
-                    verification_means: "",
-                    observations: "",
-                    // Usamos encadenamiento opcional ?. por seguridad
-                    province_goals: project.locations.map(loc => ({
-                        province_id: loc.province_id,
-                        province_name: loc.province,
-                        total: 0,
-                        men: 0,
-                        women: 0
-                    }))
-                };
-                return [...prev, newEntry];
-            });
-            setActiveIndicatorId(indTemplate.id);
+            // 2. CREAMOS LA LISTA DE PROVINCIAS SIN DUPLICADOS
+            // Aquí es donde resolvemos el Error 3
+            const uniqueProvinces = [];
+            const seen = new Set();
+
+            if (project?.locations && project.locations.length > 0) {
+                // Imprimimos para ver qué nombres de propiedades tiene tu objeto realmente
+                console.log("Datos de locaciones del proyecto:", project.locations);
+
+                project.locations.forEach(loc => {
+                    // Usamos loc.province o loc.province_name según lo que venga de tu base de datos
+                    const pName = loc.province || loc.province_name || "Provincia desconocida";
+                    const pId = loc.province_id;
+
+                    if (!seen.has(pName)) {
+                        seen.add(pName);
+                        uniqueProvinces.push({
+                            province_id: loc.id_location || loc.province_id,
+                            province_name: loc.province || loc.province_name,
+                            total: 0,
+                            men: 0,
+                            women: 0
+                        });
+                    }
+                });
+            }
+
+            // 3. Creamos el objeto final para la tabla
+            const newIndicator = {
+                template_id: ind.id,
+                code: ind.code,
+                description: ind.description,
+                // Usamos el currentTheory que ya tienes definido arriba
+                theory_name: currentTheory?.name || "Sin Teoría",
+                result_type: result?.type || "Output",
+                result_name: result?.name || "Sin Resultado",
+                verification_means: "",
+                observations: "",
+                province_goals: uniqueProvinces
+            };
+
+            setSelectedIndicators([...selectedIndicators, newIndicator]);
+            setActiveIndicatorId(ind.id);
+
         } else {
-            setSelectedIndicators(prev => prev.filter(i => i.template_id !== indTemplate.id));
-            if (activeIndicatorId === indTemplate.id) setActiveIndicatorId(null);
+            setSelectedIndicators(selectedIndicators.filter(i => i.template_id !== ind.id));
+            if (activeIndicatorId === ind.id) {
+                setActiveIndicatorId(null);
+            }
         }
     };
 
     const handleInfoChange = (indicatorId, field, value) => {
         setSelectedIndicators(prev => prev.map(ind => {
             if (ind.template_id === indicatorId) {
-                return { ...ind, [field]: value };
+                return {
+                    ...ind, // <--- ESTO MANTIENE LOS NOMBRES DE TEORÍA Y RESULTADO
+                    [field]: value
+                };
             }
             return ind;
         }));
@@ -107,14 +152,19 @@ const ProjectTechnicalSetup = () => {
             project_id: parseInt(projectId),
             indicators: selectedIndicators.map(ind => ({
                 template_id: ind.template_id,
-                // Sumamos los totales de todas las provincias para el indicador
+                // Campos para la tabla 'Indicator'
                 target_total: ind.province_goals.reduce((acc, curr) => acc + curr.total, 0),
                 target_men: ind.province_goals.reduce((acc, curr) => acc + curr.men, 0),
                 target_women: ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
-                // Mapeamos las metas por provincia
+                verification_means: ind.verification_means, // ¡No olvides estos!
+                observations: ind.observations,             // ¡No olvides estos!
+
+                // Campos para la tabla 'IndicatorLocationGoal'
                 goals_by_province: ind.province_goals.map(pg => ({
                     province_id: pg.province_id,
-                    target: pg.total // El total por provincia
+                    target: pg.total,        // El Backend espera 'target'
+                    target_men: pg.men,      // El Backend espera 'target_men'
+                    target_women: pg.women   // El Backend espera 'target_women'
                 }))
             }))
         };
@@ -153,25 +203,80 @@ const ProjectTechnicalSetup = () => {
         }
     };
 
+    const getIndicatorContext = (templateId, allTheories) => {
+        let context = {
+            theory_name: "Sin Teoría asignada",
+            result_name: "Sin Resultado asignado",
+            result_type: "Output"
+        };
+
+        allTheories.forEach(t => {
+            t.results?.forEach(r => {
+                if (r.indicators?.some(i => i.id === templateId)) {
+                    context = { theory_name: t.name, result_name: r.name, result_type: r.type };
+                }
+            });
+        });
+        return context;
+    };
+
     // 1. Cargar datos iniciales
     useEffect(() => {
         const loadInitialData = async () => {
             try {
-                // Obtenemos resumen del proyecto (incluye locations)
+                setLoading(true);
+
+                // 1. Cargamos el Proyecto
                 const resProj = await apiFetch(`/projects/${projectId}`);
                 const dataProj = await resProj.json();
                 setProject(dataProj);
 
-                // Obtenemos las competencias que YO (Gerente) tengo en este proyecto
-                // Nota: Este endpoint lo definimos en la respuesta anterior
+                // 2. Cargamos las Competencias y la primera Teoría (ESTO DEBE IR ANTES)
                 const resComp = await apiFetch(`/my-assigned-projects`);
                 const allMyProjects = await resComp.json();
-
-                // Filtramos las competencias específicas de este proyecto
                 const comps = allMyProjects.filter(p => p.project_id === parseInt(projectId));
                 setMyCompetences(comps);
 
-                if (comps.length > 0) setSelectedComp(comps[0]);
+                let loadedTheories = [];
+                if (comps.length > 0) {
+                    setSelectedComp(comps[0]);
+                    // Traemos las teorías de la primera competencia para tener el "mapa"
+                    const resT = await apiFetch(`/competence/${comps[0].competence_id}/theories`);
+                    loadedTheories = await resT.json();
+                    setTheories(loadedTheories);
+                }
+
+                // 3. CARGAMOS LOS INDICADORES GUARDADOS (Ahora que ya tenemos loadedTheories)
+                const resSaved = await apiFetch(`/projects/${projectId}/indicators`);
+                if (resSaved.ok) {
+                    const savedData = await resSaved.json();
+
+                    const formattedSaved = savedData.map(ind => {
+                        // USAMOS LA FUNCIÓN BUSCADORA AQUÍ
+                        const info = getIndicatorContext(ind.template_id, loadedTheories);
+
+                        return {
+                            template_id: ind.template_id,
+                            code: ind.indicator_code,
+                            description: ind.description,
+                            // Aplicamos lo que el detective encontró
+                            theory_name: info.theory_name,
+                            result_name: info.result_name,
+                            result_type: info.result_type,
+                            verification_means: ind.verification_means || "",
+                            observations: ind.observations || "",
+                            province_goals: ind.goals_by_province.map(g => ({
+                                province_id: g.province_id,
+                                province_name: g.province_name,
+                                total: g.target || 0, // Si 'target' viene en 0, se queda en 0
+                                men: g.men || 0,
+                                women: g.women || 0
+                            }))
+                        };
+                    });
+                    setSelectedIndicators(formattedSaved);
+                }
+
             } catch (error) {
                 toast.error("Error al cargar la configuración técnica");
             } finally {
@@ -193,18 +298,19 @@ const ProjectTechnicalSetup = () => {
         }
     }, [selectedComp]);
 
+    const currentTheory = theories.find(t => String(t.id) === String(selectedTheoryId));
+    const activeInd = selectedIndicators.find(i => i.template_id === activeIndicatorId);
+
     if (loading) return <div className="text-center mt-5"><div className="spinner-border text-emerald"></div></div>;
 
     return (
         <div className="management-page-container">
             <Toaster richColors position="top-right" />
             <div className="container mt-4">
-                {/* Header dinámico */}
                 <div className="management-card-header mb-4 shadow-sm rounded-3 p-3 bg-white">
                     <h2 className="management-title">Configuración Técnica</h2>
                     <p className="text-muted">Proyecto: <span className="fw-bold text-oxford-grey">{project?.project_name}</span></p>
                 </div>
-
                 {/* SELECTOR DE COMPETENCIAS (Pestañas Oxford) */}
                 <div className="d-flex gap-2 mb-4">
                     {myCompetences.map(comp => (
@@ -218,90 +324,83 @@ const ProjectTechnicalSetup = () => {
                         </button>
                     ))}
                 </div>
-
                 <div className="row">
-                    {/* COLUMNA IZQUIERDA: Árbol de Selección */}
                     <div className="col-md-5">
-                        <div className="card shadow-sm border-0 mb-4">
-                            <div className="card-header bg-oxford-grey text-white">
-                                <i className="fas fa-sitemap me-2"></i> Estructura Técnica
+                        <div className="card shadow-sm border-0 mb-4 card-selector-tecnico">
+                            <div className="card-header bg-oxford-grey text-white d-flex justify-content-between align-items-center">
+                                <span><i className="fas fa-sitemap me-2"></i> Estructura Técnica</span>
+                                <span className="badge bg-emerald">{selectedIndicators.length} Seleccionados</span>
                             </div>
-                            <div className="card-body">
-                                <label className="form-label fw-bold">1. Seleccione Teoría de Cambio</label>
-                                <select className="form-select mb-3 border-emerald" onChange={(e) => {/* Lógica para filtrar resultados */ }}>
-                                    <option value="">Seleccione una teoría...</option>
+                            <div className="card-body bg-white">
+                                <label className="form-label fw-bold text-oxford-grey">1. Seleccione Teoría de Cambio</label>
+                                <select
+                                    className="form-select mb-4 border-emerald shadow-sm"
+                                    value={selectedTheoryId}
+                                    onChange={(e) => setSelectedTheoryId(e.target.value)}
+                                >
+                                    <option value="">-- Elige una Teoría --</option>
                                     {theories.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                 </select>
 
-                                {/* Aquí iría el mapeo de Outcomes/Outputs con sus Indicadores */}
-                                <div className="col-md-5">
-                                    <div className="card shadow-sm border-0 mb-4 card-selector-tecnico">
-                                        <div className="card-header bg-oxford-grey text-white d-flex justify-content-between align-items-center">
-                                            <span><i className="fas fa-sitemap me-2"></i> Estructura Técnica</span>
-                                            <span className="badge bg-emerald">{selectedIndicators.length} Seleccionados</span>
-                                        </div>
-                                        <div className="card-body bg-white">
-                                            <label className="form-label fw-bold text-oxford-grey">1. Seleccione Teoría de Cambio</label>
-                                            <select
-                                                className="form-select mb-4 border-emerald shadow-sm"
-                                                value={selectedTheoryId}
-                                                onChange={(e) => setSelectedTheoryId(e.target.value)}
+                                {/* ESTE ES EL BLOQUE QUE REEMPLAZA AL ANTERIOR */}
+                                {currentTheory?.results ? (
+                                    currentTheory.results.map(result => (
+                                        <div key={result.id} className="result-container mb-3">
+                                            <div
+                                                className={`result-header d-flex align-items-center p-2 rounded-2 cursor-pointer ${result.type === 'outcome' ? 'bg-light-emerald' : 'bg-light-grey'}`}
+                                                onClick={() => setExpandedResults(prev => ({ ...prev, [result.id]: !prev[result.id] }))}
+                                                style={{ cursor: 'pointer' }}
                                             >
-                                                <option value="">-- Elige una Teoría --</option>
-                                                {theories.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                            </select>
+                                                <i className={`fas ${expandedResults[result.id] ? 'fa-chevron-down' : 'fa-chevron-right'} me-2 text-muted`}></i>
+                                                <span className={`badge ${result.type === 'outcome' ? 'bg-emerald' : 'bg-oxford-grey'} me-2`}>
+                                                    {result.type.toUpperCase()}
+                                                </span>
+                                                <span className="small fw-bold text-dark">{result.name}</span>
+                                            </div>
 
-                                            {/* Renderizado de la Cascada */}
-                                            {selectedTheoryId && theories.find(t => t.id === parseInt(selectedTheoryId))?.results.map(result => (
-                                                <div key={result.id} className="result-container mb-3">
-                                                    <div
-                                                        className={`result-header d-flex align-items-center p-2 rounded-2 cursor-pointer ${result.type === 'outcome' ? 'bg-light-emerald' : 'bg-light-grey'}`}
-                                                        onClick={() => setExpandedResults(prev => ({ ...prev, [result.id]: !prev[result.id] }))}
-                                                        style={{ cursor: 'pointer' }}
-                                                    >
-                                                        <i className={`fas ${expandedResults[result.id] ? 'fa-chevron-down' : 'fa-chevron-right'} me-2 text-muted`}></i>
-                                                        <span className={`badge ${result.type === 'outcome' ? 'bg-emerald' : 'bg-oxford-grey'} me-2`}>
-                                                            {result.type.toUpperCase()}
-                                                        </span>
-                                                        <span className="small fw-bold text-dark">{result.name}</span>
-                                                    </div>
-
-                                                    {/* Lista de Indicadores (Solo si está expandido) */}
-                                                    {expandedResults[result.id] && (
-                                                        <div className="indicator-list ms-4 mt-2 border-start ps-3">
-                                                            {result.indicators.length > 0 ? result.indicators.map(ind => (
-                                                                <div key={ind.id} className="form-check mb-2 p-2 indicator-item-hover rounded">
-                                                                    <input
-                                                                        className="form-check-input custom-checkbox-emerald"
-                                                                        type="checkbox"
-                                                                        id={`ind-${ind.id}`}
-                                                                        checked={selectedIndicators.some(i => i.template_id === ind.id)}
-                                                                        onChange={(e) => handleIndicatorToggle(ind, e.target.checked)}
-                                                                    />
-                                                                    <label className="form-check-label small d-block cursor-pointer" htmlFor={`ind-${ind.id}`}>
-                                                                        <span className="text-emerald fw-bold">{ind.code}</span>: {ind.description}
-                                                                    </label>
-                                                                </div>
-                                                            )) : <p className="text-muted small ms-2">No hay indicadores en este {result.type}</p>}
+                                            {/* Lista de Indicadores (Solo si está expandido) */}
+                                            {expandedResults[result.id] && (
+                                                <div className="indicator-list ms-4 mt-2 border-start ps-3">
+                                                    {result.indicators.length > 0 ? result.indicators.map(ind => (
+                                                        <div key={ind.id} className="form-check mb-2 p-2 indicator-item-hover rounded">
+                                                            <input
+                                                                className="form-check-input custom-checkbox-emerald"
+                                                                type="checkbox"
+                                                                id={`ind-${ind.id}`}
+                                                                checked={selectedIndicators.some(i => i.template_id === ind.id)}
+                                                                onChange={(e) => handleIndicatorToggle(ind, e.target.checked)}
+                                                            />
+                                                            <label className="form-check-label small d-block cursor-pointer" htmlFor={`ind-${ind.id}`}>
+                                                                {selectedIndicators.some(i => i.template_id === ind.id) && (
+                                                                    <i className="fas fa-check-circle text-emerald me-1 animate__animated animate__fadeIn"
+                                                                        title={`Configurado`}
+                                                                        style={{ cursor: 'help' }}></i>
+                                                                )}
+                                                                <span className={selectedIndicators.some(i => i.template_id === ind.id) ? "text-emerald fw-bold" : "text-oxford-grey"}>
+                                                                    {ind.code}
+                                                                </span>: {ind.description}
+                                                            </label>
                                                         </div>
-                                                    )}
+                                                    )) : <p className="text-muted small ms-2">No hay indicadores en este {result.type}</p>}
                                                 </div>
-                                            ))}
+                                            )}
                                         </div>
-                                    </div>
-                                </div>
+                                    ))
+                                ) : (
+                                    selectedTheoryId && <div className="text-center p-3 text-muted small italic">Cargando estructura...</div>
+                                )}
                             </div>
                         </div>
                     </div>
-
                     {/* COLUMNA DERECHA: Detalle y Metas (Lo que pidió María) */}
                     <div className="col-md-7">
-                        {activeIndicatorId ? (
+                        {activeIndicatorId && activeInd ? (
                             <div className="card shadow-lg border-0 fade-in bg-card-dynamic">
                                 <div className="management-card-header bg-oxford text-white p-3 d-flex justify-content-between">
                                     <div>
                                         <span className="badge bg-emerald me-2">CONFIGURANDO</span>
-                                        <span className="fw-bold">{selectedIndicators.find(i => i.template_id === activeIndicatorId)?.code}</span>
+                                        {/* Reemplazamos el .find largo por activeInd.code */}
+                                        <span className="fw-bold">{activeInd.code}</span>
                                     </div>
                                     <button className="btn btn-sm btn-light" onClick={() => setActiveIndicatorId(null)}>
                                         <i className="fas fa-times"></i>
@@ -309,7 +408,6 @@ const ProjectTechnicalSetup = () => {
                                 </div>
 
                                 <div className="card-body">
-                                    {/* Medios de Verificación y Observaciones */}
                                     <div className="row mb-4">
                                         <div className="col-md-6">
                                             <label className="uppercase-label text-muted-dynamic">Medios de Verificación</label>
@@ -317,7 +415,8 @@ const ProjectTechnicalSetup = () => {
                                                 className="form-control"
                                                 rows="2"
                                                 placeholder="Ej: Listas de asistencia, fotos..."
-                                                value={selectedIndicators.find(i => i.template_id === activeIndicatorId)?.verification_means}
+                                                // Usamos activeInd directamente
+                                                value={activeInd.verification_means || ''}
                                                 onChange={(e) => handleInfoChange(activeIndicatorId, 'verification_means', e.target.value)}
                                             />
                                         </div>
@@ -327,14 +426,15 @@ const ProjectTechnicalSetup = () => {
                                                 className="form-control"
                                                 rows="2"
                                                 placeholder="Notas adicionales..."
-                                                value={selectedIndicators.find(i => i.template_id === activeIndicatorId)?.observations}
+                                                // Usamos activeInd directamente
+                                                value={activeInd.observations || ''}
                                                 onChange={(e) => handleInfoChange(activeIndicatorId, 'observations', e.target.value)}
                                             />
                                         </div>
                                     </div>
 
                                     <h6 className="uppercase-label text-emerald mb-3 border-bottom-dynamic pb-2">
-                                        <i className="fas fa-map-marker-alt me-2"></i>Desglose por Estado (Meta Total)
+                                        <i className="fas fa-map-marker-alt me-2"></i>Desglose por Estado
                                     </h6>
 
                                     <div className="table-responsive custom-scrollbar" style={{ maxHeight: '400px' }}>
@@ -348,9 +448,10 @@ const ProjectTechnicalSetup = () => {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {selectedIndicators.find(i => i.template_id === activeIndicatorId)?.province_goals.map((pg, index) => (
+                                                {/* Aquí recorremos las metas del indicador activo */}
+                                                {activeInd.province_goals.map((pg, index) => (
                                                     <tr key={`${pg.province_id}-${index}`} className="tr-transparent">
-                                                        <td className="text-oxford-dynamic fw-bold">{pg.province_name}</td>
+                                                        <td className="text-oxford-dynamic fw-bold">{pg.province_name || "Sin nombre"}</td>
                                                         <td>
                                                             <input
                                                                 type="number"
@@ -380,40 +481,143 @@ const ProjectTechnicalSetup = () => {
                                             </tbody>
                                         </table>
                                     </div>
-
-                                    {/* Resumen de Totales Automático */}
-                                    <div className="totals-summary-container mt-4 p-3 bg-oxford text-white rounded-3 shadow">
-                                        <div className="row text-center">
-                                            <div className="col-4">
-                                                <div className="total-label uppercase-label">Total Gral.</div>
-                                                <div className="total-number text-emerald">
-                                                    {selectedIndicators.find(i => i.template_id === activeIndicatorId)?.province_goals.reduce((acc, curr) => acc + curr.total, 0)}
-                                                </div>
-                                            </div>
-                                            <div className="col-4">
-                                                <div className="total-label uppercase-label">Total Hombres</div>
-                                                <div className="total-number m-color">
-                                                    {selectedIndicators.find(i => i.template_id === activeIndicatorId)?.province_goals.reduce((acc, curr) => acc + curr.men, 0)}
-                                                </div>
-                                            </div>
-                                            <div className="col-4">
-                                                <div className="total-label uppercase-label">Total Mujeres</div>
-                                                <div className="total-number w-color">
-                                                    {selectedIndicators.find(i => i.template_id === activeIndicatorId)?.province_goals.reduce((acc, curr) => acc + curr.women, 0)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         ) : (
-                            /* Estado vacío (Placeholder) */
-                            <div className="card shadow-sm border-0 bg-card-dynamic py-5 text-center">
-                                <i className="fas fa-hand-pointer fa-4xl text-emerald mb-3 opacity-25"></i>
-                                <h5 className="text-muted-dynamic">Selecciona un indicador de la izquierda</h5>
-                                <p className="small text-muted">Para desglosar metas por género y provincia</p>
+                            /* ESTADO DE RESUMEN: Aquí es donde el gerente ve sus datos guardados */
+                            <div className="card shadow-sm border-0 bg-white p-4 animate__animated animate__fadeIn">
+                                <div className="text-center mb-4">
+                                    <i className="fas fa-clipboard-check fa-3x text-emerald opacity-50 mb-2"></i>
+                                    <h5 className="text-navy fw-bold">Resumen de Configuración</h5>
+                                    <p className="small text-muted">A continuación se muestran los indicadores ya procesados para este proyecto.</p>
+                                </div>
+                                <div className="table-responsive shadow-sm rounded">
+                                    <table className="table table-hover align-middle mb-0" style={{ fontSize: '0.85rem' }}>
+                                        <thead className="bg-light text-oxford-grey">
+                                            <tr>
+                                                <th>Código</th>
+                                                <th>Meta Total</th>
+                                                <th className="text-center">H / M</th>
+                                                <th>Estado</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {selectedIndicators.length > 0 ? (
+                                                selectedIndicators.map((ind, idx) => (
+                                                    <tr key={idx} className="cursor-pointer" onClick={() => setActiveIndicatorId(ind.template_id)}>
+                                                        <td className="fw-bold text-navy">{ind.code}</td>
+                                                        <td className="fw-bold">
+                                                            {ind.province_goals.reduce((acc, curr) => acc + curr.total, 0)}
+                                                        </td>
+                                                        <td className="text-center">
+                                                            <span className="text-primary">{ind.province_goals.reduce((acc, curr) => acc + curr.men, 0)}</span>
+                                                            <span className="mx-1 text-muted">/</span>
+                                                            <span className="text-danger">{ind.province_goals.reduce((acc, curr) => acc + curr.women, 0)}</span>
+                                                        </td>
+                                                        <td>
+                                                            <span className="badge bg-emerald-light text-emerald border border-emerald">
+                                                                <i className="fas fa-check-circle me-1"></i> Listo
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan="4" className="text-center py-5 text-muted">
+                                                        <i className="fas fa-info-circle me-2"></i>
+                                                        No has configurado ningún indicador todavía.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div className="mt-3 text-end">
+                                    <small className="text-muted italic">* Haz clic en una fila para volver a editar.</small>
+                                </div>
                             </div>
                         )}
+                    </div>
+                    {/* Debajo del árbol de indicadores o en el panel derecho cuando no hay selección */}
+                    {/* TABLA INFERIOR REFORMULADA */}
+                    <div className="mt-5 p-4 rounded shadow-sm bg-white border">
+                        <h5 className="text-oxford-grey fw-bold mb-4 border-bottom pb-2">
+                            <i className="fas fa-project-diagram me-2 text-emerald"></i>
+                            Matriz de Planificación Técnica (Marco Lógico)
+                        </h5>
+                        <div className="table-responsive">
+                            <table className="table table-bordered align-middle">
+                                <thead className="bg-oxford-grey text-white">
+                                    <tr>
+                                        <th style={{ width: '25%' }}>Estructura (Teoría / Resultado)</th>
+                                        <th style={{ width: '20%' }}>Indicador</th>
+                                        <th style={{ width: '15%' }}>Medios de Verificación</th>
+                                        <th className="text-center">Metas Totales</th>
+                                        <th>Observaciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {Object.keys(groupedData).map(tName => (
+                                        <React.Fragment key={tName}>
+                                            {/* NIVEL 1: LA TEORÍA (Fila Oscura) */}
+                                            <tr className="bg-oxford text-white fw-bold">
+                                                <td colSpan="5">
+                                                    <i className="fas fa-university me-2"></i>
+                                                    TEORÍA: {tName}
+                                                </td>
+                                            </tr>
+
+                                            {Object.keys(groupedData[tName]).map(rType => (
+                                                <React.Fragment key={rType}>
+                                                    {Object.keys(groupedData[tName][rType]).map(rName => (
+                                                        <React.Fragment key={rName}>
+                                                            {/* NIVEL 2: EL RESULTADO (abstracto, colectivo, etc.) */}
+                                                            <tr className="bg-light">
+                                                                <td colSpan="5" className="ps-4 border-start border-emerald border-4">
+                                                                    <span className={`badge ${rType.toLowerCase() === 'outcome' ? 'bg-primary' : 'bg-emerald'} me-2`}>
+                                                                        {rType.toUpperCase()}
+                                                                    </span>
+                                                                    <span className="fw-bold text-dark">{rName}</span>
+                                                                </td>
+                                                            </tr>
+
+                                                            {/* NIVEL 3: LOS INDICADORES */}
+                                                            {groupedData[tName][rType][rName].map(ind => (
+                                                                <tr key={ind.template_id}>
+                                                                    <td className="ps-5 text-muted small italic">Detalle del indicador:</td>
+                                                                    <td className="fw-bold">
+                                                                        {ind.code}
+                                                                        <br />
+                                                                        <small className="fw-normal text-muted">{ind.description}</small>
+                                                                    </td>
+                                                                    <td>{ind.verification_means || "---"}</td>
+                                                                    <td className="text-center">
+                                                                        <span className="badge rounded-pill bg-light text-dark border">
+                                                                            {ind.province_goals.reduce((acc, curr) => acc + curr.total, 0)}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="small text-secondary">
+                                                                        {ind.observations || "Sin observaciones"}
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </React.Fragment>
+                                                    ))}
+                                                </React.Fragment>
+                                            ))}
+                                        </React.Fragment>
+                                    ))}
+
+                                    {Object.keys(groupedData).length === 0 && (
+                                        <tr>
+                                            <td colSpan="5" className="text-center py-4 text-muted">
+                                                No hay indicadores seleccionados para mostrar en la matriz.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                     {/* Botón de Guardado Global */}
                     <div className="save-container-floating p-4 d-flex justify-content-end">

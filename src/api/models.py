@@ -271,19 +271,21 @@ class Indicator(db.Model):
 
     project: Mapped["Project"] = relationship(back_populates="indicators")
 
-    # Esta relación guarda las metas del indicador por provincia
+    # Relación con las metas por provincia
     location_goals: Mapped[List["IndicatorLocationGoal"]] = relationship(
         back_populates="indicator", cascade="all, delete-orphan")
     
     project_result_id: Mapped[Optional[int]] = mapped_column(ForeignKey('project_result.id'), nullable=True)
     
-    # Relación
+    # Relaciones adicionales
     project_result: Mapped["ProjectResult"] = relationship(back_populates="indicators")
     template: Mapped["IndicatorTemplate"] = relationship()
+    
+    # Campos de texto para la gestión técnica
     verification_means: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     observations: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    # Meta de gestión del indicador (Puede ser mayor a los beneficiarios únicos)
+    # Metas totales del indicador
     target_total: Mapped[float] = mapped_column(Float, default=0.0)
     target_men: Mapped[float] = mapped_column(Float, default=0.0)
     target_women: Mapped[float] = mapped_column(Float, default=0.0)
@@ -291,13 +293,17 @@ class Indicator(db.Model):
     def serialize(self):
         return {
             "id": self.id_indicator,
+            "template_id": self.template_id, # Útil para que React sepa qué plantilla es
             "indicator_code": self.template.code,
             "description": self.template.description,
+            "verification_means": self.verification_means or "", # Enviamos string vacío si es None
+            "observations": self.observations or "",
             "indicator_targets": {
                 "total": self.target_total,
                 "men": self.target_men,
                 "women": self.target_women
             },
+            # Esto devuelve la lista de metas por provincia ya serializadas
             "goals_by_province": [goal.serialize() for goal in self.location_goals]
         }
 
@@ -360,8 +366,13 @@ class IndicatorLocationGoal(db.Model):
 
     def serialize(self):
         return {
-            "province_name": self.province.name,
-            "target": self.total_target
+            "id_ilg": self.id_ilg,
+            "indicator_id": self.indicator_id,
+            "province_id": self.province_id,
+            "province_name": self.province.name if self.province else None,
+            "target": self.total_target,
+            "men": self.men,
+            "women": self.women
         }
 
 # --- CATÁLOGOS ADICIONALES ---
