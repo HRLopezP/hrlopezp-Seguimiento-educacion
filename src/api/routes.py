@@ -2,7 +2,7 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 from flask import Flask, request, jsonify, url_for, Blueprint, json
-from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish, ProjectProvinceGoal
+from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish, ProjectProvinceGoal, ProjectTheory, ProjectResult
 from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -1120,59 +1120,65 @@ def update_project(id):
 @api.route('/indicators/bulk', methods=['PATCH', 'POST'])
 @jwt_required()
 def bulk_indicators():
-    data = request.json  # Esperamos un array de indicadores
+    data = request.json
     project_id = data.get("project_id")
     indicators_list = data.get("indicators", [])
 
     if not project_id:
         return jsonify({"msg": "Falta el ID del proyecto"}), 400
 
-    processed_indicators = []
-
     for item in indicators_list:
-        # Buscamos si este indicador (basado en su plantilla) ya existe en este proyecto
+        # Buscamos si ya existe para hacer UPSERT
         indicator = Indicator.query.filter_by(
             project_id=project_id,
             template_id=item['template_id']
         ).first()
 
         if indicator:
-            # --- CASO 1: ACTUALIZAR (UPSERT) ---
-            indicator.target_total = item.get(
-                'target_total', indicator.target_total)
+            # ACTUALIZAR
+            indicator.target_total = item.get('target_total', indicator.target_total)
             indicator.target_men = item.get('target_men', indicator.target_men)
-            indicator.target_women = item.get(
-                'target_women', indicator.target_women)
+            indicator.target_women = item.get('target_women', indicator.target_women)
+            # --- NUEVOS CAMPOS ---
+            indicator.verification_means = item.get('verification_means', indicator.verification_means)
+            indicator.observations = item.get('observations', indicator.observations)
         else:
-            # --- CASO 2: CREAR NUEVO ---
+            # CREAR NUEVO
             indicator = Indicator(
                 project_id=project_id,
                 template_id=item['template_id'],
                 target_total=item.get('target_total', 0),
                 target_men=item.get('target_men', 0),
-                target_women=item.get('target_women', 0)
+                target_women=item.get('target_women', 0),
+                verification_means=item.get('verification_means', ""),
+                observations=item.get('observations', "")
             )
             db.session.add(indicator)
 
-        db.session.flush()  # Para obtener el ID del indicador si es nuevo
+        db.session.flush() 
 
-        # Manejo de metas por provincia (IndicatorLocationGoal)
+        # Manejo de metas por provincia
         if 'goals_by_province' in item:
-            # Limpiamos metas viejas de este indicador para este "upsert"
-            IndicatorLocationGoal.query.filter_by(
-                indicator_id=indicator.id_indicator).delete()
-
+            # Borramos las anteriores para este indicador
+            IndicatorLocationGoal.query.filter_by(indicator_id=indicator.id_indicator).delete()
+            
             for goal in item['goals_by_province']:
                 new_goal = IndicatorLocationGoal(
                     indicator_id=indicator.id_indicator,
                     province_id=goal['province_id'],
-                    total_target=goal['target']
+                    total_target=goal.get('target', 0),
+                    # --- AHORA GUARDAMOS DESGLOSE POR PROVINCIA ---
+                    men=goal.get('target_men', 0), 
+                    women=goal.get('target_women', 0)
                 )
                 db.session.add(new_goal)
 
-    db.session.commit()
-    return jsonify({"msg": "Indicadores procesados correctamente"}), 200
-
+    try:
+        db.session.commit()
+        return jsonify({"msg": "Configuración técnica guardada con éxito"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": f"Error en la base de datos: {str(e)}"}), 500
 
 @api.route('/projects/<int:id>/summary', methods=['GET'])
 @jwt_required()
@@ -1441,3 +1447,203 @@ def get_managers():
     managers = User.query.join(Rol).filter(
         Rol.name_rol == 'Gerente', User.is_active == True).all()
     return jsonify([m.serialize() for m in managers]), 200
+
+
+@api.route('/project/<int:proj_id>/assign-technical-data', methods=['POST'])
+@jwt_required()
+@manager_required
+def assign_technical_data(proj_id):
+    data = request.json
+    current_user_id = get_jwt_identity()
+    
+    comp_id = data.get("competence_id")
+    theory_temp_id = data.get("theory_id")
+    selected_ind_ids = data.get("indicator_ids", []) 
+
+    # 1. Validación de permiso
+    pc = ProjectCompetence.query.filter_by(
+        project_id=proj_id, 
+        competence_id=comp_id, 
+        manager_id=current_user_id
+    ).first()
+
+    if not pc:
+        return jsonify({"message": "No tienes permiso para esta competencia"}), 403
+
+    try:
+        # 2. Manejo de ProjectTheory
+        proj_theory = ProjectTheory.query.filter_by(
+            project_id=proj_id, 
+            theory_template_id=theory_temp_id
+        ).first()
+        
+        if not proj_theory:
+            proj_theory = ProjectTheory(
+                project_id=proj_id,
+                project_competence_id=pc.id_pc,
+                theory_template_id=theory_temp_id
+            )
+            db.session.add(proj_theory)
+            db.session.flush() # Para obtener el ID de proj_theory
+
+        # 3. Traer moldes de indicadores
+        ind_templates = IndicatorTemplate.query.filter(IndicatorTemplate.id.in_(selected_ind_ids)).all()
+        
+        # Obtenemos los IDs únicos de los resultados (moldes)
+        result_template_ids = set([it.result_id for it in ind_templates])
+
+        for r_temp_id in result_template_ids:
+            # !! CAMBIO AQUÍ: Buscar por result_template_id (según tu modelo)
+            p_res = ProjectResult.query.filter_by(
+                project_theory_id=proj_theory.id,
+                result_template_id=r_temp_id # Nombre correcto según tu clase ProjectResult
+            ).first()
+            
+            if not p_res:
+                p_res = ProjectResult(
+                    project_theory_id=proj_theory.id,
+                    result_template_id=r_temp_id
+                )
+                db.session.add(p_res)
+                db.session.flush()
+
+            # 4. Vincular indicadores reales
+            for it in ind_templates:
+                if it.result_id == r_temp_id:
+                    exists = Indicator.query.filter_by(
+                        project_id=proj_id, 
+                        template_id=it.id
+                    ).first()
+                    
+                    if not exists:
+                        new_ind = Indicator(
+                            project_id=proj_id,
+                            template_id=it.id,
+                            # !! REVISIÓN: Tu modelo Indicator tiene project_result_id como ForeignKey
+                            project_result_id=p_res.id, 
+                            target_total=0.0
+                        )
+                        db.session.add(new_ind)
+
+        db.session.commit()
+        return jsonify({"message": "¡SIGSSEP actualizado! Plan técnico vinculado."}), 201
+
+    except Exception as e:
+        db.session.rollback()
+        # Imprime el error en la consola de Flask para que lo veamos claro
+        print(f"ERROR EN BACKEND: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@api.route('/competence/<int:comp_id>/theories', methods=['GET'])
+@jwt_required()
+def get_competence_theories(comp_id):
+    # Buscamos la competencia en la base de datos
+    competence = Competence.query.get(comp_id)
+    
+    if not competence:
+        return jsonify({"message": "Competencia no encontrada"}), 404
+    
+    # Esto devuelve la lista de teorías asociadas a esa competencia
+    # Cada teoría ya trae sus resultados e indicadores gracias al .serialize() que definiste
+    return jsonify([theory.serialize() for theory in competence.theories]), 200
+
+
+#proyectos por gerente
+@api.route('/my-assigned-projects', methods=['GET'])
+@jwt_required()
+@manager_required
+def get_my_assignments():
+    current_user_id = get_jwt_identity()
+    
+    # Buscamos en ProjectCompetence todas las asignaciones de este usuario
+    assignments = ProjectCompetence.query.filter_by(manager_id=current_user_id).all()
+    
+    # Devolvemos los proyectos únicos asociados a esas asignaciones
+    results = []
+    for asig in assignments:
+        results.append({
+            "project_id": asig.project_id,
+            "project_name": asig.project.project_name,
+            "project_code": asig.project.code,
+            "competence_id": asig.competence_id,
+            "competence_name": asig.competence.name,
+            "status": asig.project.status
+        })
+    
+    return jsonify(results), 200
+
+
+#agregar datos técnicos al indicador
+@api.route('/indicators/<int:ind_id>/complete-data', methods=['PUT'])
+@jwt_required()
+@manager_required
+def complete_indicator_data(ind_id):
+    data = request.json
+    indicator = Indicator.query.get(ind_id)
+    
+    if not indicator:
+        return jsonify({"message": "Indicador no encontrado"}), 404
+
+    # Actualizamos los campos de texto (Asegúrate de haberlos añadido al modelo)
+    # Si no los has añadido, puedes usar target_total por ahora
+    indicator.target_total = data.get("target_total", indicator.target_total)
+    indicator.target_men = data.get("target_men", indicator.target_men)
+    indicator.target_women = data.get("target_women", indicator.target_women)
+    
+    # Si añadiste verification_means y observations al modelo:
+    if hasattr(indicator, 'verification_means'):
+        indicator.verification_means = data.get("verification_means", indicator.verification_means)
+    if hasattr(indicator, 'observations'):
+        indicator.observations = data.get("observations", indicator.observations)
+
+    # --- MANEJO DE METAS POR ESTADO/PROVINCIA ---
+    # Si vienen metas por provincia, las actualizamos
+    if 'province_goals' in data:
+        # Borramos las anteriores para este indicador y creamos las nuevas (Upsert)
+        IndicatorLocationGoal.query.filter_by(indicator_id=ind_id).delete()
+        
+        for pg in data['province_goals']:
+            new_goal = IndicatorLocationGoal(
+                indicator_id=ind_id,
+                province_id=pg['province_id'],
+                total_target=pg['total_target'],
+                men=pg.get('men', 0),
+                women=pg.get('women', 0)
+            )
+            db.session.add(new_goal)
+
+    try:
+        db.session.commit()
+        return jsonify({"message": "Datos técnicos actualizados correctamente"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+    
+
+#Obtener progreso de una competencia en un proyecto
+@api.route('/project/<int:proj_id>/competence/<int:comp_id>/technical-status', methods=['GET'])
+@jwt_required()
+def get_technical_status(proj_id, comp_id):
+    # Buscamos la teoría asignada para este proyecto y esta competencia
+    # Primero buscamos la asignación de competencia para obtener el ID de ProjectCompetence
+    pc = ProjectCompetence.query.filter_by(project_id=proj_id, competence_id=comp_id).first()
+    
+    if not pc:
+        return jsonify({"message": "No hay datos para esta competencia en este proyecto"}), 404
+
+    # Buscamos las teorías asignadas a través de esa competencia
+    theories = ProjectTheory.query.filter_by(project_competence_id=pc.id_pc).all()
+    
+    return jsonify([t.serialize() for t in theories]), 200
+
+
+# para mostrar los indicadores de un proyecto en específico
+@api.route('/projects/<int:project_id>/indicators', methods=['GET'])
+@jwt_required()
+def get_project_indicators(project_id):
+    # Buscamos todos los indicadores que ya pertenecen a este proyecto
+    indicators = Indicator.query.filter_by(project_id=project_id).all()
+    
+    # Usamos el serialize() que revisamos antes para enviar toda la info técnica
+    return jsonify([ind.serialize() for ind in indicators]), 200
