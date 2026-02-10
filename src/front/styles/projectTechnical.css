@@ -1,0 +1,50 @@
+/* Asegura que el encabezado de la matriz no se pierda al hacer scroll */
+.table-responsive {
+    max-height: 70vh; /* Ajusta la altura según necesites */
+    overflow-y: auto;
+}
+
+.table thead.bg-oxford-grey {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.hover-translate-x:hover i {
+    transform: translateX(-4px);
+    transition: transform 0.2s ease;
+}
+.hover-translate-x i {
+    transition: transform 0.2s ease;
+}
+
+.cursor-pointer {
+    cursor: pointer !important;
+    transition: background-color 0.2s ease;
+}
+
+.cursor-pointer:hover {
+    background-color: rgba(16, 185, 129, 0.05) !important; /* Un toque verde muy sutil */
+}
+
+/* Clase para la fila que aparece */
+.row-fade-in {
+    animation: fadeInSlide 0.4s ease-out forwards;
+}
+
+@keyframes fadeInSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-10px); /* Viene un poquito desde arriba */
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Efecto hover para que el usuario sepa que la Teoría es clickeable */
+.theory-row:hover {
+    background-color: #2c3e50 !important; /* Un tono un poco más claro que el oxford-grey */
+    transition: background-color 0.3s ease;
+}

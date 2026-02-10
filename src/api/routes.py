@@ -1127,55 +1127,64 @@ def bulk_indicators():
     if not project_id:
         return jsonify({"msg": "Falta el ID del proyecto"}), 400
 
-    for item in indicators_list:
-        # Buscamos si ya existe para hacer UPSERT
-        indicator = Indicator.query.filter_by(
-            project_id=project_id,
-            template_id=item['template_id']
-        ).first()
-
-        if indicator:
-            # ACTUALIZAR
-            indicator.target_total = item.get('target_total', indicator.target_total)
-            indicator.target_men = item.get('target_men', indicator.target_men)
-            indicator.target_women = item.get('target_women', indicator.target_women)
-            # --- NUEVOS CAMPOS ---
-            indicator.verification_means = item.get('verification_means', indicator.verification_means)
-            indicator.observations = item.get('observations', indicator.observations)
-        else:
-            # CREAR NUEVO
-            indicator = Indicator(
-                project_id=project_id,
-                template_id=item['template_id'],
-                target_total=item.get('target_total', 0),
-                target_men=item.get('target_men', 0),
-                target_women=item.get('target_women', 0),
-                verification_means=item.get('verification_means', ""),
-                observations=item.get('observations', "")
-            )
-            db.session.add(indicator)
-
-        db.session.flush() 
-
-        # Manejo de metas por provincia
-        if 'goals_by_province' in item:
-            # Borramos las anteriores para este indicador
-            IndicatorLocationGoal.query.filter_by(indicator_id=indicator.id_indicator).delete()
-            
-            for goal in item['goals_by_province']:
-                new_goal = IndicatorLocationGoal(
-                    indicator_id=indicator.id_indicator,
-                    province_id=goal['province_id'],
-                    total_target=goal.get('target', 0),
-                    # --- AHORA GUARDAMOS DESGLOSE POR PROVINCIA ---
-                    men=goal.get('target_men', 0), 
-                    women=goal.get('target_women', 0)
-                )
-                db.session.add(new_goal)
-
     try:
+        # --- PASO 1: ELIMINACIÓN DE INDICADORES OMITIDOS ---
+        # Obtenemos los IDs de los indicadores que vienen del frontend
+        received_template_ids = [item['template_id'] for item in indicators_list]
+        
+        # Buscamos indicadores en la DB que NO estén en la lista recibida
+        to_delete = Indicator.query.filter(
+            Indicator.project_id == project_id,
+            ~Indicator.template_id.in_(received_template_ids)
+        ).all()
+
+        for ind in to_delete:
+            # Primero borramos sus metas por provincia (por la integridad referencial)
+            IndicatorLocationGoal.query.filter_by(indicator_id=ind.id_indicator).delete()
+            # Luego borramos el indicador
+            db.session.delete(ind)
+        
+        # --- PASO 2: PROCESAR EL UPSERT (Tu código original) ---
+        for item in indicators_list:
+            indicator = Indicator.query.filter_by(
+                project_id=project_id,
+                template_id=item['template_id']
+            ).first()
+
+            if indicator:
+                indicator.target_total = item.get('target_total', indicator.target_total)
+                indicator.target_men = item.get('target_men', indicator.target_men)
+                indicator.target_women = item.get('target_women', indicator.target_women)
+                indicator.verification_means = item.get('verification_means', indicator.verification_means)
+                indicator.observations = item.get('observations', indicator.observations)
+            else:
+                indicator = Indicator(
+                    project_id=project_id,
+                    template_id=item['template_id'],
+                    target_total=item.get('target_total', 0),
+                    target_men=item.get('target_men', 0),
+                    target_women=item.get('target_women', 0),
+                    verification_means=item.get('verification_means', ""),
+                    observations=item.get('observations', "")
+                )
+                db.session.add(indicator)
+
+            db.session.flush() 
+
+            if 'goals_by_province' in item:
+                IndicatorLocationGoal.query.filter_by(indicator_id=indicator.id_indicator).delete()
+                for goal in item['goals_by_province']:
+                    new_goal = IndicatorLocationGoal(
+                        indicator_id=indicator.id_indicator,
+                        province_id=goal['province_id'],
+                        total_target=goal.get('target', 0),
+                        men=goal.get('target_men', 0), 
+                        women=goal.get('target_women', 0)
+                    )
+                    db.session.add(new_goal)
+
         db.session.commit()
-        return jsonify({"msg": "Configuración técnica guardada con éxito"}), 200
+        return jsonify({"msg": "Configuración técnica sincronizada con éxito"}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"msg": f"Error en la base de datos: {str(e)}"}), 500
