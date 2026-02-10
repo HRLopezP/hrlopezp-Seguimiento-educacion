@@ -1,0 +1,19 @@
+/* Asegura que el encabezado de la matriz no se pierda al hacer scroll */
+.table-responsive {
+    max-height: 70vh; /* Ajusta la altura según necesites */
+    overflow-y: auto;
+}
+
+.table thead.bg-oxford-grey {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.hover-translate-x:hover i {
+    transform: translateX(-4px);
+    transition: transform 0.2s ease;
+}
+.hover-translate-x i {
+    transition: transform 0.2s ease;
+}

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from "../../utils/api";
 import { toast, Toaster } from 'sonner';
 import Swal from 'sweetalert2';
 import "../styles/projectDetail.css";
+import "../styles/projectTechnical.css";
 
 const ProjectTechnicalSetup = () => {
     const { projectId } = useParams();
@@ -16,6 +17,7 @@ const ProjectTechnicalSetup = () => {
     const [selectedIndicators, setSelectedIndicators] = useState([]); // Array de objetos con datos técnicos
     const [expandedResults, setExpandedResults] = useState({}); // Para abrir/cerrar Outcomes-Outputs
     const [activeIndicatorId, setActiveIndicatorId] = useState(null);
+    const navigate = useNavigate();
 
     const groupedData = selectedIndicators.reduce((acc, ind) => {
         // Si por algún milagro fallan los nombres, no ponemos "General", 
@@ -220,6 +222,60 @@ const ProjectTechnicalSetup = () => {
         return context;
     };
 
+    const confirmDelete = (indicatorId, code) => {
+        Swal.fire({
+            title: `¿Eliminar indicador ${code}?`,
+            text: "Se borrará permanentemente del servidor.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            confirmButtonText: 'Sí, eliminar de la DB',
+            cancelButtonText: 'Cancelar'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                // 1. Filtramos localmente
+                const updatedIndicators = selectedIndicators.filter(i => i.template_id !== indicatorId);
+
+                // 2. Transformamos exacto como en handleSaveAll (Tu lógica de image_ae4889.png)
+                const formattedData = {
+                    project_id: parseInt(projectId),
+                    indicators: updatedIndicators.map(ind => ({
+                        template_id: ind.template_id,
+                        target_total: ind.province_goals.reduce((acc, curr) => acc + curr.total, 0),
+                        target_men: ind.province_goals.reduce((acc, curr) => acc + curr.men, 0),
+                        target_women: ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
+                        verification_means: ind.verification_means,
+                        observations: ind.observations,
+                        goals_by_province: ind.province_goals.map(pg => ({
+                            province_id: pg.province_id,
+                            target: pg.total,
+                            target_men: pg.men,
+                            target_women: pg.women
+                        }))
+                    }))
+                };
+
+                try {
+                    // 3. ¡LLAMADA VITAL AL BACKEND!
+                    const res = await apiFetch('/indicators/bulk', {
+                        method: 'POST',
+                        body: JSON.stringify(formattedData)
+                    });
+
+                    if (res.ok) {
+                        setSelectedIndicators(updatedIndicators); // Actualiza pantalla
+                        if (activeIndicatorId === indicatorId) setActiveIndicatorId(null);
+                        toast.success("Eliminado permanentemente del servidor");
+                    } else {
+                        toast.error("El servidor recibió la orden pero no borró el dato.");
+                    }
+                } catch (error) {
+                    toast.error("Error de conexión con el servidor.");
+                }
+            }
+        });
+    };
+
     // 1. Cargar datos iniciales
     useEffect(() => {
         const loadInitialData = async () => {
@@ -307,6 +363,16 @@ const ProjectTechnicalSetup = () => {
         <div className="management-page-container">
             <Toaster richColors position="top-right" />
             <div className="container mt-4">
+                <div className="mb-4">
+                    <button
+                        onClick={() => navigate('/manager/projects')}
+                        className="btn btn-link text-decoration-none text-muted p-0 d-inline-flex align-items-center transition-all hover-translate-x"
+                        style={{ fontSize: '0.9rem', fontWeight: '500' }}
+                    >
+                        <i className="fas fa-arrow-left me-2"></i>
+                        Volver a la lista de proyectos
+                    </button>
+                </div>
                 <div className="management-card-header mb-4 shadow-sm rounded-3 p-3 bg-white">
                     <h2 className="management-title">Configuración Técnica</h2>
                     <p className="text-muted">Proyecto: <span className="fw-bold text-oxford-grey">{project?.project_name}</span></p>
@@ -368,6 +434,7 @@ const ProjectTechnicalSetup = () => {
                                                                 type="checkbox"
                                                                 id={`ind-${ind.id}`}
                                                                 checked={selectedIndicators.some(i => i.template_id === ind.id)}
+                                                                disabled={selectedIndicators.some(i => i.template_id === ind.id)}
                                                                 onChange={(e) => handleIndicatorToggle(ind, e.target.checked)}
                                                             />
                                                             <label className="form-check-label small d-block cursor-pointer" htmlFor={`ind-${ind.id}`}>
@@ -506,18 +573,39 @@ const ProjectTechnicalSetup = () => {
                                                 selectedIndicators.map((ind, idx) => (
                                                     <tr key={idx} className="cursor-pointer" onClick={() => setActiveIndicatorId(ind.template_id)}>
                                                         <td className="fw-bold text-navy">{ind.code}</td>
-                                                        <td className="fw-bold">
-                                                            {ind.province_goals.reduce((acc, curr) => acc + curr.total, 0)}
+                                                        <td className="fw-bold text-center">
+                                                            <span className="badge bg-navy-light text-navy px-3 py-2" style={{ fontSize: '0.9rem' }}>
+                                                                {ind.province_goals.reduce((acc, curr) => acc + (curr.total || 0), 0)}
+                                                            </span>
                                                         </td>
                                                         <td className="text-center">
-                                                            <span className="text-primary">{ind.province_goals.reduce((acc, curr) => acc + curr.men, 0)}</span>
-                                                            <span className="mx-1 text-muted">/</span>
-                                                            <span className="text-danger">{ind.province_goals.reduce((acc, curr) => acc + curr.women, 0)}</span>
+                                                            <div className="d-flex justify-content-center gap-1">
+                                                                <span className="badge bg-blue-100 text-primary border border-primary-subtle" title="Hombres">
+                                                                    <i className="fas fa-mars me-1"></i>
+                                                                    {ind.province_goals.reduce((acc, curr) => acc + (curr.men || 0), 0)}
+                                                                </span>
+                                                                <span className="badge bg-pink-100 text-danger border border-danger-subtle" title="Mujeres">
+                                                                    <i className="fas fa-venus me-1"></i>
+                                                                    {ind.province_goals.reduce((acc, curr) => acc + (curr.women || 0), 0)}
+                                                                </span>
+                                                            </div>
                                                         </td>
                                                         <td>
                                                             <span className="badge bg-emerald-light text-emerald border border-emerald">
                                                                 <i className="fas fa-check-circle me-1"></i> Listo
                                                             </span>
+                                                        </td>
+                                                        <td className="text-end">
+                                                            <button
+                                                                className="btn btn-sm btn-outline-danger border-0"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation(); // ¡Importante! Evita que se dispare el onClick de la fila
+                                                                    confirmDelete(ind.template_id, ind.code);
+                                                                }}
+                                                                title="Eliminar este indicador"
+                                                            >
+                                                                <i className="fas fa-trash-alt"></i>
+                                                            </button>
                                                         </td>
                                                     </tr>
                                                 ))
@@ -560,9 +648,9 @@ const ProjectTechnicalSetup = () => {
                                     {Object.keys(groupedData).map(tName => (
                                         <React.Fragment key={tName}>
                                             {/* NIVEL 1: LA TEORÍA (Fila Oscura) */}
-                                            <tr className="bg-oxford text-white fw-bold">
-                                                <td colSpan="5">
-                                                    <i className="fas fa-university me-2"></i>
+                                            <tr className="bg-oxford text-white fw-bold shadow-sm">
+                                                <td colSpan="5" className="py-3">
+                                                    <i className="fas fa-university me-2 text-emerald"></i>
                                                     TEORÍA: {tName}
                                                 </td>
                                             </tr>
@@ -575,6 +663,8 @@ const ProjectTechnicalSetup = () => {
                                                             <tr className="bg-light">
                                                                 <td colSpan="5" className="ps-4 border-start border-emerald border-4">
                                                                     <span className={`badge ${rType.toLowerCase() === 'outcome' ? 'bg-primary' : 'bg-emerald'} me-2`}>
+                                                                        {/* ICONO DINÁMICO SEGÚN EL TIPO */}
+                                                                        <i className={`fas ${rType.toLowerCase() === 'outcome' ? 'fa-bullseye' : 'fa-cube'} me-1`}></i>
                                                                         {rType.toUpperCase()}
                                                                     </span>
                                                                     <span className="fw-bold text-dark">{rName}</span>
