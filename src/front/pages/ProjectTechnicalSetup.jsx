@@ -18,6 +18,15 @@ const ProjectTechnicalSetup = () => {
     const [expandedResults, setExpandedResults] = useState({}); // Para abrir/cerrar Outcomes-Outputs
     const [activeIndicatorId, setActiveIndicatorId] = useState(null);
     const navigate = useNavigate();
+    const [expandedTheories, setExpandedTheories] = useState({});
+
+    // Función para cambiar el estado (abrir/cerrar)
+    const toggleTheory = (tName) => {
+        setExpandedTheories(prev => ({
+            ...prev,
+            [tName]: !prev[tName]
+        }));
+    };
 
 
     const getIndicatorContext = (templateId, allTheories) => {
@@ -656,7 +665,7 @@ const ProjectTechnicalSetup = () => {
                                 <thead className="bg-oxford-grey text-white">
                                     <tr>
                                         <th style={{ width: '25%' }}>Teoría / Resultado / código</th>
-                                        <th style={{ width: '20%' }}>Título <br/> <div className="text-muted">descripción</div></th>
+                                        <th style={{ width: '20%' }}>Título <br /> <div className="text-muted">descripción</div></th>
                                         <th style={{ width: '15%' }}>Medios de Verificación</th>
                                         <th className="text-center">Metas por estado</th>
                                         <th>Observaciones</th>
@@ -666,18 +675,37 @@ const ProjectTechnicalSetup = () => {
                                     {Object.keys(groupedData).map(tName => (
                                         <React.Fragment key={tName}>
                                             {/* NIVEL 1: TEORÍA */}
-                                            <tr className="bg-oxford-grey text-white fw-bold">
+                                            <tr
+                                                className="bg-oxford-grey text-white fw-bold theory-row"
+                                                onClick={() => toggleTheory(tName)}
+                                                style={{ cursor: 'pointer', userSelect: 'none' }}
+                                            >
                                                 <td colSpan="5" className="py-2 px-3">
-                                                    <i className="fas fa-university me-2 text-emerald"></i>TEORÍA: {tName}
+                                                    <div className="d-flex justify-content-between align-items-center">
+                                                        <span>
+                                                            <i
+                                                                className={`fas fa-chevron-right me-3 text-emerald`}
+                                                                style={{
+                                                                    transform: expandedTheories[tName] ? 'rotate(90deg)' : 'rotate(0deg)',
+                                                                    transition: 'transform 0.3s ease'
+                                                                }}
+                                                            ></i>
+                                                            <i className="fas fa-university me-2 text-emerald"></i>
+                                                            TEORÍA: {tName}
+                                                        </span>
+                                                        <small className="text-emerald opacity-75" style={{ fontSize: '0.65rem' }}>
+                                                            {expandedTheories[tName] ? 'CONTRAER' : 'EXPANDIR'}
+                                                        </small>
+                                                    </div>
                                                 </td>
                                             </tr>
 
-                                            {Object.keys(groupedData[tName]).map(rType => (
+                                            {expandedTheories[tName] && Object.keys(groupedData[tName]).map(rType => (
                                                 <React.Fragment key={rType}>
                                                     {Object.keys(groupedData[tName][rType]).map(rName => (
                                                         <React.Fragment key={rName}>
                                                             {/* NIVEL 2: RESULTADO */}
-                                                            <tr className="bg-light">
+                                                            <tr className="bg-light row-fade-in">
                                                                 <td colSpan="5" className="ps-4 border-start border-emerald border-4">
                                                                     <span className={`badge ${rType.toLowerCase() === 'outcome' ? 'bg-primary' : 'bg-emerald'} me-2`}>
                                                                         {rType.toUpperCase()}
@@ -688,7 +716,7 @@ const ProjectTechnicalSetup = () => {
 
                                                             {/* NIVEL 3: INDICADORES */}
                                                             {groupedData[tName][rType][rName].map(ind => (
-                                                                <tr key={ind.template_id}>
+                                                                <tr key={ind.template_id} className="row-fade-in">
                                                                     <td className="fw-bold text-center" style={{ verticalAlign: 'top' }}>
                                                                         <span className="text-emerald">{ind.code}</span>
                                                                     </td>
