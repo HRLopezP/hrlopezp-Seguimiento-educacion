@@ -66,6 +66,7 @@ const ProjectTechnicalSetup = () => {
     }, {});
 
     const handleMetaChange = (indicatorId, provinceId, field, value) => {
+        const numValue = value === '' ? 0 : Number(value);
         setSelectedIndicators(prev => prev.map(ind => {
             if (ind.template_id === indicatorId) {
                 const updatedProvinces = ind.province_goals.map(p => {
@@ -538,24 +539,27 @@ const ProjectTechnicalSetup = () => {
                                                             <input
                                                                 type="number"
                                                                 className={`form-control form-control-sm meta-input ${(pg.men + pg.women !== pg.total) ? 'border-danger text-danger' : ''}`}
-                                                                value={pg.total}
+                                                                value={pg.total === 0 ? '' : pg.total}
                                                                 onChange={(e) => handleMetaChange(activeIndicatorId, pg.province_id, 'total', e.target.value)}
+                                                                placeholder="0"
                                                             />
                                                         </td>
                                                         <td>
                                                             <input
                                                                 type="number"
                                                                 className="form-control form-control-sm border-primary-subtle"
-                                                                value={pg.men}
+                                                                value={pg.men === 0 ? '' : pg.men}
                                                                 onChange={(e) => handleMetaChange(activeIndicatorId, pg.province_id, 'men', e.target.value)}
+                                                                placeholder="0"
                                                             />
                                                         </td>
                                                         <td>
                                                             <input
                                                                 type="number"
                                                                 className="form-control form-control-sm border-danger-subtle"
-                                                                value={pg.women}
+                                                                value={pg.women === 0 ? '' : pg.women}
                                                                 onChange={(e) => handleMetaChange(activeIndicatorId, pg.province_id, 'women', e.target.value)}
+                                                                placeholder="0"
                                                             />
                                                         </td>
                                                     </tr>
@@ -586,7 +590,7 @@ const ProjectTechnicalSetup = () => {
                                         <tbody>
                                             {selectedIndicators.length > 0 ? (
                                                 selectedIndicators.map((ind, idx) => (
-                                                    <tr key={idx} className="cursor-pointer" onClick={() => setActiveIndicatorId(ind.template_id)}>
+                                                    <tr key={idx} className="cursor-pointer border-bottom" onClick={() => setActiveIndicatorId(ind.template_id)}>
                                                         <td className="fw-bold text-navy">{ind.code}</td>
                                                         <td className="fw-bold text-center">
                                                             <span className="badge bg-navy-light text-navy px-3 py-2" style={{ fontSize: '0.9rem' }}>

@@ -17,3 +17,12 @@
 .hover-translate-x i {
     transition: transform 0.2s ease;
 }
+
+.cursor-pointer {
+    cursor: pointer !important;
+    transition: background-color 0.2s ease;
+}
+
+.cursor-pointer:hover {
+    background-color: rgba(16, 185, 129, 0.05) !important; /* Un toque verde muy sutil */
+}
