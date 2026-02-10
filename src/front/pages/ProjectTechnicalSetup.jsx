@@ -19,6 +19,7 @@ const ProjectTechnicalSetup = () => {
     const [activeIndicatorId, setActiveIndicatorId] = useState(null);
     const navigate = useNavigate();
     const [expandedTheories, setExpandedTheories] = useState({});
+    const [masterMeans, setMasterMeans] = useState([]);
 
     // Función para cambiar el estado (abrir/cerrar)
     const toggleTheory = (tName) => {
@@ -195,7 +196,7 @@ const ProjectTechnicalSetup = () => {
             project_id: parseInt(projectId),
             indicators: selectedIndicators.map(ind => ({
                 template_id: ind.template_id,
-                // Campos para la tabla 'Indicator'
+                means_ids: ind.means_ids || [],
                 target_total: ind.province_goals.reduce((acc, curr) => acc + curr.total, 0),
                 target_men: ind.province_goals.reduce((acc, curr) => acc + curr.men, 0),
                 target_women: ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
@@ -266,6 +267,7 @@ const ProjectTechnicalSetup = () => {
                     project_id: parseInt(projectId),
                     indicators: updatedIndicators.map(ind => ({
                         template_id: ind.template_id,
+                        means_ids: ind.means_ids || [],
                         target_total: ind.province_goals.reduce((acc, curr) => acc + curr.total, 0),
                         target_men: ind.province_goals.reduce((acc, curr) => acc + curr.men, 0),
                         target_women: ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
@@ -378,6 +380,17 @@ const ProjectTechnicalSetup = () => {
             fetchTheories();
         }
     }, [selectedComp]);
+
+    useEffect(() => {
+        const loadMasterMeans = async () => {
+            const res = await apiFetch("/verification-means");
+            if (res?.ok) {
+                const data = await res.json();
+                setMasterMeans(data);
+            }
+        };
+        loadMasterMeans();
+    }, []);
 
     const currentTheory = theories.find(t => String(t.id) === String(selectedTheoryId));
     const activeInd = selectedIndicators.find(i => i.template_id === activeIndicatorId);
@@ -501,19 +514,56 @@ const ProjectTechnicalSetup = () => {
 
                                 <div className="card-body">
                                     <div className="row mb-4">
-                                        <div className="col-md-6">
-                                            <label className="uppercase-label text-muted-dynamic">Medios de Verificación</label>
-                                            <textarea
-                                                className="form-control"
-                                                rows="2"
-                                                placeholder="Ej: Listas de asistencia, fotos..."
-                                                // Usamos activeInd directamente
+                                        <div className="col-md-7">
+                                            <label className="uppercase-label text-muted-dynamic d-block mb-2">
+                                                <i className="fas fa-check-double me-2"></i>Medios de Verificación (Catálogo)
+                                            </label>
+                                            <div className="means-selection-list p-2 border rounded bg-light custom-scrollbar"
+                                                style={{ height: '160px', overflowY: 'auto', background: '#f8fafc' }}>
+
+                                                {masterMeans.map(mean => (
+                                                    <div key={mean.id} className="custom-check-item p-2 mb-1 rounded hover-shadow">
+                                                        <div className="form-check d-flex align-items-center m-0 w-100">
+                                                            <input
+                                                                className="form-check-input flex-shrink-0"
+                                                                type="checkbox"
+                                                                id={`mean-${mean.id}`}
+                                                                style={{ marginTop: '0', cursor: 'pointer' }} // Alineación manual fina
+                                                                checked={(activeInd.means_ids || []).includes(mean.id)}
+                                                                onChange={(e) => {
+                                                                    let currentIds = [...(activeInd.means_ids || [])];
+                                                                    if (e.target.checked) {
+                                                                        currentIds.push(mean.id);
+                                                                    } else {
+                                                                        currentIds = currentIds.filter(id => id !== mean.id);
+                                                                    }
+                                                                    handleInfoChange(activeIndicatorId, 'means_ids', currentIds);
+                                                                }}
+                                                            />
+                                                            <label
+                                                                className="form-check-label ps-2 flex-grow-1 cursor-pointer mb-0"
+                                                                htmlFor={`mean-${mean.id}`}
+                                                                style={{ fontSize: '0.88rem', lineHeight: '1.2', color: '#334155' }}
+                                                            >
+                                                                {mean.name}
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            {/* Campo híbrido: Nota extra para medios */}
+                                            <input
+                                                type="text"
+                                                className="form-control form-control-sm mt-2"
+                                                placeholder="Nota adicional sobre medios..."
                                                 value={activeInd.verification_means || ''}
                                                 onChange={(e) => handleInfoChange(activeIndicatorId, 'verification_means', e.target.value)}
                                             />
                                         </div>
-                                        <div className="col-md-6">
-                                            <label className="uppercase-label text-muted-dynamic">Observaciones</label>
+                                        <div className="col-md-5">
+                                            <label className="uppercase-label text-muted-dynamic">
+                                                <i className="fas fa-comment-dots me-2"></i>Observaciones Técnicas
+                                            </label>
                                             <textarea
                                                 className="form-control"
                                                 rows="2"
@@ -725,7 +775,31 @@ const ProjectTechnicalSetup = () => {
                                                                         <div className="fw-bold text-dark">{ind.indicator_name}</div>
                                                                         <div className="text-muted" style={{ fontSize: '0.8rem' }}>{ind.description}</div>
                                                                     </td>
-                                                                    <td>{ind.verification_means || "---"}</td>
+                                                                    <td style={{ verticalAlign: 'top' }}>
+                                                                        {/* 1. Chips del Catálogo (usando means_tags de tu serialize) */}
+                                                                        {ind.means_tags && ind.means_tags.length > 0 && (
+                                                                            <div className="d-flex flex-wrap gap-1 mb-2">
+                                                                                {ind.means_tags.map((mean, i) => (
+                                                                                    <span key={i} className="badge bg-light text-dark border shadow-sm" style={{ fontSize: '0.7rem' }}>
+                                                                                        <i className="fas fa-check-circle text-emerald me-1"></i>
+                                                                                        {mean.name} {/* Usamos .name porque mean viene de m.serialize() */}
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* 2. Notas manuales (tu campo original) */}
+                                                                        {ind.verification_means && (
+                                                                            <div className="small text-secondary mt-1 border-top pt-1 italic">
+                                                                                {ind.verification_means}
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Si no hay nada de nada */}
+                                                                        {!ind.verification_means && (!ind.means_tags || ind.means_tags.length === 0) && (
+                                                                            <span className="text-muted small">---</span>
+                                                                        )}
+                                                                    </td>
                                                                     <td className="p-0" style={{ minWidth: '180px' }}>
                                                                         <div className="list-group list-group-flush" style={{ fontSize: '0.85rem' }}>
                                                                             {ind.province_goals

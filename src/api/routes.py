@@ -1129,22 +1129,19 @@ def bulk_indicators():
 
     try:
         # --- PASO 1: ELIMINACIÓN DE INDICADORES OMITIDOS ---
-        # Obtenemos los IDs de los indicadores que vienen del frontend
         received_template_ids = [item['template_id'] for item in indicators_list]
-        
-        # Buscamos indicadores en la DB que NO estén en la lista recibida
         to_delete = Indicator.query.filter(
             Indicator.project_id == project_id,
             ~Indicator.template_id.in_(received_template_ids)
         ).all()
 
         for ind in to_delete:
-            # Primero borramos sus metas por provincia (por la integridad referencial)
             IndicatorLocationGoal.query.filter_by(indicator_id=ind.id_indicator).delete()
-            # Luego borramos el indicador
+            # Limpiar relación con medios de verificación antes de borrar
+            ind.selected_means_list = [] 
             db.session.delete(ind)
         
-        # --- PASO 2: PROCESAR EL UPSERT (Tu código original) ---
+        # --- PASO 2: PROCESAR EL UPSERT ---
         for item in indicators_list:
             indicator = Indicator.query.filter_by(
                 project_id=project_id,
@@ -1169,8 +1166,19 @@ def bulk_indicators():
                 )
                 db.session.add(indicator)
 
+            # --- NUEVA LÓGICA: Sincronizar Medios de Verificación (Catálogo) ---
+            if 'means_ids' in item:
+                # Buscamos los objetos del catálogo maestro por sus IDs
+                from src.api.models import MasterVerificationMean
+                selected_means = MasterVerificationMean.query.filter(
+                    MasterVerificationMean.id.in_(item['means_ids'])
+                ).all()
+                # SQLAlchemy se encarga de insertar/borrar en la tabla intermedia automáticamente
+                indicator.selected_means_list = selected_means 
+
             db.session.flush() 
 
+            # --- PASO 3: METAS POR PROVINCIA ---
             if 'goals_by_province' in item:
                 IndicatorLocationGoal.query.filter_by(indicator_id=indicator.id_indicator).delete()
                 for goal in item['goals_by_province']:
@@ -1199,8 +1207,10 @@ def get_project_summary(id):
     return jsonify({
         "project_name": project.project_name,
         "total_locations": len(project.locations),
-        "total_indicators": len(project.indicators),
-        "status": project.status
+        "status": project.status,
+        # --- AQUÍ ESTÁ EL CAMBIO CLAVE ---
+        # Enviamos todos los indicadores usando el método serialize que mejoraste
+        "indicators": [ind.serialize() for ind in project.indicators]
     }), 200
 
 
