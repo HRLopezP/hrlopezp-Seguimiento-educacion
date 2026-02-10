@@ -19,19 +19,49 @@ const ProjectTechnicalSetup = () => {
     const [activeIndicatorId, setActiveIndicatorId] = useState(null);
     const navigate = useNavigate();
 
+
+    const getIndicatorContext = (templateId, allTheories) => {
+        let context = {
+            theory_name: "Sin Teoría asignada",
+            result_name: "Sin Resultado asignado",
+            result_type: "Output"
+        };
+
+        allTheories.forEach(t => {
+            t.results?.forEach(r => {
+                if (r.indicators?.some(i => i.id === templateId)) {
+                    context = { theory_name: t.name, result_name: r.name, result_type: r.type };
+                }
+            });
+        });
+        return context;
+    };
+
+
     const groupedData = selectedIndicators.reduce((acc, ind) => {
-        // Si por algún milagro fallan los nombres, no ponemos "General", 
-        // mejor dejamos el espacio vacío para detectar el error.
-        const tName = ind.theory_name || "Sin Teoría asignada";
-        const rType = ind.result_type || "Output";
-        const rName = ind.result_name || "Sin Resultado asignado";
+
+        let indicatorName = "Nombre no encontrado";
+        theories.forEach(t => {
+            t.results?.forEach(r => {
+                const found = r.indicators?.find(i => i.id === ind.template_id);
+                if (found) indicatorName = found.name;
+            });
+        });
+
+        const context = getIndicatorContext(ind.template_id, theories);
+        const tName = context.theory_name;
+        const rType = context.result_type;
+        const rName = context.result_name;
 
         if (!acc[tName]) acc[tName] = {};
         // Agrupamos por TIPO dentro de la teoría
         if (!acc[tName][rType]) acc[tName][rType] = {};
         if (!acc[tName][rType][rName]) acc[tName][rType][rName] = [];
 
-        acc[tName][rType][rName].push(ind);
+        acc[tName][rType][rName].push({
+            ...ind,
+            indicator_name: indicatorName // <--- ¡Aquí está la magia!
+        });
         return acc;
     }, {});
 
@@ -90,6 +120,7 @@ const ProjectTechnicalSetup = () => {
             const newIndicator = {
                 template_id: ind.id,
                 code: ind.code,
+                indicator_name: ind.name || ind.title || "Indicador sin nombre",
                 description: ind.description,
                 // Usamos el currentTheory que ya tienes definido arriba
                 theory_name: currentTheory?.name || "Sin Teoría",
@@ -205,22 +236,6 @@ const ProjectTechnicalSetup = () => {
         }
     };
 
-    const getIndicatorContext = (templateId, allTheories) => {
-        let context = {
-            theory_name: "Sin Teoría asignada",
-            result_name: "Sin Resultado asignado",
-            result_type: "Output"
-        };
-
-        allTheories.forEach(t => {
-            t.results?.forEach(r => {
-                if (r.indicators?.some(i => i.id === templateId)) {
-                    context = { theory_name: t.name, result_name: r.name, result_type: r.type };
-                }
-            });
-        });
-        return context;
-    };
 
     const confirmDelete = (indicatorId, code) => {
         Swal.fire({
@@ -626,8 +641,7 @@ const ProjectTechnicalSetup = () => {
                             </div>
                         )}
                     </div>
-                    {/* Debajo del árbol de indicadores o en el panel derecho cuando no hay selección */}
-                    {/* TABLA INFERIOR REFORMULADA */}
+                    {/* TABLA INFERIOR */}
                     <div className="mt-5 p-4 rounded shadow-sm bg-white border">
                         <h5 className="text-oxford-grey fw-bold mb-4 border-bottom pb-2">
                             <i className="fas fa-project-diagram me-2 text-emerald"></i>
@@ -637,21 +651,20 @@ const ProjectTechnicalSetup = () => {
                             <table className="table table-bordered align-middle">
                                 <thead className="bg-oxford-grey text-white">
                                     <tr>
-                                        <th style={{ width: '25%' }}>Estructura (Teoría / Resultado)</th>
-                                        <th style={{ width: '20%' }}>Indicador</th>
+                                        <th style={{ width: '25%' }}>Teoría / Resultado / código</th>
+                                        <th style={{ width: '20%' }}>Título <br/> <div className="text-muted">descripción</div></th>
                                         <th style={{ width: '15%' }}>Medios de Verificación</th>
-                                        <th className="text-center">Metas Totales</th>
+                                        <th className="text-center">Metas por estado</th>
                                         <th>Observaciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {Object.keys(groupedData).map(tName => (
                                         <React.Fragment key={tName}>
-                                            {/* NIVEL 1: LA TEORÍA (Fila Oscura) */}
-                                            <tr className="bg-oxford text-white fw-bold shadow-sm">
-                                                <td colSpan="5" className="py-3">
-                                                    <i className="fas fa-university me-2 text-emerald"></i>
-                                                    TEORÍA: {tName}
+                                            {/* NIVEL 1: TEORÍA */}
+                                            <tr className="bg-oxford-grey text-white fw-bold">
+                                                <td colSpan="5" className="py-2 px-3">
+                                                    <i className="fas fa-university me-2 text-emerald"></i>TEORÍA: {tName}
                                                 </td>
                                             </tr>
 
@@ -659,35 +672,62 @@ const ProjectTechnicalSetup = () => {
                                                 <React.Fragment key={rType}>
                                                     {Object.keys(groupedData[tName][rType]).map(rName => (
                                                         <React.Fragment key={rName}>
-                                                            {/* NIVEL 2: EL RESULTADO (abstracto, colectivo, etc.) */}
+                                                            {/* NIVEL 2: RESULTADO */}
                                                             <tr className="bg-light">
                                                                 <td colSpan="5" className="ps-4 border-start border-emerald border-4">
                                                                     <span className={`badge ${rType.toLowerCase() === 'outcome' ? 'bg-primary' : 'bg-emerald'} me-2`}>
-                                                                        {/* ICONO DINÁMICO SEGÚN EL TIPO */}
-                                                                        <i className={`fas ${rType.toLowerCase() === 'outcome' ? 'fa-bullseye' : 'fa-cube'} me-1`}></i>
                                                                         {rType.toUpperCase()}
                                                                     </span>
                                                                     <span className="fw-bold text-dark">{rName}</span>
                                                                 </td>
                                                             </tr>
 
-                                                            {/* NIVEL 3: LOS INDICADORES */}
+                                                            {/* NIVEL 3: INDICADORES */}
                                                             {groupedData[tName][rType][rName].map(ind => (
                                                                 <tr key={ind.template_id}>
-                                                                    <td className="ps-5 text-muted small italic">Detalle del indicador:</td>
-                                                                    <td className="fw-bold">
-                                                                        {ind.code}
-                                                                        <br />
-                                                                        <small className="fw-normal text-muted">{ind.description}</small>
+                                                                    <td className="fw-bold text-center" style={{ verticalAlign: 'top' }}>
+                                                                        <span className="text-emerald">{ind.code}</span>
+                                                                    </td>
+                                                                    <td>
+                                                                        {/* AQUÍ: Mostramos el Nombre y abajo la descripción pequeña */}
+                                                                        <div className="fw-bold text-dark">{ind.indicator_name}</div>
+                                                                        <div className="text-muted" style={{ fontSize: '0.8rem' }}>{ind.description}</div>
                                                                     </td>
                                                                     <td>{ind.verification_means || "---"}</td>
-                                                                    <td className="text-center">
-                                                                        <span className="badge rounded-pill bg-light text-dark border">
-                                                                            {ind.province_goals.reduce((acc, curr) => acc + curr.total, 0)}
-                                                                        </span>
+                                                                    <td className="p-0" style={{ minWidth: '180px' }}>
+                                                                        <div className="list-group list-group-flush" style={{ fontSize: '0.85rem' }}>
+                                                                            {ind.province_goals
+                                                                                // FILTRO: Solo mostramos si el total es mayor a 0
+                                                                                .filter(pg => pg.total > 0 || pg.target > 0)
+                                                                                .map((pg, idx) => (
+                                                                                    <div key={idx} className="list-group-item py-2 px-3 border-0 border-bottom bg-transparent">
+                                                                                        <div className="d-flex justify-content-between align-items-center mb-1">
+                                                                                            <span className="fw-bold text-oxford-grey">
+                                                                                                <i className="fas fa-map-marker-alt me-1 text-emerald" style={{ fontSize: '0.7rem' }}></i>
+                                                                                                {pg.province_name}
+                                                                                            </span>
+                                                                                            <span className="badge rounded-pill bg-oxford-grey">
+                                                                                                {pg.total || pg.target}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        {/* Desagregación compacta */}
+                                                                                        <div className="d-flex gap-3 justify-content-end text-muted" style={{ fontSize: '0.75rem' }}>
+                                                                                            <span><i className="fas fa-mars text-primary me-1"></i>{pg.men}</span>
+                                                                                            <span><i className="fas fa-venus text-danger me-1"></i>{pg.women}</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ))
+                                                                            }
+                                                                            {/* Mensaje amigable si todo está en cero */}
+                                                                            {ind.province_goals.every(pg => (pg.total || pg.target) === 0) && (
+                                                                                <div className="p-2 text-center text-muted small italic">
+                                                                                    Sin metas asignadas
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
                                                                     </td>
                                                                     <td className="small text-secondary">
-                                                                        {ind.observations || "Sin observaciones"}
+                                                                        {ind.observations || "---"}
                                                                     </td>
                                                                 </tr>
                                                             ))}
@@ -697,14 +737,6 @@ const ProjectTechnicalSetup = () => {
                                             ))}
                                         </React.Fragment>
                                     ))}
-
-                                    {Object.keys(groupedData).length === 0 && (
-                                        <tr>
-                                            <td colSpan="5" className="text-center py-4 text-muted">
-                                                No hay indicadores seleccionados para mostrar en la matriz.
-                                            </td>
-                                        </tr>
-                                    )}
                                 </tbody>
                             </table>
                         </div>
