@@ -1,5 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Integer, String, Boolean, DateTime, Text, Enum, ForeignKey, Float
+from sqlalchemy import Integer, String, Column, Table, Boolean, DateTime, Text, Enum, ForeignKey, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -260,32 +260,45 @@ class Project(db.Model):
             # "competences": [cp.serialize() for cp in self.competence_assignments]
         }
 
+indicator_verification_means = db.Table(
+    'indicator_verification_means',
+    db.Column('indicator_id', db.Integer, db.ForeignKey('indicator.id_indicator'), primary_key=True),
+    db.Column('mean_id', db.Integer, db.ForeignKey('master_verification_mean.id'), primary_key=True)
+)
+
+# 2. CATÁLOGO MAESTRO
+class MasterVerificationMean(db.Model):
+    __tablename__ = 'master_verification_mean'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    
+    def serialize(self):
+        return {"id": self.id, "name": self.name}
+    
 
 class Indicator(db.Model):
     __tablename__ = 'indicator'
     id_indicator: Mapped[int] = mapped_column(primary_key=True)
-    template_id: Mapped[int] = mapped_column(
-        ForeignKey('indicator_template.id'), nullable=False)
-    project_id: Mapped[int] = mapped_column(
-        ForeignKey('project.id_project'), nullable=False)
+    template_id: Mapped[int] = mapped_column(ForeignKey('indicator_template.id'), nullable=False)
+    project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
 
     project: Mapped["Project"] = relationship(back_populates="indicators")
-
-    # Relación con las metas por provincia
     location_goals: Mapped[List["IndicatorLocationGoal"]] = relationship(
         back_populates="indicator", cascade="all, delete-orphan")
     
     project_result_id: Mapped[Optional[int]] = mapped_column(ForeignKey('project_result.id'), nullable=True)
-    
-    # Relaciones adicionales
     project_result: Mapped["ProjectResult"] = relationship(back_populates="indicators")
     template: Mapped["IndicatorTemplate"] = relationship()
     
-    # Campos de texto para la gestión técnica
-    verification_means: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # --- MANTENEMOS TUS CAMPOS ORIGINALES ---
+    verification_means: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # <-- NO CAMBIA
     observations: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    # Metas totales del indicador
+    # --- NUEVA RELACIÓN (LO EXTRA) ---
+    selected_means_list: Mapped[List["MasterVerificationMean"]] = relationship(
+        secondary=indicator_verification_means
+    )
+
     target_total: Mapped[float] = mapped_column(Float, default=0.0)
     target_men: Mapped[float] = mapped_column(Float, default=0.0)
     target_women: Mapped[float] = mapped_column(Float, default=0.0)
@@ -293,17 +306,19 @@ class Indicator(db.Model):
     def serialize(self):
         return {
             "id": self.id_indicator,
-            "template_id": self.template_id, # Útil para que React sepa qué plantilla es
+            "template_id": self.template_id,
             "indicator_code": self.template.code,
             "description": self.template.description,
-            "verification_means": self.verification_means or "", # Enviamos string vacío si es None
+            # Mantenemos tu campo original para que el frontend no falle
+            "verification_means": self.verification_means or "", 
             "observations": self.observations or "",
+            # Agregamos la nueva información sin quitar la anterior
+            "means_tags": [m.serialize() for m in self.selected_means_list],
             "indicator_targets": {
                 "total": self.target_total,
                 "men": self.target_men,
                 "women": self.target_women
             },
-            # Esto devuelve la lista de metas por provincia ya serializadas
             "goals_by_province": [goal.serialize() for goal in self.location_goals]
         }
 
@@ -591,4 +606,5 @@ class ProjectResult(db.Model):
             "type": self.result_template.type,
             "indicators": [i.serialize() for i in self.indicators]
         }
+
 

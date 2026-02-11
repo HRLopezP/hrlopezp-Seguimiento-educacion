@@ -2,7 +2,7 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 from flask import Flask, request, jsonify, url_for, Blueprint, json
-from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish, ProjectProvinceGoal, ProjectTheory, ProjectResult
+from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish, ProjectProvinceGoal, ProjectTheory, ProjectResult, MasterVerificationMean
 from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -1129,22 +1129,19 @@ def bulk_indicators():
 
     try:
         # --- PASO 1: ELIMINACIÓN DE INDICADORES OMITIDOS ---
-        # Obtenemos los IDs de los indicadores que vienen del frontend
         received_template_ids = [item['template_id'] for item in indicators_list]
-        
-        # Buscamos indicadores en la DB que NO estén en la lista recibida
         to_delete = Indicator.query.filter(
             Indicator.project_id == project_id,
             ~Indicator.template_id.in_(received_template_ids)
         ).all()
 
         for ind in to_delete:
-            # Primero borramos sus metas por provincia (por la integridad referencial)
             IndicatorLocationGoal.query.filter_by(indicator_id=ind.id_indicator).delete()
-            # Luego borramos el indicador
+            # Limpiar relación con medios de verificación antes de borrar
+            ind.selected_means_list = [] 
             db.session.delete(ind)
         
-        # --- PASO 2: PROCESAR EL UPSERT (Tu código original) ---
+        # --- PASO 2: PROCESAR EL UPSERT ---
         for item in indicators_list:
             indicator = Indicator.query.filter_by(
                 project_id=project_id,
@@ -1169,8 +1166,19 @@ def bulk_indicators():
                 )
                 db.session.add(indicator)
 
+            # --- NUEVA LÓGICA: Sincronizar Medios de Verificación (Catálogo) ---
+            if 'means_ids' in item:
+                # Buscamos los objetos del catálogo maestro por sus IDs
+                from api.models import MasterVerificationMean
+                selected_means = MasterVerificationMean.query.filter(
+                    MasterVerificationMean.id.in_(item['means_ids'])
+                ).all()
+                # SQLAlchemy se encarga de insertar/borrar en la tabla intermedia automáticamente
+                indicator.selected_means_list = selected_means 
+
             db.session.flush() 
 
+            # --- PASO 3: METAS POR PROVINCIA ---
             if 'goals_by_province' in item:
                 IndicatorLocationGoal.query.filter_by(indicator_id=indicator.id_indicator).delete()
                 for goal in item['goals_by_province']:
@@ -1199,8 +1207,10 @@ def get_project_summary(id):
     return jsonify({
         "project_name": project.project_name,
         "total_locations": len(project.locations),
-        "total_indicators": len(project.indicators),
-        "status": project.status
+        "status": project.status,
+        # --- AQUÍ ESTÁ EL CAMBIO CLAVE ---
+        # Enviamos todos los indicadores usando el método serialize que mejoraste
+        "indicators": [ind.serialize() for ind in project.indicators]
     }), 200
 
 
@@ -1656,3 +1666,102 @@ def get_project_indicators(project_id):
     
     # Usamos el serialize() que revisamos antes para enviar toda la info técnica
     return jsonify([ind.serialize() for ind in indicators]), 200
+
+
+# 1. OBTENER TODOS LOS MEDIOS (Para el catálogo y para el selector de indicadores)
+@api.route('/verification-means', methods=['GET'])
+@jwt_required()
+def get_verification_means():
+    """Cualquier usuario logueado puede ver el catálogo para llenar indicadores"""
+    means = MasterVerificationMean.query.all()
+    return jsonify([m.serialize() for m in means]), 200
+
+# 2. CREAR NUEVO MEDIO (Solo Gerente)
+@api.route('/verification-means', methods=['POST'])
+@manager_required
+def create_verification_mean():
+    data = request.json
+    name = data.get("name")
+
+    if not name:
+        return jsonify({"message": "El nombre del medio es obligatorio"}), 400
+
+    # Evitamos duplicados para mantener la base de datos limpia
+    if MasterVerificationMean.query.filter_by(name=name).first():
+        return jsonify({"message": "Este medio de verificación ya existe"}), 400
+
+    new_mean = MasterVerificationMean(name=name)
+    db.session.add(new_mean)
+    db.session.commit()
+
+    return jsonify(new_mean.serialize()), 201
+
+# 3. ACTUALIZAR UN MEDIO (Solo Gerente)
+@api.route('/verification-means/<int:id>', methods=['PUT'])
+@manager_required
+def update_verification_mean(id):
+    mean = MasterVerificationMean.query.get(id)
+    if not mean:
+        return jsonify({"message": "Medio de verificación no encontrado"}), 404
+
+    data = request.json
+    # Si el gerente cambia "Fotos" por "Registro Fotográfico", se actualiza en todo el sistema
+    mean.name = data.get("name", mean.name)
+
+    db.session.commit()
+    return jsonify(mean.serialize()), 200
+
+# 4. ELIMINAR UN MEDIO (Solo Gerente)
+@api.route('/verification-means/<int:id>', methods=['DELETE'])
+@manager_required
+def delete_verification_mean(id):
+    mean = MasterVerificationMean.query.get(id)
+    if not mean:
+        return jsonify({"message": "Medio de verificación no encontrado"}), 404
+
+    try:
+        db.session.delete(mean)
+        db.session.commit()
+        return jsonify({"message": "Medio de verificación eliminado exitosamente"}), 200
+    except Exception as e:
+        db.session.rollback()
+        # Esto pasará si el medio ya está siendo usado por algún indicador
+        return jsonify({
+            "message": "No se puede eliminar: este medio está siendo utilizado en indicadores activos"
+        }), 400
+
+    
+@api.route('/indicators/<int:id>', methods=['PATCH'])
+@jwt_required()
+def patch_indicator(id):
+    indicator = Indicator.query.get(id)
+    if not indicator:
+        return jsonify({"message": "Indicador no encontrado"}), 404
+
+    data = request.json
+
+    # 1. Actualización de campos de texto simple (Mantenemos tus originales)
+    if "verification_means" in data:
+        indicator.verification_means = data.get("verification_means")
+    
+    if "observations" in data:
+        indicator.observations = data.get("observations")
+
+    # 2. GESTIÓN PROFESIONAL: Sincronización de Medios (IDs)
+    # Esperamos un array de IDs, ej: [1, 3, 5]
+    if "means_ids" in data:
+        new_means_ids = data.get("means_ids")
+        # Buscamos los objetos reales en la base de datos
+        selected_means = MasterVerificationMean.query.filter(
+            MasterVerificationMean.id.in_(new_means_ids)
+        ).all()
+        
+        # SQLAlchemy hace la magia: vacía la relación vieja y pone la nueva
+        indicator.selected_means_list = selected_means
+
+    try:
+        db.session.commit()
+        return jsonify(indicator.serialize()), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Error al actualizar: {str(e)}"}), 500

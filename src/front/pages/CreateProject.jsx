@@ -396,8 +396,6 @@ const CreateProject = () => {
         <div className="management-page-container">
             <Toaster richColors />
             <div className="container mt-4">
-
-                {/* HEADER DINÁMICO - Ahora con Oxford en Paso 1 para evitar franjas blancas */}
                 <div className={`card management-card-unified shadow-lg ${step === 1 ? 'management-card-unified ' : step === 2 ? 'bg-emerald' : 'bg-success'
                     } text-white shadow-sm`}>
                     <div className="management-card-header d-flex justify-content-between align-items-center">

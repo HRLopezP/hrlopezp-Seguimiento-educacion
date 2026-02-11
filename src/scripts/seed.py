@@ -28,4 +28,4 @@ if __name__ == "__main__":
     create_initial_roles()
 
 
-# python3 seed.py
+# python3 scripts/seed.py
