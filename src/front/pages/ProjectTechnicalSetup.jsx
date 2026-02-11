@@ -461,9 +461,9 @@ const ProjectTechnicalSetup = () => {
                 </div>
                 <div className="row">
                     <div className="col-md-5">
-                        <div className="card shadow-sm border-dynamic h-100 bg-card-dynamic">
-                            <div className="card-header py-4 bg-oxford-grey text-white d-flex justify-content-between align-items-center border-0">
-                                <span className="small fw-bold"><i className="fas fa-sitemap me-2"></i>Estructura Técnica</span>
+                        <div className="card shadow-sm border-dynamic bg-card-dynamic"> 
+                            <div className="card-header py-4 bg-oxford-grey border-bottom border-success text-white d-flex justify-content-between align-items-center border-0">
+                                <span className="small fw-bold text-oxford-dynamic"><i className="fas fa-sitemap me-2"></i>Estructura Técnica</span>
                                 <span className="badge bg-emerald">{selectedIndicators.length} Seleccionados</span>
                             </div>
                             <div className="card-body">
@@ -486,10 +486,10 @@ const ProjectTechnicalSetup = () => {
                                                     style={{ cursor: 'pointer' }}
                                                 >
                                                     <i className={`fas ${expandedResults[result.id] ? 'fa-chevron-down' : 'fa-chevron-right'} me-2 text-muted`}></i>
-                                                    <span className={`badge ${result.type === 'outcome' ? 'bg-emerald' : 'bg-oxford-grey'} me-2`}>
+                                                    <span className={`badge ${result.type === 'outcome' ? 'bg-emerald' : 'bg-primary'} me-2`}>
                                                         {result.type.toUpperCase()}
                                                     </span>
-                                                    <span className="small fw-bold text-dark">{result.name}</span>
+                                                    <span className="small fw-bold text-oxford-dynamic">{result.name}</span>
                                                 </div>
                                                 {/* Lista de Indicadores (Solo si está expandido) */}
                                                 {expandedResults[result.id] && (
@@ -531,12 +531,12 @@ const ProjectTechnicalSetup = () => {
                     <div className="col-md-7">
                         {activeIndicatorId && activeInd ? (
                             <div className="card shadow-lg border-dynamic fade-in bg-card-dynamic">
-                                <div className="card-header bg-oxford-grey text-white p-3 d-flex justify-content-between align-items-center border-0">
+                                <div className="card-header bg-oxford-grey border-bottom border-success text-white p-3 d-flex justify-content-between align-items-center border-0">
                                     <div>
                                         <span className="badge bg-emerald me-2">CONFIGURANDO</span>
-                                        <span className="fw-bold">{activeInd.code}</span>
+                                        <span className="fw-bold text-oxford-dynamic">{activeInd.code}</span>
                                     </div>
-                                    <button className="btn btn-sm btn-close-white" onClick={() => setActiveIndicatorId(null)}>
+                                    <button className="btn btn-sm text-oxford-dynamic" onClick={() => setActiveIndicatorId(null)}>
                                         <i className="fas fa-times"></i>
                                     </button>
                                 </div>
@@ -544,7 +544,7 @@ const ProjectTechnicalSetup = () => {
                                 <div className="card-body">
                                     <div className="row mb-4">
                                         <div className="col-md-7">
-                                            <label className="uppercase-label text-muted-dynamic small fw-bold mb-2 d-block">
+                                            <label className="uppercase-label text-emerald small fw-bold mb-2 d-block">
                                                 <i className="fas fa-check-double me-2 text-emerald"></i>Medios de Verificación
                                             </label>
                                             <div className="means-selection-list p-2 border-dynamic rounded bg-input-dynamic custom-scrollbar"
@@ -582,7 +582,7 @@ const ProjectTechnicalSetup = () => {
                                             />
                                         </div>
                                         <div className="col-md-5">
-                                            <label className="uppercase-label text-muted-dynamic small fw-bold mb-2 d-block">
+                                            <label className="uppercase-label text-emerald small fw-bold mb-2 d-block">
                                                 <i className="fas fa-comment-dots me-2 text-emerald"></i>Observaciones
                                             </label>
                                             <textarea
@@ -605,8 +605,8 @@ const ProjectTechnicalSetup = () => {
                                                 <tr>
                                                     <th>Provincia</th>
                                                     <th className="text-center">Total</th>
-                                                    <th className="text-center m-color"><i className="fas fa-mars"></i> H</th>
-                                                    <th className="text-center w-color"><i className="fas fa-venus"></i> M</th>
+                                                    <th className="text-center"><i className="fas fa-mars m-color"></i> H</th>
+                                                    <th className="text-center"><i className="fas fa-venus w-color"></i> M</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -651,15 +651,15 @@ const ProjectTechnicalSetup = () => {
                         ) : (
                             /* TABLA DERECHA RESUMEN*/
                             <div className="card shadow-sm border-dynamic bg-card-dynamic p-4 fade-in">
-                                <div className="text-center mb-4">
+                                <div className="text-center border-bottom border-success mb-4">
                                     <div className="icon-circle-emerald mb-3">
                                         <i className="fas fa-clipboard-check fa-2x text-emerald"></i>
                                     </div>
                                     <h5 className="text-oxford-dynamic fw-bold">Resumen de Configuración</h5>
                                     <p className="text-oxford-dynamic small text-muted">Indicadores procesados para este proyecto</p>
                                 </div>
-                                <div className="table-responsive rounded border-dynamic">
-                                    <table className="table table-hover align-middle mb-0 text-main-dynamic" style={{ fontSize: '0.85rem' }}>
+                                <div className="table-responsive rounded  bg-card-dynamic border-dynamic">
+                                    <table className="table table-hover align-middle table-custom-sigssep mb-0 text-main-dynamic" style={{ fontSize: '0.85rem' }}>
                                         <thead className="bg-oxford-soft text-oxford-dynamic">
                                             <tr>
                                                 <th>Código</th>
@@ -721,23 +721,23 @@ const ProjectTechnicalSetup = () => {
                                     </table>
                                 </div>
                                 <div className="mt-3 text-end">
-                                    <small className="text-muted italic">* Haz clic en una fila para volver a editar.</small>
+                                    <small className="text-oxford-dynamic italic">* Haz clic en una fila para volver a editar.</small>
                                 </div>
                             </div>
                         )}
                     </div>
                     {/* TABLA INFERIOR */}
-                    <div className="mt-5 p-4 rounded shadow-sm bg-white border">
-                        <h5 className="text-oxford-grey fw-bold mb-4 border-bottom pb-2">
+                    <div className="mt-5 p-4 rounded shadow-sm border-dynamic bg-card-dynamic"> 
+                        <h5 className="text-oxford-grey border-bottom border-success fw-bold mb-4 pb-4">
                             <i className="fas fa-project-diagram me-2 text-emerald"></i>
                             Matriz de Planificación Técnica (Marco Lógico)
                         </h5>
                         <div className="table-responsive">
-                            <table className="table table-bordered align-middle">
-                                <thead className="bg-oxford-grey text-white">
+                            <table className="table table-custom-sigssep align-middle">
+                                <thead className="bg-oxford-grey text-oxford-dynamic">
                                     <tr>
                                         <th style={{ width: '25%' }}>Teoría / Resultado / código</th>
-                                        <th style={{ width: '20%' }}>Título <br /> <div className="text-muted">descripción</div></th>
+                                        <th style={{ width: '20%' }}>Título /<br /> <div>descripción</div></th>
                                         <th style={{ width: '15%' }}>Medios de Verificación</th>
                                         <th className="text-center">Metas por estado</th>
                                         <th>Observaciones</th>
@@ -748,11 +748,11 @@ const ProjectTechnicalSetup = () => {
                                         <React.Fragment key={tName}>
                                             {/* NIVEL 1: TEORÍA */}
                                             <tr
-                                                className="bg-oxford-grey text-white fw-bold theory-row"
+                                                className="bg-oxford-grey text-emerald fw-bold theory-row"
                                                 onClick={() => toggleTheory(tName)}
                                                 style={{ cursor: 'pointer', userSelect: 'none' }}
                                             >
-                                                <td colSpan="5" className="py-2 px-3">
+                                                <td colSpan="5" className="py-3 px-3">
                                                     <div className="d-flex justify-content-between align-items-center">
                                                         <span>
                                                             <i
@@ -777,47 +777,43 @@ const ProjectTechnicalSetup = () => {
                                                     {Object.keys(groupedData[tName][rType]).map(rName => (
                                                         <React.Fragment key={rName}>
                                                             {/* NIVEL 2: RESULTADO */}
-                                                            <tr className="bg-light row-fade-in">
-                                                                <td colSpan="5" className="ps-4 border-start border-emerald border-4">
+                                                            <tr className=" row-fade-in">
+                                                                <td colSpan="5" className="ps-4 border-emerald border-1">
                                                                     <span className={`badge ${rType.toLowerCase() === 'outcome' ? 'bg-primary' : 'bg-emerald'} me-2`}>
                                                                         {rType.toUpperCase()}
                                                                     </span>
-                                                                    <span className="fw-bold text-dark">{rName}</span>
+                                                                    <span className="fw-bold text-oxford-dynamic">{rName}</span>
                                                                 </td>
                                                             </tr>
 
                                                             {/* NIVEL 3: INDICADORES */}
                                                             {groupedData[tName][rType][rName].map(ind => (
-                                                                <tr key={ind.template_id} className="row-fade-in">
+                                                                <tr key={ind.template_id} className="row-fade-in border-outcome ">
                                                                     <td className="fw-bold text-center" style={{ verticalAlign: 'top' }}>
                                                                         <span className="text-emerald">{ind.code}</span>
                                                                     </td>
                                                                     <td>
-                                                                        {/* AQUÍ: Mostramos el Nombre y abajo la descripción pequeña */}
-                                                                        <div className="fw-bold text-dark">{ind.indicator_name}</div>
-                                                                        <div className="text-muted" style={{ fontSize: '0.8rem' }}>{ind.description}</div>
+                                                                        <div className="fw-bold text-oxford-dynamic">{ind.indicator_name}</div>
+                                                                        <div className="text-muted-dynamic" style={{ fontSize: '0.8rem' }}>{ind.description}</div>
                                                                     </td>
                                                                     <td style={{ verticalAlign: 'top' }}>
                                                                         {/* 1. Chips del Catálogo (usando means_tags de tu serialize) */}
                                                                         {ind.means_tags && ind.means_tags.length > 0 && (
                                                                             <div className="d-flex flex-wrap gap-1 mb-2">
                                                                                 {ind.means_tags.map((mean, i) => (
-                                                                                    <span key={i} className="badge bg-light text-dark border shadow-sm" style={{ fontSize: '0.7rem' }}>
+                                                                                    <span key={i} className="auth-input" style={{ fontSize: '0.7rem' }}>
                                                                                         <i className="fas fa-check-circle text-emerald me-1"></i>
-                                                                                        {mean.name} {/* Usamos .name porque mean viene de m.serialize() */}
+                                                                                        {mean.name} 
                                                                                     </span>
                                                                                 ))}
                                                                             </div>
                                                                         )}
 
-                                                                        {/* 2. Notas manuales (tu campo original) */}
                                                                         {ind.verification_means && (
-                                                                            <div className="small text-secondary mt-1 border-top pt-1 italic">
+                                                                            <div className="small text-secondary mt-1 pt-1 italic">
                                                                                 {ind.verification_means}
                                                                             </div>
                                                                         )}
-
-                                                                        {/* Si no hay nada de nada */}
                                                                         {!ind.verification_means && (!ind.means_tags || ind.means_tags.length === 0) && (
                                                                             <span className="text-muted small">---</span>
                                                                         )}
@@ -828,18 +824,18 @@ const ProjectTechnicalSetup = () => {
                                                                                 // FILTRO: Solo mostramos si el total es mayor a 0
                                                                                 .filter(pg => pg.total > 0 || pg.target > 0)
                                                                                 .map((pg, idx) => (
-                                                                                    <div key={idx} className="list-group-item py-2 px-3 border-0 border-bottom bg-transparent">
+                                                                                    <div key={idx} className="list-group-item py-2 px-3 border-0 bg-transparent">
                                                                                         <div className="d-flex justify-content-between align-items-center mb-1">
-                                                                                            <span className="fw-bold text-oxford-grey">
+                                                                                            <span className="fw-bold text-oxford-dynamic">
                                                                                                 <i className="fas fa-map-marker-alt me-1 text-emerald" style={{ fontSize: '0.7rem' }}></i>
                                                                                                 {pg.province_name}
                                                                                             </span>
-                                                                                            <span className="badge rounded-pill bg-oxford-grey">
+                                                                                            <span className="badge rounded-pill text-oxford-dynamic">
                                                                                                 {pg.total || pg.target}
                                                                                             </span>
                                                                                         </div>
                                                                                         {/* Desagregación compacta */}
-                                                                                        <div className="d-flex gap-3 justify-content-end text-muted" style={{ fontSize: '0.75rem' }}>
+                                                                                        <div className="d-flex gap-3 justify-content-end text-oxford-dynamic" style={{ fontSize: '0.75rem' }}>
                                                                                             <span><i className="fas fa-mars text-primary me-1"></i>{pg.men}</span>
                                                                                             <span><i className="fas fa-venus text-danger me-1"></i>{pg.women}</span>
                                                                                         </div>

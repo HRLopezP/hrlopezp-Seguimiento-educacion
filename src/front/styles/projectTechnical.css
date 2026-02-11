@@ -61,3 +61,30 @@
 .hover-shadow:hover {
     box-shadow: inset 2px 0 0 #10b981; /* Una línea verde a la izquierda al pasar el mouse */
 }
+
+.table-custom-sigssep thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10; /* Asegura que esté por encima de las filas que suben */
+    background-color: #1b263b !important; /* Oxford Grey sólido */
+    color: #ffffff !important;
+    border-bottom: 2px solid var(--emerald) !important;
+}
+
+/* 2. Arreglo para los bordes de la fila Teoría */
+.theory-row {
+    /* Quitamos el border-collapse interno para que acepte bordes en la fila */
+    border-top: 1.5px solid #52b788 !important;
+    border-bottom: 1.5px solid #52b788 !important;
+}
+
+/* Como los TR no aceptan bordes fácilmente, se los ponemos a sus celdas TD */
+.theory-row td {
+    border-top: 1.5px solid #52b788 !important;
+    border-bottom: 1.5px solid #52b788 !important;
+    background-color: #1b263b !important; /* Oxford Grey para que sea sólido */
+}
+
+.border-outcome {
+    border-bottom: 2px solid #52b788 !important;
+}
