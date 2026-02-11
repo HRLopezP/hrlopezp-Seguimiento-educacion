@@ -178,7 +178,6 @@ const ProjectDetail = () => {
                                             <label className="label-text">Total Beneficiarios</label>
                                         </div>
                                     </div>
-
                                     {/* FILA INFERIOR: DESGLOSE */}
                                     <div className="beneficiaries-grid">
                                         <div className="b-item secondary men">
@@ -195,7 +194,6 @@ const ProjectDetail = () => {
                                         </div>
                                     </div>
                                 </div>
-
                                 <div className="mt-4">
                                     <div className="objective-box p-4 rounded-4 shadow-sm mb-3" style={{ borderLeft: '5px solid var(--oxford-grey)' }}>
                                         <h6 className="fw-bold text-oxford-dynamic mb-2">
@@ -205,7 +203,6 @@ const ProjectDetail = () => {
                                             {project.results_summary || "No hay una descripción detallada para este proyecto."}
                                         </p>
                                     </div>
-
                                     <div className="objective-box p-4 rounded-4 shadow-sm">
                                         <h6 className="fw-bold text-emerald mb-2">
                                             <i className="fas fa-bullseye me-2"></i>Resumen
@@ -219,7 +216,6 @@ const ProjectDetail = () => {
                         </div>
                     </div>
                 </div>
-
                 {/* TABLA DE UBICACIONES (ANCHO COMPLETO) */}
                 <div className="mb-5">
                     <h5 className="text-oxford-dynamic fw-bold mb-3 px-2">

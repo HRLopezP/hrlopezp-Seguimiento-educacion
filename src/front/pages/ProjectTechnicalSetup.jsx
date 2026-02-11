@@ -427,25 +427,27 @@ const ProjectTechnicalSetup = () => {
     if (loading) return <div className="text-center mt-5"><div className="spinner-border text-emerald"></div></div>;
 
     return (
-        <div className="management-page-container">
+        <div className="management-page-container min-vh-100 transition-all">
             <Toaster richColors position="top-right" />
             <div className="container mt-4">
                 <div className="mb-4">
                     <button
                         onClick={() => navigate('/manager/projects')}
-                        className="btn btn-link text-decoration-none text-muted p-0 d-inline-flex align-items-center transition-all hover-translate-x"
+                        className="btn btn-link text-decoration-none p-0 d-inline-flex align-items-center transition-all hover-translate-x text-muted-dynamic"
                         style={{ fontSize: '0.9rem', fontWeight: '500' }}
                     >
-                        <i className="fas fa-arrow-left me-2"></i>
+                        <i className="fas fa-arrow-left me-2 text-emerald"></i>
                         Volver a la lista de proyectos
                     </button>
                 </div>
-                <div className="management-card-header mb-4 shadow-sm rounded-3 p-3 bg-white">
+                <div className="management-card-header mb-4 shadow-sm rounded-3 p-3 bg-card-dynamic border-dynamic">
                     <h2 className="management-title">Configuración Técnica</h2>
-                    <p className="text-muted">Proyecto: <span className="fw-bold text-oxford-grey">{project?.project_name}</span></p>
+                    <p className="text-muted mb-0">
+                        Proyecto: <span className="fw-bold text-emerald">{project?.project_name}</span>
+                    </p>
                 </div>
-                {/* SELECTOR DE COMPETENCIAS (Pestañas Oxford) */}
-                <div className="d-flex gap-2 mb-4">
+                {/* SELECTOR DE COMPETENCIAS*/}
+                <div className="d-flex flex-wrap gap-2 mb-4">
                     {myCompetences.map(comp => (
                         <button
                             key={comp.competence_id}
@@ -459,12 +461,12 @@ const ProjectTechnicalSetup = () => {
                 </div>
                 <div className="row">
                     <div className="col-md-5">
-                        <div className="card shadow-sm border-0 mb-4 card-selector-tecnico">
-                            <div className="card-header bg-oxford-grey text-white d-flex justify-content-between align-items-center">
-                                <span><i className="fas fa-sitemap me-2"></i> Estructura Técnica</span>
+                        <div className="card shadow-sm border-dynamic h-100 bg-card-dynamic">
+                            <div className="card-header py-4 bg-oxford-grey text-white d-flex justify-content-between align-items-center border-0">
+                                <span className="small fw-bold"><i className="fas fa-sitemap me-2"></i>Estructura Técnica</span>
                                 <span className="badge bg-emerald">{selectedIndicators.length} Seleccionados</span>
                             </div>
-                            <div className="card-body bg-white">
+                            <div className="card-body">
                                 <label className="form-label fw-bold text-oxford-grey">1. Seleccione Teoría de Cambio</label>
                                 <select
                                     className="form-select mb-4 border-emerald shadow-sm"
@@ -474,69 +476,67 @@ const ProjectTechnicalSetup = () => {
                                     <option value="">-- Elige una Teoría --</option>
                                     {theories.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                 </select>
-
-                                {/* ESTE ES EL BLOQUE QUE REEMPLAZA AL ANTERIOR */}
-                                {currentTheory?.results ? (
-                                    currentTheory.results.map(result => (
-                                        <div key={result.id} className="result-container mb-3">
-                                            <div
-                                                className={`result-header d-flex align-items-center p-2 rounded-2 cursor-pointer ${result.type === 'outcome' ? 'bg-light-emerald' : 'bg-light-grey'}`}
-                                                onClick={() => setExpandedResults(prev => ({ ...prev, [result.id]: !prev[result.id] }))}
-                                                style={{ cursor: 'pointer' }}
-                                            >
-                                                <i className={`fas ${expandedResults[result.id] ? 'fa-chevron-down' : 'fa-chevron-right'} me-2 text-muted`}></i>
-                                                <span className={`badge ${result.type === 'outcome' ? 'bg-emerald' : 'bg-oxford-grey'} me-2`}>
-                                                    {result.type.toUpperCase()}
-                                                </span>
-                                                <span className="small fw-bold text-dark">{result.name}</span>
-                                            </div>
-
-                                            {/* Lista de Indicadores (Solo si está expandido) */}
-                                            {expandedResults[result.id] && (
-                                                <div className="indicator-list ms-4 mt-2 border-start ps-3">
-                                                    {result.indicators.length > 0 ? result.indicators.map(ind => (
-                                                        <div key={ind.id} className="form-check mb-2 p-2 indicator-item-hover rounded">
-                                                            <input
-                                                                className="form-check-input custom-checkbox-emerald"
-                                                                type="checkbox"
-                                                                id={`ind-${ind.id}`}
-                                                                checked={selectedIndicators.some(i => i.template_id === ind.id)}
-                                                                disabled={selectedIndicators.some(i => i.template_id === ind.id)}
-                                                                onChange={(e) => handleIndicatorToggle(ind, e.target.checked)}
-                                                            />
-                                                            <label className="form-check-label small d-block cursor-pointer" htmlFor={`ind-${ind.id}`}>
-                                                                {selectedIndicators.some(i => i.template_id === ind.id) && (
-                                                                    <i className="fas fa-check-circle text-emerald me-1 animate__animated animate__fadeIn"
-                                                                        title={`Configurado`}
-                                                                        style={{ cursor: 'help' }}></i>
-                                                                )}
-                                                                <span className={selectedIndicators.some(i => i.template_id === ind.id) ? "text-emerald fw-bold" : "text-oxford-grey"}>
-                                                                    {ind.code}
-                                                                </span>: {ind.description}
-                                                            </label>
-                                                        </div>
-                                                    )) : <p className="text-muted small ms-2">No hay indicadores en este {result.type}</p>}
+                                <div className="theory-scroll custom-scrollbar" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                                    {currentTheory?.results ? (
+                                        currentTheory.results.map(result => (
+                                            <div key={result.id} className="result-container mb-3">
+                                                <div
+                                                    className={`result-header d-flex align-items-center p-2 rounded-2 cursor-pointer ${result.type === 'outcome' ? 'bg-light-emerald' : 'bg-light-grey'}`}
+                                                    onClick={() => setExpandedResults(prev => ({ ...prev, [result.id]: !prev[result.id] }))}
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    <i className={`fas ${expandedResults[result.id] ? 'fa-chevron-down' : 'fa-chevron-right'} me-2 text-muted`}></i>
+                                                    <span className={`badge ${result.type === 'outcome' ? 'bg-emerald' : 'bg-oxford-grey'} me-2`}>
+                                                        {result.type.toUpperCase()}
+                                                    </span>
+                                                    <span className="small fw-bold text-dark">{result.name}</span>
                                                 </div>
-                                            )}
-                                        </div>
-                                    ))
-                                ) : (
-                                    selectedTheoryId && <div className="text-center p-3 text-muted small italic">Cargando estructura...</div>
-                                )}
+                                                {/* Lista de Indicadores (Solo si está expandido) */}
+                                                {expandedResults[result.id] && (
+                                                    <div className="indicator-list ms-4 mt-2 border-start ps-3">
+                                                        {result.indicators.length > 0 ? result.indicators.map(ind => (
+                                                            <div key={ind.id} className="form-check mb-2 p-2 indicator-item-hover rounded">
+                                                                <input
+                                                                    className="form-check-input custom-checkbox-emerald"
+                                                                    type="checkbox"
+                                                                    id={`ind-${ind.id}`}
+                                                                    checked={selectedIndicators.some(i => i.template_id === ind.id)}
+                                                                    disabled={selectedIndicators.some(i => i.template_id === ind.id)}
+                                                                    onChange={(e) => handleIndicatorToggle(ind, e.target.checked)}
+                                                                />
+                                                                <label className="form-check-label small d-block cursor-pointer" htmlFor={`ind-${ind.id}`}>
+                                                                    {selectedIndicators.some(i => i.template_id === ind.id) && (
+                                                                        <i className="fas fa-check-circle text-emerald me-1 animate__animated animate__fadeIn"
+                                                                            title={`Configurado`}
+                                                                            style={{ cursor: 'help' }}></i>
+                                                                    )}
+                                                                    <span className={selectedIndicators.some(i => i.template_id === ind.id) ? "text-emerald fw-bold" : "text-oxford-grey"}>
+                                                                        {ind.code}
+                                                                    </span>: {ind.name}
+                                                                </label>
+                                                            </div>
+                                                        )) : <p className="text-muted small ms-2">No hay indicadores en este {result.type}</p>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))
+                                    ) : (
+                                        selectedTheoryId && <div className="text-center p-3 text-muted small italic">Cargando estructura...</div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
-                    {/* COLUMNA DERECHA: Detalle y Metas (Lo que pidió María) */}
+                    {/* COLUMNA DERECHA*/}
                     <div className="col-md-7">
                         {activeIndicatorId && activeInd ? (
-                            <div className="card shadow-lg border-0 fade-in bg-card-dynamic">
-                                <div className="management-card-header bg-oxford text-white p-3 d-flex justify-content-between">
+                            <div className="card shadow-lg border-dynamic fade-in bg-card-dynamic">
+                                <div className="card-header bg-oxford-grey text-white p-3 d-flex justify-content-between align-items-center border-0">
                                     <div>
                                         <span className="badge bg-emerald me-2">CONFIGURANDO</span>
-                                        {/* Reemplazamos el .find largo por activeInd.code */}
                                         <span className="fw-bold">{activeInd.code}</span>
                                     </div>
-                                    <button className="btn btn-sm btn-light" onClick={() => setActiveIndicatorId(null)}>
+                                    <button className="btn btn-sm btn-close-white" onClick={() => setActiveIndicatorId(null)}>
                                         <i className="fas fa-times"></i>
                                     </button>
                                 </div>
@@ -544,12 +544,11 @@ const ProjectTechnicalSetup = () => {
                                 <div className="card-body">
                                     <div className="row mb-4">
                                         <div className="col-md-7">
-                                            <label className="uppercase-label text-muted-dynamic d-block mb-2">
-                                                <i className="fas fa-check-double me-2"></i>Medios de Verificación (Catálogo)
+                                            <label className="uppercase-label text-muted-dynamic small fw-bold mb-2 d-block">
+                                                <i className="fas fa-check-double me-2 text-emerald"></i>Medios de Verificación
                                             </label>
-                                            <div className="means-selection-list p-2 border rounded bg-light custom-scrollbar"
-                                                style={{ height: '160px', overflowY: 'auto', background: '#f8fafc' }}>
-
+                                            <div className="means-selection-list p-2 border-dynamic rounded bg-input-dynamic custom-scrollbar"
+                                                style={{ height: '160px', overflowY: 'auto' }}>
                                                 {masterMeans.map(mean => (
                                                     <div key={mean.id} className="custom-check-item p-2 mb-1 rounded hover-shadow">
                                                         <div className="form-check d-flex align-items-center m-0 w-100">
@@ -557,23 +556,16 @@ const ProjectTechnicalSetup = () => {
                                                                 className="form-check-input flex-shrink-0"
                                                                 type="checkbox"
                                                                 id={`mean-${mean.id}`}
-                                                                style={{ marginTop: '0', cursor: 'pointer' }} // Alineación manual fina
                                                                 checked={(activeInd.means_ids || []).includes(mean.id)}
                                                                 onChange={(e) => {
                                                                     let currentIds = [...(activeInd.means_ids || [])];
-                                                                    if (e.target.checked) {
-                                                                        currentIds.push(mean.id);
-                                                                    } else {
-                                                                        currentIds = currentIds.filter(id => id !== mean.id);
-                                                                    }
+                                                                    if (e.target.checked) currentIds.push(mean.id);
+                                                                    else currentIds = currentIds.filter(id => id !== mean.id);
                                                                     handleInfoChange(activeIndicatorId, 'means_ids', currentIds);
                                                                 }}
                                                             />
-                                                            <label
-                                                                className="form-check-label ps-2 flex-grow-1 cursor-pointer mb-0"
-                                                                htmlFor={`mean-${mean.id}`}
-                                                                style={{ fontSize: '0.88rem', lineHeight: '1.2', color: '#334155' }}
-                                                            >
+                                                            <label className="form-check-label ps-2 flex-grow-1 cursor-pointer mb-0 text-main-dynamic"
+                                                                htmlFor={`mean-${mean.id}`} style={{ fontSize: '0.85rem' }}>
                                                                 {mean.name}
                                                             </label>
                                                         </div>
@@ -583,28 +575,27 @@ const ProjectTechnicalSetup = () => {
                                             {/* Campo híbrido: Nota extra para medios */}
                                             <input
                                                 type="text"
-                                                className="form-control form-control-sm mt-2"
+                                                className="form-control form-control-sm mt-2 bg-input-dynamic border-dynamic text-main-dynamic"
                                                 placeholder="Nota adicional sobre medios..."
                                                 value={activeInd.verification_means || ''}
                                                 onChange={(e) => handleInfoChange(activeIndicatorId, 'verification_means', e.target.value)}
                                             />
                                         </div>
                                         <div className="col-md-5">
-                                            <label className="uppercase-label text-muted-dynamic">
-                                                <i className="fas fa-comment-dots me-2"></i>Observaciones Técnicas
+                                            <label className="uppercase-label text-muted-dynamic small fw-bold mb-2 d-block">
+                                                <i className="fas fa-comment-dots me-2 text-emerald"></i>Observaciones
                                             </label>
                                             <textarea
-                                                className="form-control"
-                                                rows="2"
+                                                className="form-control bg-input-dynamic border-dynamic text-main-dynamic"
+                                                rows="4"
                                                 placeholder="Notas adicionales..."
-                                                // Usamos activeInd directamente
                                                 value={activeInd.observations || ''}
                                                 onChange={(e) => handleInfoChange(activeIndicatorId, 'observations', e.target.value)}
                                             />
                                         </div>
                                     </div>
 
-                                    <h6 className="uppercase-label text-emerald mb-3 border-bottom-dynamic pb-2">
+                                    <h6 className="uppercase-label text-emerald mb-3 border-bottom-dynamic pb-2 small fw-bold">
                                         <i className="fas fa-map-marker-alt me-2"></i>Desglose por Estado
                                     </h6>
 
@@ -658,30 +649,32 @@ const ProjectTechnicalSetup = () => {
                                 </div>
                             </div>
                         ) : (
-                            /* ESTADO DE RESUMEN: Aquí es donde el gerente ve sus datos guardados */
-                            <div className="card shadow-sm border-0 bg-white p-4 animate__animated animate__fadeIn">
+                            /* TABLA DERECHA RESUMEN*/
+                            <div className="card shadow-sm border-dynamic bg-card-dynamic p-4 fade-in">
                                 <div className="text-center mb-4">
-                                    <i className="fas fa-clipboard-check fa-3x text-emerald opacity-50 mb-2"></i>
-                                    <h5 className="text-navy fw-bold">Resumen de Configuración</h5>
-                                    <p className="small text-muted">A continuación se muestran los indicadores ya procesados para este proyecto.</p>
+                                    <div className="icon-circle-emerald mb-3">
+                                        <i className="fas fa-clipboard-check fa-2x text-emerald"></i>
+                                    </div>
+                                    <h5 className="text-oxford-dynamic fw-bold">Resumen de Configuración</h5>
+                                    <p className="text-oxford-dynamic small text-muted">Indicadores procesados para este proyecto</p>
                                 </div>
-                                <div className="table-responsive shadow-sm rounded">
-                                    <table className="table table-hover align-middle mb-0" style={{ fontSize: '0.85rem' }}>
-                                        <thead className="bg-light text-oxford-grey">
+                                <div className="table-responsive rounded border-dynamic">
+                                    <table className="table table-hover align-middle mb-0 text-main-dynamic" style={{ fontSize: '0.85rem' }}>
+                                        <thead className="bg-oxford-soft text-oxford-dynamic">
                                             <tr>
                                                 <th>Código</th>
-                                                <th>Meta Total</th>
+                                                <th className="text-center">Meta</th>
                                                 <th className="text-center">H / M</th>
-                                                <th>Estado</th>
+                                                <th className="text-end">Acciones</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {selectedIndicators.length > 0 ? (
                                                 selectedIndicators.map((ind, idx) => (
-                                                    <tr key={idx} className="cursor-pointer border-bottom" onClick={() => setActiveIndicatorId(ind.template_id)}>
-                                                        <td className="fw-bold text-navy">{ind.code}</td>
+                                                    <tr key={idx} className="cursor-pointer transition-all hover-oxford-soft" onClick={() => setActiveIndicatorId(ind.template_id)}>
+                                                        <td className="fw-bold text-emerald">{ind.code}</td>
                                                         <td className="fw-bold text-center">
-                                                            <span className="badge bg-navy-light text-navy px-3 py-2" style={{ fontSize: '0.9rem' }}>
+                                                            <span className="badge bg-emerald text-navy px-3 py-2" style={{ fontSize: '0.9rem' }}>
                                                                 {ind.province_goals.reduce((acc, curr) => acc + (curr.total || 0), 0)}
                                                             </span>
                                                         </td>
