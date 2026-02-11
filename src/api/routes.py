@@ -1169,7 +1169,7 @@ def bulk_indicators():
             # --- NUEVA LÓGICA: Sincronizar Medios de Verificación (Catálogo) ---
             if 'means_ids' in item:
                 # Buscamos los objetos del catálogo maestro por sus IDs
-                from src.api.models import MasterVerificationMean
+                from api.models import MasterVerificationMean
                 selected_means = MasterVerificationMean.query.filter(
                     MasterVerificationMean.id.in_(item['means_ids'])
                 ).all()

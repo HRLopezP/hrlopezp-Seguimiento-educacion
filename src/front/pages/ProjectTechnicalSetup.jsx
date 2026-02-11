@@ -133,13 +133,14 @@ const ProjectTechnicalSetup = () => {
                 code: ind.code,
                 indicator_name: ind.name || ind.title || "Indicador sin nombre",
                 description: ind.description,
-                // Usamos el currentTheory que ya tienes definido arriba
                 theory_name: currentTheory?.name || "Sin Teoría",
                 result_type: result?.type || "Output",
                 result_name: result?.name || "Sin Resultado",
                 verification_means: "",
                 observations: "",
-                province_goals: uniqueProvinces
+                province_goals: uniqueProvinces,
+                means_ids: [],
+                means_tags: []
             };
 
             setSelectedIndicators([...selectedIndicators, newIndicator]);
@@ -153,12 +154,23 @@ const ProjectTechnicalSetup = () => {
         }
     };
 
+
     const handleInfoChange = (indicatorId, field, value) => {
         setSelectedIndicators(prev => prev.map(ind => {
             if (ind.template_id === indicatorId) {
+                let extraData = {};
+
+                // SI ESTAMOS CAMBIANDO LOS MEDIOS DE VERIFICACIÓN
+                if (field === 'means_ids') {
+                    // Buscamos los objetos completos en el catálogo para tener los nombres
+                    // Esto es lo que hace que aparezcan en la tabla SIN recargar
+                    extraData.means_tags = masterMeans.filter(m => value.includes(m.id));
+                }
+
                 return {
-                    ...ind, // <--- ESTO MANTIENE LOS NOMBRES DE TEORÍA Y RESULTADO
-                    [field]: value
+                    ...ind,
+                    [field]: value,
+                    ...extraData // Esto inyecta los means_tags si existen
                 };
             }
             return ind;
@@ -194,23 +206,27 @@ const ProjectTechnicalSetup = () => {
         // 2. Transformamos el estado al formato del Backend
         const formattedData = {
             project_id: parseInt(projectId),
-            indicators: selectedIndicators.map(ind => ({
-                template_id: ind.template_id,
-                means_ids: ind.means_ids || [],
-                target_total: ind.province_goals.reduce((acc, curr) => acc + curr.total, 0),
-                target_men: ind.province_goals.reduce((acc, curr) => acc + curr.men, 0),
-                target_women: ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
-                verification_means: ind.verification_means, // ¡No olvides estos!
-                observations: ind.observations,             // ¡No olvides estos!
+            indicators: selectedIndicators.map(ind => {
+                const finalMeansIds = ind.means_ids && ind.means_ids.length > 0
+                    ? ind.means_ids
+                    : (ind.means_tags ? ind.means_tags.map(t => t.id) : []);
 
-                // Campos para la tabla 'IndicatorLocationGoal'
-                goals_by_province: ind.province_goals.map(pg => ({
-                    province_id: pg.province_id,
-                    target: pg.total,        // El Backend espera 'target'
-                    target_men: pg.men,      // El Backend espera 'target_men'
-                    target_women: pg.women   // El Backend espera 'target_women'
-                }))
-            }))
+                return {
+                    template_id: ind.template_id,
+                    means_ids: finalMeansIds, // Enviamos IDs siempre
+                    target_total: ind.province_goals.reduce((acc, curr) => acc + curr.total, 0),
+                    target_men: ind.province_goals.reduce((acc, curr) => acc + curr.men, 0),
+                    target_women: ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
+                    verification_means: ind.verification_means,
+                    observations: ind.observations,
+                    goals_by_province: ind.province_goals.map(pg => ({
+                        province_id: pg.province_id,
+                        target: pg.total,
+                        target_men: pg.men,
+                        target_women: pg.women
+                    }))
+                };
+            })
         };
 
         // 3. Confirmación con SweetAlert2 (Estilo Oxford/Emerald)
@@ -265,21 +281,27 @@ const ProjectTechnicalSetup = () => {
                 // 2. Transformamos exacto como en handleSaveAll (Tu lógica de image_ae4889.png)
                 const formattedData = {
                     project_id: parseInt(projectId),
-                    indicators: updatedIndicators.map(ind => ({
-                        template_id: ind.template_id,
-                        means_ids: ind.means_ids || [],
-                        target_total: ind.province_goals.reduce((acc, curr) => acc + curr.total, 0),
-                        target_men: ind.province_goals.reduce((acc, curr) => acc + curr.men, 0),
-                        target_women: ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
-                        verification_means: ind.verification_means,
-                        observations: ind.observations,
-                        goals_by_province: ind.province_goals.map(pg => ({
-                            province_id: pg.province_id,
-                            target: pg.total,
-                            target_men: pg.men,
-                            target_women: pg.women
-                        }))
-                    }))
+                    indicators: updatedIndicators.map(ind => {
+                        const finalMeansIds = ind.means_ids && ind.means_ids.length > 0
+                            ? ind.means_ids
+                            : (ind.means_tags ? ind.means_tags.map(t => t.id) : []);
+
+                        return {
+                            template_id: ind.template_id,
+                            means_ids: finalMeansIds, // <-- Ahora sí está protegido
+                            target_total: ind.province_goals.reduce((acc, curr) => acc + curr.total, 0),
+                            target_men: ind.province_goals.reduce((acc, curr) => acc + curr.men, 0),
+                            target_women: ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
+                            verification_means: ind.verification_means,
+                            observations: ind.observations,
+                            goals_by_province: ind.province_goals.map(pg => ({
+                                province_id: pg.province_id,
+                                target: pg.total,
+                                target_men: pg.men,
+                                target_women: pg.women
+                            }))
+                        };
+                    })
                 };
 
                 try {
@@ -310,9 +332,14 @@ const ProjectTechnicalSetup = () => {
                 setLoading(true);
 
                 // 1. Cargamos el Proyecto
-                const resProj = await apiFetch(`/projects/${projectId}`);
+                const [resProj, resMaster] = await Promise.all([
+                    apiFetch(`/projects/${projectId}`),
+                    apiFetch('/verification-means')
+                ]);
                 const dataProj = await resProj.json();
+                const dataMaster = await resMaster.json();
                 setProject(dataProj);
+                setMasterMeans(dataMaster);
 
                 // 2. Cargamos las Competencias y la primera Teoría (ESTO DEBE IR ANTES)
                 const resComp = await apiFetch(`/my-assigned-projects`);
@@ -346,6 +373,8 @@ const ProjectTechnicalSetup = () => {
                             theory_name: info.theory_name,
                             result_name: info.result_name,
                             result_type: info.result_type,
+                            means_tags: ind.means_tags || [], // Para mostrar los badges en la tabla
+                            means_ids: ind.means_ids || [],
                             verification_means: ind.verification_means || "",
                             observations: ind.observations || "",
                             province_goals: ind.goals_by_province.map(g => ({
