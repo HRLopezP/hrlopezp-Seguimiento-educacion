@@ -24,7 +24,6 @@ import CreateProject from "./pages/CreateProject";
 import LocationManagement from "./pages/LocationManagement";
 import ProjectList from "./pages/ProjectList";
 import ProjectDetail from "./pages/ProjectDetail";
-import TechnicalAssignment from "./pages/TechnicalAssignment";
 import ProjectTechnicalSetup from "./pages/ProjectTechnicalSetup";
 import VerificationMeansManagement from "./pages/VerificationMeansManagement";
 import Profile from "./pages/Profile";
@@ -136,15 +135,6 @@ export const router = createBrowserRouter(
         element={
           <ProtectedRoute>
             <CreateProject />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/manager/projects/:id/technical-plan"
-        element={
-          <ProtectedRoute>
-            <TechnicalAssignment />
           </ProtectedRoute>
         }
       />

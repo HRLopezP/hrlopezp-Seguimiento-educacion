@@ -3,7 +3,7 @@ import { toast, Toaster } from "sonner";
 import Swal from 'sweetalert2';
 import { apiFetch } from "../../utils/api";
 import "../styles/auth.css";
-import "../styles/roleManagement.css"; 
+import "../styles/roleManagement.css";
 
 const VerificationMeansManagement = () => {
     const [means, setMeans] = useState([]);
@@ -125,10 +125,10 @@ const VerificationMeansManagement = () => {
             <Toaster richColors position="top-right" />
             <div className="container mt-4">
                 <div className="card management-card-unified shadow-lg border-0">
-                    <div className="management-card-header d-flex justify-content-between align-items-center bg-white border-bottom p-4">
+                    <div className="management-card-header d-flex justify-content-between align-items-center">
                         <div>
-                            <h2 className="management-title" style={{ color: '#1e293b' }}>Catálogo de Evidencias</h2>
-                            <p className="management-subtitle text-muted">Define los medios de verificación oficiales para el seguimiento técnico</p>
+                            <h2 className="management-title">Catálogo de Evidencias</h2>
+                            <p className="management-subtitle">Define los medios de verificación oficiales para el seguimiento técnico</p>
                         </div>
                         <button className="btn btn-primary px-4 py-2 rounded-pill shadow-sm" onClick={() => handleOpenModal()}>
                             <i className="fas fa-plus-circle me-2"></i>Nuevo Medio
@@ -136,8 +136,8 @@ const VerificationMeansManagement = () => {
                     </div>
                     <div className="card-body p-0">
                         <div className="table-responsive">
-                            <table className="table align-middle table-hover mb-0">
-                                <thead className="bg-light">
+                            <table className="table align-middle table-sigssep mb-0">
+                                <thead>
                                     <tr>
                                         <th className="ps-4" style={{ width: '80px' }}>ID</th>
                                         <th>Nombre del Medio de Verificación</th>
@@ -151,10 +151,8 @@ const VerificationMeansManagement = () => {
                                             <td className="ps-4 text-muted small">#{mean.id}</td>
                                             <td>
                                                 <div className="d-flex align-items-center">
-                                                    <div className="me-3 p-2 bg-light rounded-circle text-primary">
-                                                        <i className="fas fa-file-alt"></i>
-                                                    </div>
-                                                    <span className="fw-bold text-dark">{mean.name}</span>
+                                                    <i className="fas fa-file-alt text-primary"></i>
+                                                    <span className="ps-4 fw-bold user-name-text">{mean.name}</span>
                                                 </div>
                                             </td>
                                             <td className="text-center">
