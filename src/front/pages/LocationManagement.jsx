@@ -308,12 +308,12 @@ const LocationManagement = () => {
             <div className="container mt-4">
                 <div className="row g-4">
                     {/* COLUMNA IZQUIERDA: PROVINCIAS */}
-                    <div className="col-md-3">
+                    <div className="col-md-5">
                         <div className="sigssep-table-container">
-                            <div className="auth-header py-3">
+                            <div className="auth-header py-3 border-bottom border-success border-3">
                                 <h5 className="m-0 fs-6">PROVINCIAS</h5>
                                 <button
-                                    className="btn btn-sm btn-light bg-opacity-10 text-white border-0"
+                                    className="btn btn-sm btn-primary mt-3 bg-opacity-10 text-white border-0"
                                     onClick={handleAddProvince}
                                     title="Nueva Provincia"
                                 >
@@ -329,29 +329,26 @@ const LocationManagement = () => {
                                     >
                                         {/* --- NUEVO BLOQUE: NOMBRE + EDITAR --- */}
                                         <div className="d-flex align-items-center">
-                                            <span className="me-2">{p.name}</span>
+                                            <span className="me-4 my-2">{p.name}</span>
                                             <span
                                                 className="badge rounded-pill bg-light bg-opacity-10 p-1 px-2"
                                                 style={{ cursor: 'pointer' }}
                                                 onClick={(e) => {
-                                                    e.stopPropagation(); // ¡Importante! Evita que se seleccione la provincia al querer editar
+                                                    e.stopPropagation();
                                                     handleEditProvince(p);
                                                 }}
                                             >
-                                                <i className="fas fa-edit fa-xs" style={{ fontSize: '0.7rem' }}></i>
+                                                <i className="fas fa-edit fa-xs text-success" style={{ fontSize: '0.7rem' }}></i>
                                             </span>
                                         </div>
-                                        {/* -------------------------------------- */}
-
                                         <i className={`fas fa-chevron-${selectedProvince?.id === p.id ? 'down' : 'right'} small opacity-50`}></i>
                                     </button>
                                 ))}
                             </div>
                         </div>
                     </div>
-
                     {/* COLUMNA DERECHA: MUNICIPIOS Y PARROQUIAS */}
-                    <div className="col-md-9">
+                    <div className="col-md-7">
                         {selectedProvince ? (
                             <div className="sigssep-table-container animate__animated animate__fadeIn">
                                 <div className="management-card-header d-flex justify-content-between align-items-center p-4">
@@ -370,7 +367,7 @@ const LocationManagement = () => {
                                 <div className="p-3">
                                     {municipalities.map(m => (
                                         <div key={m.id} className="mb-3 border rounded overflow-hidden" style={{ borderColor: 'rgba(128,128,128,0.1)' }}>
-                                            <div className="d-flex justify-content-between align-items-center p-3 bg-light-subtle">
+                                            <div className="d-flex justify-content-between align-items-center p-3 bg-new-list">
                                                 <div className="d-flex align-items-center px-3">
                                                     <span className="fw-bold text-primary me-2">{m.name}</span>
                                                     <button
@@ -397,7 +394,7 @@ const LocationManagement = () => {
                                             {expandedMuni === m.id && (
                                                 <div className="p-3 animate__animated animate__slideInDown" style={{ backgroundColor: 'var(--bg-color)' }}>
                                                     <div className="d-flex justify-content-between align-items-center mb-2">
-                                                        <h6 className="m-0 opacity-75 small fw-bold text-uppercase">Parroquias de {m.name}</h6>
+                                                        <h6 className="m-0 opacity-75 small text-new fw-bold text-uppercase">Parroquias de {m.name}</h6>
                                                         <button className="btn btn-sm btn-outline-success border-0" onClick={() => handleAddParish(m.id)}>
                                                             <i className="fas fa-plus me-1"></i> Añadir
                                                         </button>
@@ -405,8 +402,8 @@ const LocationManagement = () => {
                                                     <div className="row g-2">
                                                         {parishes.map(pa => (
                                                             <div key={pa.id} className="col-md-4">
-                                                                <div className="p-2 border rounded d-flex justify-content-between align-items-center bg-white shadow-sm animate__animated animate__fadeIn">
-                                                                    <span className="small text-dark fw-medium">{pa.name}</span>
+                                                                <div className="p-2 border border-success rounded d-flex justify-content-between align-items-center bg-new-list shadow-sm">
+                                                                    <span className="small text-dark fw-medium text-new">{pa.name}</span>
                                                                     <div className="d-flex gap-2">
                                                                         {/* Botón Editar Parroquia */}
                                                                         <button
@@ -428,7 +425,7 @@ const LocationManagement = () => {
                                                                 </div>
                                                             </div>
                                                         ))}
-                                                        {parishes.length === 0 && <p className="text-muted small text-center w-100">No hay parroquias registradas.</p>}
+                                                        {parishes.length === 0 && <p className="text-muted small table-sigssep text-center w-100">No hay parroquias registradas.</p>}
                                                     </div>
                                                 </div>
                                             )}
@@ -437,7 +434,7 @@ const LocationManagement = () => {
                                 </div>
                             </div>
                         ) : (
-                            <div className="text-center p-5 opacity-25">
+                            <div className="text-center text-new p-5 opacity-25">
                                 <i className="fas fa-map-marked-alt fa-5x mb-3"></i>
                                 <h3>Selecciona una provincia para comenzar</h3>
                             </div>

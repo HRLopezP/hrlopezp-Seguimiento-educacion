@@ -750,7 +750,7 @@ const CreateProject = () => {
                                                         </span>
                                                     </div>
                                                 ) : (
-                                                    <span className="text-muted small italic">No se definieron resultados aún.</span>
+                                                    <span className="text-new small italic">No se definieron resultados aún.</span>
                                                 )}
                                             </div>
                                         </div>

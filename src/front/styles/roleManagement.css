@@ -113,6 +113,14 @@
   }
 }
 
+.bg-new-list {
+  background: rgb(248, 248, 248);
+}
+
+[data-theme="dark"] .bg-new-list {
+  background-color: #1b263b;
+}
+
 /* Si es edición, cambiamos el color a azul para diferenciar */
 .fa-key {
   color: #3a86ff;
@@ -191,3 +199,12 @@
     transform: scale(1.1);
     transition: all 0.2s ease;
 }
+
+.text-new {
+  color: black;
+}
+
+[data-theme="dark"] .text-new {
+  color: white !important;
+}
+

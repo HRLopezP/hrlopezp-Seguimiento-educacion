@@ -135,7 +135,7 @@ const CompetenceManagement = () => {
                                     <tr>
                                         <th style={{ width: '50px' }}>ID</th>
                                         <th>Nombre de Competencia</th>
-                                        <th className="text-end mx-5" style={{ width: '250px', paddingRight: '40px' }}>Acciones</th>
+                                        <th className="text-center mx-5" style={{ width: '250px', paddingRight: '40px' }}>Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
