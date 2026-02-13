@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from "../../utils/api";
 import { toast, Toaster } from 'sonner';
@@ -21,7 +21,6 @@ const ProjectTechnicalSetup = () => {
     const [expandedTheories, setExpandedTheories] = useState({});
     const [masterMeans, setMasterMeans] = useState([]);
 
-    // Función para cambiar el estado (abrir/cerrar)
     const toggleTheory = (tName) => {
         setExpandedTheories(prev => ({
             ...prev,
@@ -29,51 +28,69 @@ const ProjectTechnicalSetup = () => {
         }));
     };
 
-
     const getIndicatorContext = (templateId, allTheories) => {
+        // 1. Valor por defecto
         let context = {
             theory_name: "Sin Teoría asignada",
             result_name: "Sin Resultado asignado",
             result_type: "Output"
         };
 
-        allTheories.forEach(t => {
-            t.results?.forEach(r => {
-                if (r.indicators?.some(i => i.id === templateId)) {
-                    context = { theory_name: t.name, result_name: r.name, result_type: r.type };
+        // 2. Usamos un bucle que permita "romper" la búsqueda apenas encuentre el indicador
+        // Esto es más eficiente que recorrer TODO si ya lo encontramos al principio
+        for (const t of allTheories) {
+            if (!t.results) continue;
+
+            for (const r of t.results) {
+                // Usamos Number() por si acaso un ID viene como String y el otro como Number
+                const found = r.indicators?.some(i => Number(i.id) === Number(templateId));
+
+                if (found) {
+                    return {
+                        theory_name: t.name,
+                        result_name: r.name,
+                        result_type: r.type
+                    };
                 }
-            });
-        });
+            }
+        }
+
         return context;
     };
 
+    const groupedData = useMemo(() => {
+        if (!selectedComp || !theories.length) return {};
 
-    const groupedData = selectedIndicators.reduce((acc, ind) => {
+        const currentTheoryNames = theories.map(t => t.name);
+        console.log("Teorías de la competencia actual:", currentTheoryNames);
+        console.log("Indicadores en la bolsa global:", selectedIndicators.map(i => i.theory_name));
+        return selectedIndicators
+            .filter(ind => currentTheoryNames.includes(ind.theory_name))
+            .reduce((acc, ind) => {
+                let indicatorName = "Nombre no encontrado";
+                theories.forEach(t => {
+                    t.results?.forEach(r => {
+                        const found = r.indicators?.find(i => i.id === ind.template_id);
+                        if (found) indicatorName = found.name;
+                    });
+                });
 
-        let indicatorName = "Nombre no encontrado";
-        theories.forEach(t => {
-            t.results?.forEach(r => {
-                const found = r.indicators?.find(i => i.id === ind.template_id);
-                if (found) indicatorName = found.name;
-            });
-        });
+                const context = getIndicatorContext(ind.template_id, theories);
+                const tName = context.theory_name;
+                const rType = context.result_type;
+                const rName = context.result_name;
 
-        const context = getIndicatorContext(ind.template_id, theories);
-        const tName = context.theory_name;
-        const rType = context.result_type;
-        const rName = context.result_name;
+                if (!acc[tName]) acc[tName] = {};
+                if (!acc[tName][rType]) acc[tName][rType] = {};
+                if (!acc[tName][rType][rName]) acc[tName][rType][rName] = [];
 
-        if (!acc[tName]) acc[tName] = {};
-        // Agrupamos por TIPO dentro de la teoría
-        if (!acc[tName][rType]) acc[tName][rType] = {};
-        if (!acc[tName][rType][rName]) acc[tName][rType][rName] = [];
-
-        acc[tName][rType][rName].push({
-            ...ind,
-            indicator_name: indicatorName // <--- ¡Aquí está la magia!
-        });
-        return acc;
-    }, {});
+                acc[tName][rType][rName].push({
+                    ...ind,
+                    indicator_name: indicatorName
+                });
+                return acc;
+            }, {});
+    }, [selectedIndicators, theories, selectedComp]); // Se recalcula cuando cambian estos 3
 
     const handleMetaChange = (indicatorId, provinceId, field, value) => {
         const numValue = value === '' ? 0 : Number(value);
@@ -94,23 +111,18 @@ const ProjectTechnicalSetup = () => {
 
     const handleIndicatorToggle = (ind, isChecked) => {
         if (isChecked) {
-            // 1. Buscamos la Teoría y el Resultado (Esto ya lo tenías bien)
             const theory = theories.find(t => String(t.id) === String(selectedTheoryId));
             const result = theory?.results.find(r =>
                 r.indicators.some(indicatorInResult => indicatorInResult.id === ind.id)
             );
 
-            // 2. CREAMOS LA LISTA DE PROVINCIAS SIN DUPLICADOS
-            // Aquí es donde resolvemos el Error 3
             const uniqueProvinces = [];
             const seen = new Set();
 
             if (project?.locations && project.locations.length > 0) {
-                // Imprimimos para ver qué nombres de propiedades tiene tu objeto realmente
                 console.log("Datos de locaciones del proyecto:", project.locations);
 
                 project.locations.forEach(loc => {
-                    // Usamos loc.province o loc.province_name según lo que venga de tu base de datos
                     const pName = loc.province || loc.province_name || "Provincia desconocida";
                     const pId = loc.province_id;
 
@@ -127,7 +139,6 @@ const ProjectTechnicalSetup = () => {
                 });
             }
 
-            // 3. Creamos el objeto final para la tabla
             const newIndicator = {
                 template_id: ind.id,
                 code: ind.code,
@@ -160,17 +171,15 @@ const ProjectTechnicalSetup = () => {
             if (ind.template_id === indicatorId) {
                 let extraData = {};
 
-                // SI ESTAMOS CAMBIANDO LOS MEDIOS DE VERIFICACIÓN
                 if (field === 'means_ids') {
-                    // Buscamos los objetos completos en el catálogo para tener los nombres
-                    // Esto es lo que hace que aparezcan en la tabla SIN recargar
+
                     extraData.means_tags = masterMeans.filter(m => value.includes(m.id));
                 }
 
                 return {
                     ...ind,
                     [field]: value,
-                    ...extraData // Esto inyecta los means_tags si existen
+                    ...extraData
                 };
             }
             return ind;
@@ -180,30 +189,27 @@ const ProjectTechnicalSetup = () => {
     const validateData = () => {
         for (const ind of selectedIndicators) {
             for (const pg of ind.province_goals) {
-                // Regla de oro: Hombres + Mujeres debe ser igual al Total
                 if (pg.men + pg.women !== pg.total) {
                     Swal.fire({
                         title: 'Error de cálculo',
                         html: `En el indicador <b>${ind.code}</b>,<br>la suma de hombres (${pg.men}) y mujeres (${pg.women}) <br>no coincide con el total (${pg.total}) en la provincia <b>${pg.province_name}</b>.`,
                         icon: 'error',
-                        confirmButtonColor: '#1b263b' // Tu Oxford Grey
+                        confirmButtonColor: '#1b263b'
                     });
-                    return false; // Detiene la validación y devuelve error
+                    return false;
                 }
             }
         }
-        return true; // Si llega aquí, todo está perfecto
+        return true;
     };
 
     const handleSaveAll = async () => {
-        // 1. Validación rápida: ¿Hay algo que guardar?
         if (selectedIndicators.length === 0) {
             return toast.error("No has seleccionado ningún indicador para configurar.");
         }
 
         if (!validateData()) return;
 
-        // 2. Transformamos el estado al formato del Backend
         const formattedData = {
             project_id: parseInt(projectId),
             indicators: selectedIndicators.map(ind => {
@@ -213,7 +219,7 @@ const ProjectTechnicalSetup = () => {
 
                 return {
                     template_id: ind.template_id,
-                    means_ids: finalMeansIds, // Enviamos IDs siempre
+                    means_ids: finalMeansIds,
                     target_total: ind.province_goals.reduce((acc, curr) => acc + curr.total, 0),
                     target_men: ind.province_goals.reduce((acc, curr) => acc + curr.men, 0),
                     target_women: ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
@@ -229,7 +235,6 @@ const ProjectTechnicalSetup = () => {
             })
         };
 
-        // 3. Confirmación con SweetAlert2 (Estilo Oxford/Emerald)
         const result = await Swal.fire({
             title: '¿Guardar Configuración Técnica?',
             text: `Se procesarán ${selectedIndicators.length} indicadores para este proyecto.`,
@@ -246,14 +251,13 @@ const ProjectTechnicalSetup = () => {
         if (result.isConfirmed) {
             try {
                 const res = await apiFetch('/indicators/bulk', {
-                    method: 'POST', // O PATCH según prefieras
+                    method: 'POST',
                     body: JSON.stringify(formattedData)
                 });
 
                 if (res.ok) {
                     toast.success("¡Planificación técnica guardada con éxito!");
-                    // Opcional: Redirigir al detalle del proyecto
-                    // navigate(`/manager/projects/${projectId}`);
+
                 } else {
                     toast.error("Hubo un error al guardar los indicadores.");
                 }
@@ -275,10 +279,8 @@ const ProjectTechnicalSetup = () => {
             cancelButtonText: 'Cancelar'
         }).then(async (result) => {
             if (result.isConfirmed) {
-                // 1. Filtramos localmente
                 const updatedIndicators = selectedIndicators.filter(i => i.template_id !== indicatorId);
 
-                // 2. Transformamos exacto como en handleSaveAll (Tu lógica de image_ae4889.png)
                 const formattedData = {
                     project_id: parseInt(projectId),
                     indicators: updatedIndicators.map(ind => {
@@ -305,7 +307,6 @@ const ProjectTechnicalSetup = () => {
                 };
 
                 try {
-                    // 3. ¡LLAMADA VITAL AL BACKEND!
                     const res = await apiFetch('/indicators/bulk', {
                         method: 'POST',
                         body: JSON.stringify(formattedData)
@@ -325,13 +326,12 @@ const ProjectTechnicalSetup = () => {
         });
     };
 
-    // 1. Cargar datos iniciales
+
     useEffect(() => {
         const loadInitialData = async () => {
             try {
                 setLoading(true);
 
-                // 1. Cargamos el Proyecto
                 const [resProj, resMaster] = await Promise.all([
                     apiFetch(`/projects/${projectId}`),
                     apiFetch('/verification-means')
@@ -341,46 +341,51 @@ const ProjectTechnicalSetup = () => {
                 setProject(dataProj);
                 setMasterMeans(dataMaster);
 
-                // 2. Cargamos las Competencias y la primera Teoría (ESTO DEBE IR ANTES)
                 const resComp = await apiFetch(`/my-assigned-projects`);
                 const allMyProjects = await resComp.json();
                 const comps = allMyProjects.filter(p => p.project_id === parseInt(projectId));
                 setMyCompetences(comps);
 
-                let loadedTheories = [];
+                // --- CAMBIO CLAVE AQUÍ ---
+                // Cargamos las teorías de TODAS las competencias asignadas en paralelo
+                const theoryPromises = comps.map(c => apiFetch(`/competence/${c.competence_id}/theories`));
+                const theoryResponses = await Promise.all(theoryPromises);
+                const theoryDataArray = await Promise.all(theoryResponses.map(r => r.json()));
+
+                // Unificamos todo en una sola lista maestra
+                const allProjectTheories = theoryDataArray.flat();
+
                 if (comps.length > 0) {
                     setSelectedComp(comps[0]);
-                    // Traemos las teorías de la primera competencia para tener el "mapa"
-                    const resT = await apiFetch(`/competence/${comps[0].competence_id}/theories`);
-                    loadedTheories = await resT.json();
-                    setTheories(loadedTheories);
+                    // Para la vista inicial (Matriz), filtramos solo las de la primera competencia
+                    const initialTheories = theoryDataArray[0];
+                    setTheories(initialTheories);
                 }
 
-                // 3. CARGAMOS LOS INDICADORES GUARDADOS (Ahora que ya tenemos loadedTheories)
                 const resSaved = await apiFetch(`/projects/${projectId}/indicators`);
                 if (resSaved.ok) {
                     const savedData = await resSaved.json();
 
                     const formattedSaved = savedData.map(ind => {
-                        // USAMOS LA FUNCIÓN BUSCADORA AQUÍ
-                        const info = getIndicatorContext(ind.template_id, loadedTheories);
+                        // Ahora buscamos en la lista MAESTRA (allProjectTheories)
+                        // Así los de Wash encontrarán su teoría aunque estemos viendo Educación
+                        const info = getIndicatorContext(ind.template_id, allProjectTheories);
 
                         return {
                             template_id: ind.template_id,
                             code: ind.indicator_code,
                             description: ind.description,
-                            // Aplicamos lo que el detective encontró
                             theory_name: info.theory_name,
                             result_name: info.result_name,
                             result_type: info.result_type,
-                            means_tags: ind.means_tags || [], // Para mostrar los badges en la tabla
+                            means_tags: ind.means_tags || [],
                             means_ids: ind.means_ids || [],
                             verification_means: ind.verification_means || "",
                             observations: ind.observations || "",
                             province_goals: ind.goals_by_province.map(g => ({
                                 province_id: g.province_id,
                                 province_name: g.province_name,
-                                total: g.target || 0, // Si 'target' viene en 0, se queda en 0
+                                total: g.target || 0,
                                 men: g.men || 0,
                                 women: g.women || 0
                             }))
@@ -390,6 +395,7 @@ const ProjectTechnicalSetup = () => {
                 }
 
             } catch (error) {
+                console.error(error);
                 toast.error("Error al cargar la configuración técnica");
             } finally {
                 setLoading(false);
@@ -398,7 +404,6 @@ const ProjectTechnicalSetup = () => {
         loadInitialData();
     }, [projectId]);
 
-    // 2. Cargar teorías cuando cambie la competencia seleccionada
     useEffect(() => {
         if (selectedComp) {
             const fetchTheories = async () => {
@@ -420,6 +425,12 @@ const ProjectTechnicalSetup = () => {
         };
         loadMasterMeans();
     }, []);
+
+    const indicatorsOfSelectedComp = useMemo(() => {
+        if (!selectedComp || !theories.length) return [];
+        const currentTheoryNames = theories.map(t => t.name);
+        return selectedIndicators.filter(ind => currentTheoryNames.includes(ind.theory_name));
+    }, [selectedIndicators, theories, selectedComp]);
 
     const currentTheory = theories.find(t => String(t.id) === String(selectedTheoryId));
     const activeInd = selectedIndicators.find(i => i.template_id === activeIndicatorId);
@@ -461,7 +472,7 @@ const ProjectTechnicalSetup = () => {
                 </div>
                 <div className="row">
                     <div className="col-md-5">
-                        <div className="card shadow-sm border-dynamic bg-card-dynamic"> 
+                        <div className="card shadow-sm border-dynamic bg-card-dynamic">
                             <div className="card-header py-4 bg-oxford-grey border-bottom border-success text-white d-flex justify-content-between align-items-center border-0">
                                 <span className="small fw-bold text-oxford-dynamic"><i className="fas fa-sitemap me-2"></i>Estructura Técnica</span>
                                 <span className="badge bg-emerald">{selectedIndicators.length} Seleccionados</span>
@@ -669,9 +680,9 @@ const ProjectTechnicalSetup = () => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {selectedIndicators.length > 0 ? (
-                                                selectedIndicators.map((ind, idx) => (
-                                                    <tr key={idx} className="cursor-pointer transition-all hover-oxford-soft" onClick={() => setActiveIndicatorId(ind.template_id)}>
+                                            {indicatorsOfSelectedComp.length > 0 ? (
+                                                indicatorsOfSelectedComp.map((ind, idx) => (
+                                                    <tr key={ind.template_id || idx} className="cursor-pointer transition-all hover-oxford-soft" onClick={() => setActiveIndicatorId(ind.template_id)}>
                                                         <td className="fw-bold text-emerald">{ind.code}</td>
                                                         <td className="fw-bold text-center">
                                                             <span className="badge bg-emerald text-navy px-3 py-2" style={{ fontSize: '0.9rem' }}>
@@ -727,7 +738,7 @@ const ProjectTechnicalSetup = () => {
                         )}
                     </div>
                     {/* TABLA INFERIOR */}
-                    <div className="mt-5 p-4 rounded shadow-sm border-dynamic bg-card-dynamic"> 
+                    <div className="mt-5 p-4 rounded shadow-sm border-dynamic bg-card-dynamic">
                         <h5 className="text-oxford-grey border-bottom border-success fw-bold mb-4 pb-4">
                             <i className="fas fa-project-diagram me-2 text-emerald"></i>
                             Matriz de Planificación Técnica (Marco Lógico)
@@ -803,7 +814,7 @@ const ProjectTechnicalSetup = () => {
                                                                                 {ind.means_tags.map((mean, i) => (
                                                                                     <span key={i} className="auth-input" style={{ fontSize: '0.7rem' }}>
                                                                                         <i className="fas fa-check-circle text-emerald me-1"></i>
-                                                                                        {mean.name} 
+                                                                                        {mean.name}
                                                                                     </span>
                                                                                 ))}
                                                                             </div>
