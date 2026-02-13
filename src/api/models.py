@@ -173,7 +173,6 @@ class IndicatorTemplate(db.Model):
             "name": self.name,
             "description": self.description,
             "result_id": self.result_id
-            # No pongas "result" aquí para evitar bucles infinitos
         }
 
 
@@ -307,11 +306,17 @@ class Indicator(db.Model):
         res_temp = self.project_result.result_template if self.project_result else None
         theo_temp = res_temp.theory if res_temp else None
         comp_temp = theo_temp.competence if theo_temp else None
+
+        if not comp_temp and self.template and self.template.result:
+            res_temp = self.template.result
+            theo_temp = res_temp.theory
+            comp_temp = theo_temp.competence
         
         return {
             "id": self.id_indicator,
             "template_id": self.template_id,
             "indicator_code": self.template.code,
+            "indicator_name": self.template.name,
             "description": self.template.description,
             "verification_means": self.verification_means or "", 
             "observations": self.observations or "",
