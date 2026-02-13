@@ -109,28 +109,20 @@ const ProjectTechnicalSetup = () => {
     };
 
 
-    const handleIndicatorToggle = (ind, isChecked) => {
+    // Agregamos 'resultObj' como tercer parámetro
+    const handleIndicatorToggle = (ind, isChecked, resultObj) => {
         if (isChecked) {
-            const theory = theories.find(t => String(t.id) === String(selectedTheoryId));
-            const result = theory?.results.find(r =>
-                r.indicators.some(indicatorInResult => indicatorInResult.id === ind.id)
-            );
-
+            // --- LOGICA DE PROVINCIAS (Mantenla igual) ---
             const uniqueProvinces = [];
             const seen = new Set();
-
             if (project?.locations && project.locations.length > 0) {
-                console.log("Datos de locaciones del proyecto:", project.locations);
-
                 project.locations.forEach(loc => {
                     const pName = loc.province || loc.province_name || "Provincia desconocida";
-                    const pId = loc.province_id;
-
                     if (!seen.has(pName)) {
                         seen.add(pName);
                         uniqueProvinces.push({
                             province_id: loc.id_location || loc.province_id,
-                            province_name: loc.province || loc.province_name,
+                            province_name: pName,
                             total: 0,
                             men: 0,
                             women: 0
@@ -142,11 +134,13 @@ const ProjectTechnicalSetup = () => {
             const newIndicator = {
                 template_id: ind.id,
                 code: ind.code,
-                indicator_name: ind.name || ind.title || "Indicador sin nombre",
+                indicator_name: ind.name || "Indicador sin nombre",
                 description: ind.description,
+                // CAMBIO AQUÍ: Usamos resultObj que es el nombre del parámetro
+                project_result_id: resultObj?.id || null,
                 theory_name: currentTheory?.name || "Sin Teoría",
-                result_type: result?.type || "Output",
-                result_name: result?.name || "Sin Resultado",
+                result_type: resultObj?.type || "output",
+                result_name: resultObj?.name || "General",
                 verification_means: "",
                 observations: "",
                 province_goals: uniqueProvinces,
@@ -154,17 +148,15 @@ const ProjectTechnicalSetup = () => {
                 means_tags: []
             };
 
+            console.log("✅ Nuevo indicador capturado con éxito:", newIndicator);
             setSelectedIndicators([...selectedIndicators, newIndicator]);
             setActiveIndicatorId(ind.id);
 
         } else {
             setSelectedIndicators(selectedIndicators.filter(i => i.template_id !== ind.id));
-            if (activeIndicatorId === ind.id) {
-                setActiveIndicatorId(null);
-            }
+            if (activeIndicatorId === ind.id) setActiveIndicatorId(null);
         }
     };
-
 
     const handleInfoChange = (indicatorId, field, value) => {
         setSelectedIndicators(prev => prev.map(ind => {
@@ -217,6 +209,10 @@ const ProjectTechnicalSetup = () => {
                     ? ind.means_ids
                     : (ind.means_tags ? ind.means_tags.map(t => t.id) : []);
 
+                console.log(`🔍 Revisando Indicador ${ind.template_id}:`, {
+                    id_en_estado: ind.project_result_id,
+                    nombre: ind.indicator_name || ind.description
+                });
                 return {
                     template_id: ind.template_id,
                     means_ids: finalMeansIds,
@@ -225,6 +221,7 @@ const ProjectTechnicalSetup = () => {
                     target_women: ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
                     verification_means: ind.verification_means,
                     observations: ind.observations,
+                    project_result_id: ind.project_result_id,
                     goals_by_province: ind.province_goals.map(pg => ({
                         province_id: pg.province_id,
                         target: pg.total,
@@ -234,6 +231,8 @@ const ProjectTechnicalSetup = () => {
                 };
             })
         };
+
+        console.log("🚀 DATA FINAL A ENVIAR:", formattedData);
 
         const result = await Swal.fire({
             title: '¿Guardar Configuración Técnica?',
@@ -513,7 +512,14 @@ const ProjectTechnicalSetup = () => {
                                                                     id={`ind-${ind.id}`}
                                                                     checked={selectedIndicators.some(i => i.template_id === ind.id)}
                                                                     disabled={selectedIndicators.some(i => i.template_id === ind.id)}
-                                                                    onChange={(e) => handleIndicatorToggle(ind, e.target.checked)}
+                                                                    onChange={(e) => {
+                                                                        // Verificamos si result existe antes de llamar a la función
+                                                                        if (result) {
+                                                                            handleIndicatorToggle(ind, e.target.checked, result);
+                                                                        } else {
+                                                                            console.error("SIGSSEP Error: El objeto 'result' no llegó al checkbox.");
+                                                                        }
+                                                                    }}
                                                                 />
                                                                 <label className="form-check-label small d-block cursor-pointer" htmlFor={`ind-${ind.id}`}>
                                                                     {selectedIndicators.some(i => i.template_id === ind.id) && (

@@ -304,22 +304,28 @@ class Indicator(db.Model):
     target_women: Mapped[float] = mapped_column(Float, default=0.0)
 
     def serialize(self):
+        res_temp = self.project_result.result_template if self.project_result else None
+        theo_temp = res_temp.theory if res_temp else None
+        comp_temp = theo_temp.competence if theo_temp else None
+        
         return {
             "id": self.id_indicator,
             "template_id": self.template_id,
             "indicator_code": self.template.code,
             "description": self.template.description,
-            # Mantenemos tu campo original para que el frontend no falle
             "verification_means": self.verification_means or "", 
             "observations": self.observations or "",
-            # Agregamos la nueva información sin quitar la anterior
             "means_tags": [m.serialize() for m in self.selected_means_list],
             "indicator_targets": {
                 "total": self.target_total,
                 "men": self.target_men,
                 "women": self.target_women
             },
-            "goals_by_province": [goal.serialize() for goal in self.location_goals]
+            "goals_by_province": [goal.serialize() for goal in self.location_goals],
+            "comp_name": comp_temp.name if comp_temp else "Otras Competencias",
+            "theory_name": theo_temp.name if theo_temp else "Sin Teoría",
+            "result_name": res_temp.name if res_temp else "General",
+            "result_type": res_temp.type if res_temp else "output"
         }
 
 

@@ -6,11 +6,13 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { toast, Toaster } from 'sonner';
 import Swal from 'sweetalert2';
+import TechnicalProgressCard from '../components/TechnicalProgressCard';
 
 const ProjectDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const [project, setProject] = useState(null);
+    const [indicators, setIndicators] = useState([]);
     const [loading, setLoading] = useState(true);
 
     const exportToPDF = async () => {
@@ -61,29 +63,52 @@ const ProjectDetail = () => {
 
 
     useEffect(() => {
-        const fetchProjectDetail = async () => {
+        const fetchAllData = async () => {
             try {
-                const res = await apiFetch(`/manager/projects/${id}`);
-                if (res && res.ok) {
-                    const data = await res.json();
-                    setProject(data);
+                setLoading(true);
+
+                // 1. Lanzamos ambas peticiones al mismo tiempo (Eficiencia)
+                const [resProj, resInd] = await Promise.all([
+                    apiFetch(`/manager/projects/${id}`),
+                    apiFetch(`/projects/${id}/indicators`)
+                ]);
+
+                // 2. Validamos el Proyecto (Seguridad)
+                if (resProj && resProj.ok) {
+                    const dataProj = await resProj.json();
+                    setProject(dataProj);
                 } else {
+                    // Si el proyecto no viene bien, disparamos tu lógica original
                     Swal.fire({
                         title: 'Error',
                         text: 'No se pudo encontrar la información del proyecto.',
                         icon: 'error',
-                        confirmButtonColor: '#1b263b' // Oxford Grey
+                        confirmButtonColor: '#1b263b'
                     });
-                    navigate('/manager/projects');
+                    return navigate('/manager/projects');
                 }
+
+                // 3. Validamos los Indicadores (Opcional)
+                if (resInd && resInd.ok) {
+                    const dataInd = await resInd.json();
+                    setIndicators(dataInd);
+                } else {
+                    // Si fallan solo los indicadores, no sacamos al usuario, 
+                    // solo dejamos la lista vacía
+                    console.warn("No se pudieron cargar los indicadores del proyecto");
+                    setIndicators([]);
+                }
+
             } catch (error) {
+                console.error("Error en fetchAllData:", error);
                 toast.error("Error de conexión con SIGSSEP");
             } finally {
                 setLoading(false);
             }
         };
-        fetchProjectDetail();
-    }, [id, navigate]);
+
+        fetchAllData();
+    }, [id, navigate]); // Mantenemos navigate en las dependencias por seguridad
 
     if (loading) return (
         <div className="d-flex justify-content-center align-items-center vh-100">
@@ -94,6 +119,8 @@ const ProjectDetail = () => {
     );
 
     if (!project) return null;
+
+    console.log({ indicators, project })
 
     return (
         <div className="project-detail-main-container fade-in py-4">
@@ -274,6 +301,12 @@ const ProjectDetail = () => {
                             </div>
                         )}
                     </div>
+                </div>
+                <div className="mb-5 fade-in">
+                    <TechnicalProgressCard
+                        allIndicators={indicators}
+                        allCompetences={project?.competences || []}
+                    />
                 </div>
 
                 {/* BOTONES DE ACCIÓN */}
