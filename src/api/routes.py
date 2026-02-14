@@ -1137,24 +1137,40 @@ def bulk_indicators():
 
         for ind in to_delete:
             IndicatorLocationGoal.query.filter_by(indicator_id=ind.id_indicator).delete()
-            # Limpiar relación con medios de verificación antes de borrar
             ind.selected_means_list = [] 
             db.session.delete(ind)
         
-        # --- PASO 2: PROCESAR EL UPSERT ---
+        # --- PASO 2: PROCESAR CADA INDICADOR (UPSERT) ---
         for item in indicators_list:
+            # Importamos lo necesario
+            from api.models import IndicatorTemplate, ProjectResult, ProjectTheory
+
+            # A. Buscamos la "llave maestra": el ProjectResult real para este proyecto
+            template_info = IndicatorTemplate.query.get(item['template_id'])
+            
+            # Buscamos el ID real uniendo ProjectResult con ProjectTheory para filtrar por este proyecto
+            real_project_result = ProjectResult.query.join(ProjectTheory).filter(
+                ProjectTheory.project_id == project_id,
+                ProjectResult.result_template_id == template_info.result_id
+            ).first()
+
+            # B. Buscamos si el indicador ya existe en la base de datos
             indicator = Indicator.query.filter_by(
-                project_id=project_id,
+                project_id=project_id, 
                 template_id=item['template_id']
             ).first()
 
             if indicator:
+                # ACTUALIZAR existente
                 indicator.target_total = item.get('target_total', indicator.target_total)
                 indicator.target_men = item.get('target_men', indicator.target_men)
                 indicator.target_women = item.get('target_women', indicator.target_women)
                 indicator.verification_means = item.get('verification_means', indicator.verification_means)
                 indicator.observations = item.get('observations', indicator.observations)
+                # Asignamos el ID real que encontramos arriba
+                indicator.project_result_id = real_project_result.id if real_project_result else None
             else:
+                # CREAR nuevo
                 indicator = Indicator(
                     project_id=project_id,
                     template_id=item['template_id'],
@@ -1162,23 +1178,25 @@ def bulk_indicators():
                     target_men=item.get('target_men', 0),
                     target_women=item.get('target_women', 0),
                     verification_means=item.get('verification_means', ""),
-                    observations=item.get('observations', "")
+                    observations=item.get('observations', ""),
+                    # Asignamos el ID real que encontramos arriba
+                    project_result_id=real_project_result.id if real_project_result else None,
                 )
                 db.session.add(indicator)
 
-            # --- NUEVA LÓGICA: Sincronizar Medios de Verificación (Catálogo) ---
+            # C. Sincronizar Medios de Verificación (Catálogo maestro)
             if 'means_ids' in item:
-                # Buscamos los objetos del catálogo maestro por sus IDs
                 from api.models import MasterVerificationMean
                 selected_means = MasterVerificationMean.query.filter(
                     MasterVerificationMean.id.in_(item['means_ids'])
                 ).all()
-                # SQLAlchemy se encarga de insertar/borrar en la tabla intermedia automáticamente
                 indicator.selected_means_list = selected_means 
 
+            # Hacemos flush para que 'indicator.id_indicator' exista antes de las metas
             db.session.flush() 
 
-            # --- PASO 3: METAS POR PROVINCIA ---
+            # D. METAS POR PROVINCIA
+            # Nota: usamos 'province_goals' que es como lo envías desde el front
             if 'goals_by_province' in item:
                 IndicatorLocationGoal.query.filter_by(indicator_id=indicator.id_indicator).delete()
                 for goal in item['goals_by_province']:
@@ -1191,11 +1209,15 @@ def bulk_indicators():
                     )
                     db.session.add(new_goal)
 
+        # --- FINALIZAR ---
         db.session.commit()
-        return jsonify({"msg": "Configuración técnica sincronizada con éxito"}), 200
+        return jsonify({"msg": "SIGSSEP: Configuración sincronizada con éxito"}), 200
+
     except Exception as e:
         db.session.rollback()
+        print(f"Error en SIGSSEP: {str(e)}") # Esto ayuda a ver el error en la terminal
         return jsonify({"msg": f"Error en la base de datos: {str(e)}"}), 500
+    
 
 @api.route('/projects/<int:id>/summary', methods=['GET'])
 @jwt_required()

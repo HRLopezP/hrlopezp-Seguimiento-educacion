@@ -6,84 +6,161 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { toast, Toaster } from 'sonner';
 import Swal from 'sweetalert2';
+import TechnicalProgressCard from '../components/TechnicalProgressCard';
 
 const ProjectDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const [project, setProject] = useState(null);
+    const [indicators, setIndicators] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [pdfExpandedComps, setPdfExpandedComps] = useState(null);
+    const [pdfExpandedTheories, setPdfExpandedTheories] = useState(null);
 
     const exportToPDF = async () => {
         const input = document.querySelector('.project-detail-main-container');
-        const actionButtons = document.querySelector('.d-flex.justify-content-between.align-items-center.bg-card-dynamic'); // El contenedor de botones
-
-        // 1. Efecto visual: Notificar que estamos procesando
-        const toastId = toast.loading("Generando documento oficial...");
+        const actionButtons = document.querySelector('.btn-oxford');
+        const toastId = toast.loading("Preparando reporte oficial SIGSSEP...");
 
         try {
-            // 2. Ocultar botones para que no salgan en el PDF
-            if (actionButtons) actionButtons.style.visibility = 'hidden';
+            // 1. "Llave Maestra": Abrir niveles para el reporte
+            const forceComps = {};
+            const forceTheories = {};
+            indicators.forEach(ind => {
+                forceComps[ind.comp_name] = true;
+                if (ind.theory_name) forceTheories[ind.theory_name] = true;
+            });
+            setPdfExpandedComps(forceComps);
+            setPdfExpandedTheories(forceTheories);
 
-            // 3. Configurar html2canvas para alta calidad
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            if (actionButtons) actionButtons.parentElement.style.visibility = 'hidden';
+
+            // 2. Captura en Alta Definición
             const canvas = await html2canvas(input, {
-                scale: 2, // Mejora la resolución del texto
+                scale: 3,
                 useCORS: true,
-                backgroundColor: "#ffffff", // Forzamos fondo blanco para el documento
-                onclone: (clonedDoc) => {
-                    // Truco Pro: Modificar el clon para que el texto sea oscuro en el PDF
-                    const container = clonedDoc.querySelector('.project-detail-main-container');
-                    container.style.color = "#1b263b"; // Oxford Grey
-                    // Forzamos que todos los textos "muted" se vean negros en el PDF
-                    clonedDoc.querySelectorAll('.text-muted-dynamic, .text-oxford-dynamic').forEach(el => {
-                        el.style.color = "#1b263b";
-                    });
-                }
+                backgroundColor: "#ffffff",
+                windowHeight: input.scrollHeight
             });
 
-            // 4. Cálculos para el tamaño A4
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF('p', 'mm', 'a4');
+
+            // 3. Configuración de Espacios
             const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const margin = 15;
+            const printableWidth = pdfWidth - (margin * 2);
+            const printableHeight = pdfHeight - (margin * 2);
 
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save(`SIGSSEP_Reporte_${project.code}.pdf`);
+            const imgWidth = canvas.width;
+            const imgHeight = canvas.height;
+            const ratio = printableWidth / imgWidth;
+            const totalImgHeightInPDF = imgHeight * ratio;
 
-            toast.success("PDF descargado con éxito", { id: toastId });
+            let heightLeft = totalImgHeightInPDF;
+            let position = 0;
+            let pageNumber = 1;
+
+            // --- GENERACIÓN DE DATOS DE TIEMPO ---
+            const now = new Date();
+            const timestamp = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            // Función para el Pie de Página (Numeración + Fecha)
+            const addFooter = (current) => {
+                pdf.setFontSize(9);
+                pdf.setTextColor(150); // Gris más claro para que sea discreto
+
+                // Izquierda: Fecha de generación
+                pdf.text(`Generado el: ${timestamp}`, margin, pdfHeight - 10);
+
+                // Derecha: Numeración
+                pdf.text(`Página ${current}`, pdfWidth - margin, pdfHeight - 10, { align: 'right' });
+
+                // Centro: Marca de agua SIGSSEP
+                pdf.setFont("helvetica", "italic");
+                pdf.text("SIGSSEP - Reporte de Supervisión", pdfWidth / 2, pdfHeight - 10, { align: 'center' });
+            };
+
+            // --- CONSTRUCCIÓN DEL DOCUMENTO ---
+            // Página 1
+            pdf.addImage(imgData, 'PNG', margin, margin, printableWidth, totalImgHeightInPDF);
+            addFooter(pageNumber);
+            heightLeft -= printableHeight;
+
+            // Páginas siguientes
+            while (heightLeft > 0) {
+                pageNumber++;
+                position = heightLeft - totalImgHeightInPDF + margin;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', margin, position, printableWidth, totalImgHeightInPDF);
+                addFooter(pageNumber);
+                heightLeft -= printableHeight;
+            }
+
+            // 4. Finalización
+            pdf.save(`Reporte_SIGSSEP_${project.code}_${now.toISOString().split('T')[0]}.pdf`);
+            toast.success(`Reporte oficial de ${pageNumber} páginas generado`, { id: toastId });
+
         } catch (error) {
-            console.error("Error generando PDF:", error);
-            toast.error("Error al generar el PDF", { id: toastId });
+            console.error("Error PDF:", error);
+            toast.error("Error técnico al generar el documento");
         } finally {
-            // 5. Volver a mostrar los botones
-            if (actionButtons) actionButtons.style.visibility = 'visible';
+            setPdfExpandedComps(null);
+            setPdfExpandedTheories(null);
+            if (actionButtons) actionButtons.parentElement.style.visibility = 'visible';
         }
     };
 
 
     useEffect(() => {
-        const fetchProjectDetail = async () => {
+        const fetchAllData = async () => {
             try {
-                const res = await apiFetch(`/manager/projects/${id}`);
-                if (res && res.ok) {
-                    const data = await res.json();
-                    setProject(data);
+                setLoading(true);
+
+                // 1. Lanzamos ambas peticiones al mismo tiempo (Eficiencia)
+                const [resProj, resInd] = await Promise.all([
+                    apiFetch(`/manager/projects/${id}`),
+                    apiFetch(`/projects/${id}/indicators`)
+                ]);
+
+                // 2. Validamos el Proyecto (Seguridad)
+                if (resProj && resProj.ok) {
+                    const dataProj = await resProj.json();
+                    setProject(dataProj);
                 } else {
+                    // Si el proyecto no viene bien, disparamos tu lógica original
                     Swal.fire({
                         title: 'Error',
                         text: 'No se pudo encontrar la información del proyecto.',
                         icon: 'error',
-                        confirmButtonColor: '#1b263b' // Oxford Grey
+                        confirmButtonColor: '#1b263b'
                     });
-                    navigate('/manager/projects');
+                    return navigate('/manager/projects');
                 }
+
+                // 3. Validamos los Indicadores (Opcional)
+                if (resInd && resInd.ok) {
+                    const dataInd = await resInd.json();
+                    setIndicators(dataInd);
+                } else {
+                    // Si fallan solo los indicadores, no sacamos al usuario, 
+                    // solo dejamos la lista vacía
+                    console.warn("No se pudieron cargar los indicadores del proyecto");
+                    setIndicators([]);
+                }
+
             } catch (error) {
+                console.error("Error en fetchAllData:", error);
                 toast.error("Error de conexión con SIGSSEP");
             } finally {
                 setLoading(false);
             }
         };
-        fetchProjectDetail();
-    }, [id, navigate]);
+
+        fetchAllData();
+    }, [id, navigate]); // Mantenemos navigate en las dependencias por seguridad
 
     if (loading) return (
         <div className="d-flex justify-content-center align-items-center vh-100">
@@ -94,6 +171,8 @@ const ProjectDetail = () => {
     );
 
     if (!project) return null;
+
+    console.log({ indicators, project })
 
     return (
         <div className="project-detail-main-container fade-in py-4">
@@ -274,6 +353,14 @@ const ProjectDetail = () => {
                             </div>
                         )}
                     </div>
+                </div>
+                <div className="mb-5 fade-in">
+                    <TechnicalProgressCard
+                        allIndicators={indicators}
+                        allCompetences={project?.competences || []}
+                        externalExpandedComps={pdfExpandedComps} // Le pasamos el control del PDF
+                        externalExpandedTheories={pdfExpandedTheories}
+                    />
                 </div>
 
                 {/* BOTONES DE ACCIÓN */}
