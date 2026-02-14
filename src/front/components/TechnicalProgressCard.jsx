@@ -1,12 +1,22 @@
 import React, { useState, useMemo } from 'react';
 
-const TechnicalProgressCard = ({ allCompetences, allIndicators, masterTheories }) => {
-    // Estado para controlar qué competencia está expandida
-    const [expandedComps, setExpandedComps] = useState({});
-    const [expandedTheories, setExpandedTheories] = useState({});
+const TechnicalProgressCard = ({
+    allCompetences,
+    allIndicators,
+    masterTheories,
+    externalExpandedComps, // <-- Nueva prop
+    externalExpandedTheories // <-- Nueva prop
+}) => {
+    // ESTADO LOCAL: Se usará para el clic normal del usuario
+    const [localExpandedComps, setLocalExpandedComps] = useState({});
+    const [localExpandedTheories, setLocalExpandedTheories] = useState({});
+
+    // LÓGICA DE PRIORIDAD: Si viene del padre (PDF), manda el padre. Si no, manda el local.
+    const expandedComps = externalExpandedComps || localExpandedComps;
+    const expandedTheories = externalExpandedTheories || localExpandedTheories;
 
     const toggleComp = (compId) => {
-        setExpandedComps(prev => ({ ...prev, [compId]: !prev[compId] }));
+        setLocalExpandedComps(prev => ({ ...prev, [compId]: !prev[compId] }));
     };
 
     const toggleTheory = (tName) => {
@@ -129,26 +139,37 @@ const TechnicalProgressCard = ({ allCompetences, allIndicators, masterTheories }
                                                                 <td className="p-0 bg-white-soft">
                                                                     <div className="list-group list-group-flush">
                                                                         {ind.goals_by_province && ind.goals_by_province.length > 0 ? (
-                                                                            ind.goals_by_province.map((gp, idx) => (
-                                                                                <div key={idx} className="list-group-item py-1 px-3 border-0 bg-transparent" style={{ fontSize: '0.8rem' }}>
-                                                                                    <div className="d-flex justify-content-between">
-                                                                                        <span className="text-oxford-dynamic fw-semibold">
-                                                                                            <i className="fas fa-map-marker-alt text-emerald me-1"></i>
-                                                                                            {gp.province_name || gp.province}
-                                                                                        </span>
-                                                                                        <span className="badge bg-emerald text-white">
-                                                                                            Total: {gp.target_total || gp.target}
-                                                                                        </span>
+                                                                            ind.goals_by_province
+                                                                                /* FILTRO: Solo dejamos las provincias cuyo total sea mayor a 0 */
+                                                                                /* Usamos (target_total || target) para ser compatibles con ambos nombres de campo */
+                                                                                .filter(gp => (gp.target_total || gp.target) > 0)
+                                                                                .map((gp, idx) => (
+                                                                                    <div key={idx} className="list-group-item py-1 px-3 border-0 bg-transparent" style={{ fontSize: '0.8rem' }}>
+                                                                                        <div className="d-flex justify-content-between">
+                                                                                            <span className="text-oxford-dynamic fw-semibold">
+                                                                                                <i className="fas fa-map-marker-alt text-emerald me-1"></i>
+                                                                                                {gp.province_name || gp.province}
+                                                                                            </span>
+                                                                                            <span className="badge bg-emerald text-white">
+                                                                                                Total: {gp.target_total || gp.target}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        <div className="text-end text-muted" style={{ fontSize: '0.7rem' }}>
+                                                                                            <i className="fas fa-mars text-primary me-1"></i>{gp.target_men || gp.men} |
+                                                                                            <i className="fas fa-venus text-danger mx-1"></i>{gp.target_women || gp.women}
+                                                                                        </div>
                                                                                     </div>
-                                                                                    <div className="text-end text-muted" style={{ fontSize: '0.7rem' }}>
-                                                                                        <i className="fas fa-mars text-primary me-1"></i>{gp.target_men || gp.men} |
-                                                                                        <i className="fas fa-venus text-danger mx-1"></i>{gp.target_women || gp.women}
-                                                                                    </div>
+                                                                                ))
+                                                                        ) : null}
+
+                                                                        {/* Lógica para mostrar "Sin metas" si el array está vacío O si después de filtrar no quedó nada */}
+                                                                        {(!ind.goals_by_province ||
+                                                                            ind.goals_by_province.length === 0 ||
+                                                                            ind.goals_by_province.every(gp => (gp.target_total || gp.target) === 0)) && (
+                                                                                <div className="text-center text-muted small py-2 italic">
+                                                                                    Sin metas asignadas
                                                                                 </div>
-                                                                            ))
-                                                                        ) : (
-                                                                            <div className="text-center text-muted small py-2">Sin metas asignadas</div>
-                                                                        )}
+                                                                            )}
                                                                     </div>
                                                                 </td>
 
