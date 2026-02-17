@@ -1142,7 +1142,11 @@ def bulk_indicators():
             real_project_result = ProjectResult.query.join(ProjectTheory).filter(
                 ProjectTheory.project_id == project_id,
                 ProjectResult.result_template_id == template_info.result_id
-            ).first()
+                ).first()
+            
+            project_res_id = real_project_result.id if real_project_result else None
+            if not project_res_id:
+                print(f"⚠️ Alerta SIGSSEP: No se encontró ProjectResult para template_id {item['template_id']}")
 
             # B. Buscamos si el indicador ya existe en la base de datos
             indicator = Indicator.query.filter_by(
@@ -1160,7 +1164,7 @@ def bulk_indicators():
                 indicator.target_women = t_women
                 indicator.verification_means = item.get('verification_means', indicator.verification_means)
                 indicator.observations = item.get('observations', indicator.observations)
-                indicator.project_result_id = real_project_result.id if real_project_result else None
+                indicator.project_result_id = project_res_id
             else:
                 indicator = Indicator(
                     project_id=project_id,
@@ -1170,7 +1174,7 @@ def bulk_indicators():
                     target_women=t_women,
                     verification_means=item.get('verification_means', ""),
                     observations=item.get('observations', ""),
-                    project_result_id=real_project_result.id if real_project_result else None,
+                    project_result_id = project_res_id,
                 )
                 db.session.add(indicator)
 

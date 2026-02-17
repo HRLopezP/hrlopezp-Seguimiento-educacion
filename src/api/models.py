@@ -299,8 +299,8 @@ class Indicator(db.Model):
     )
 
     target_total: Mapped[float] = mapped_column(Float, default=0.0)
-    target_men: Mapped[float] = mapped_column(Float, default=0.0)
-    target_women: Mapped[float] = mapped_column(Float, default=0.0)
+    target_men: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
+    target_women: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
 
     def serialize(self):
         res_temp = self.project_result.result_template if self.project_result else None
@@ -405,7 +405,6 @@ class IndicatorLocationGoal(db.Model):
             "women": self.women if not is_outcome else None
         }
 
-# --- CATÁLOGOS ADICIONALES ---
 
 
 class Competence(db.Model):

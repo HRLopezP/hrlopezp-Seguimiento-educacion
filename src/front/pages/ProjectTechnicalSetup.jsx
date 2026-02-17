@@ -9,13 +9,13 @@ import "../styles/projectTechnical.css";
 const ProjectTechnicalSetup = () => {
     const { projectId } = useParams();
     const [project, setProject] = useState(null);
-    const [myCompetences, setMyCompetences] = useState([]); // Competencias asignadas a María
+    const [myCompetences, setMyCompetences] = useState([]);
     const [selectedComp, setSelectedComp] = useState(null);
-    const [theories, setTheories] = useState([]); // Teorías de la competencia seleccionada
+    const [theories, setTheories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedTheoryId, setSelectedTheoryId] = useState("");
-    const [selectedIndicators, setSelectedIndicators] = useState([]); // Array de objetos con datos técnicos
-    const [expandedResults, setExpandedResults] = useState({}); // Para abrir/cerrar Outcomes-Outputs
+    const [selectedIndicators, setSelectedIndicators] = useState([]);
+    const [expandedResults, setExpandedResults] = useState({});
     const [activeIndicatorId, setActiveIndicatorId] = useState(null);
     const navigate = useNavigate();
     const [expandedTheories, setExpandedTheories] = useState({});
@@ -29,20 +29,16 @@ const ProjectTechnicalSetup = () => {
     };
 
     const getIndicatorContext = (templateId, allTheories) => {
-        // 1. Valor por defecto
         let context = {
             theory_name: "Sin Teoría asignada",
             result_name: "Sin Resultado asignado",
             result_type: "Output"
         };
 
-        // 2. Usamos un bucle que permita "romper" la búsqueda apenas encuentre el indicador
-        // Esto es más eficiente que recorrer TODO si ya lo encontramos al principio
         for (const t of allTheories) {
             if (!t.results) continue;
 
             for (const r of t.results) {
-                // Usamos Number() por si acaso un ID viene como String y el otro como Number
                 const found = r.indicators?.some(i => Number(i.id) === Number(templateId));
 
                 if (found) {
@@ -90,15 +86,19 @@ const ProjectTechnicalSetup = () => {
                 });
                 return acc;
             }, {});
-    }, [selectedIndicators, theories, selectedComp]); // Se recalcula cuando cambian estos 3
+    }, [selectedIndicators, theories, selectedComp]);
 
     const handleMetaChange = (indicatorId, provinceId, field, value) => {
-        const numValue = value === '' ? 0 : Number(value);
         setSelectedIndicators(prev => prev.map(ind => {
             if (ind.template_id === indicatorId) {
+                const isOutcome = ind.result_type?.toLowerCase() === 'outcome';
+
                 const updatedProvinces = ind.province_goals.map(p => {
                     if (p.province_id === provinceId) {
-                        return { ...p, [field]: parseInt(value) || 0 };
+                        // Si es Outcome, bloqueamos cualquier intento de cambiar 'men' o 'women'
+                        if (isOutcome && (field === 'men' || field === 'women')) return p;
+
+                        return { ...p, [field]: parseFloat(value) || 0 };
                     }
                     return p;
                 });
@@ -109,10 +109,8 @@ const ProjectTechnicalSetup = () => {
     };
 
 
-    // Agregamos 'resultObj' como tercer parámetro
     const handleIndicatorToggle = (ind, isChecked, resultObj) => {
         if (isChecked) {
-            // --- LOGICA DE PROVINCIAS (Mantenla igual) ---
             const uniqueProvinces = [];
             const seen = new Set();
             if (project?.locations && project.locations.length > 0) {
@@ -136,7 +134,6 @@ const ProjectTechnicalSetup = () => {
                 code: ind.code,
                 indicator_name: ind.name || "Indicador sin nombre",
                 description: ind.description,
-                // CAMBIO AQUÍ: Usamos resultObj que es el nombre del parámetro
                 project_result_id: resultObj?.id || null,
                 theory_name: currentTheory?.name || "Sin Teoría",
                 result_type: resultObj?.type || "output",
@@ -180,13 +177,17 @@ const ProjectTechnicalSetup = () => {
 
     const validateData = () => {
         for (const ind of selectedIndicators) {
+            // --- LA CLAVE ESTÁ AQUÍ ---
+            // Si es Outcome, no validamos la suma de hombres y mujeres
+            if (ind.result_type?.toLowerCase() === 'outcome') continue;
+
             for (const pg of ind.province_goals) {
-                if (pg.men + pg.women !== pg.total) {
+                if (Number(pg.men) + Number(pg.women) !== Number(pg.total)) {
                     Swal.fire({
                         title: 'Error de cálculo',
                         html: `En el indicador <b>${ind.code}</b>,<br>la suma de hombres (${pg.men}) y mujeres (${pg.women}) <br>no coincide con el total (${pg.total}) en la provincia <b>${pg.province_name}</b>.`,
                         icon: 'error',
-                        confirmButtonColor: '#1b263b'
+                        confirmButtonColor: '#1b263b' // Tu Oxford Grey
                     });
                     return false;
                 }
@@ -217,8 +218,9 @@ const ProjectTechnicalSetup = () => {
                     template_id: ind.template_id,
                     means_ids: finalMeansIds,
                     target_total: ind.province_goals.reduce((acc, curr) => acc + curr.total, 0),
-                    target_men: ind.province_goals.reduce((acc, curr) => acc + curr.men, 0),
-                    target_women: ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
+                    // Aseguramos que si es outcome, mande null y no intente sumar ceros
+                    target_men: ind.result_type?.toLowerCase() === 'outcome' ? null : ind.province_goals.reduce((acc, curr) => acc + curr.men, 0),
+                    target_women: ind.result_type?.toLowerCase() === 'outcome' ? null : ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
                     verification_means: ind.verification_means,
                     observations: ind.observations,
                     project_result_id: ind.project_result_id,
@@ -241,8 +243,8 @@ const ProjectTechnicalSetup = () => {
             showCancelButton: true,
             confirmButtonText: 'Sí, guardar todo',
             cancelButtonText: 'Revisar más',
-            confirmButtonColor: '#52b788', // Emerald
-            cancelButtonColor: '#1b263b',  // Oxford Grey
+            confirmButtonColor: '#52b788',
+            cancelButtonColor: '#1b263b',
             background: document.documentElement.getAttribute('data-theme') === 'dark' ? '#1b263b' : '#ffffff',
             color: document.documentElement.getAttribute('data-theme') === 'dark' ? '#ffffff' : '#1b263b',
         });
@@ -283,23 +285,24 @@ const ProjectTechnicalSetup = () => {
                 const formattedData = {
                     project_id: parseInt(projectId),
                     indicators: updatedIndicators.map(ind => {
-                        const finalMeansIds = ind.means_ids && ind.means_ids.length > 0
-                            ? ind.means_ids
-                            : (ind.means_tags ? ind.means_tags.map(t => t.id) : []);
+                        const isOutcome = ind.result_type?.toLowerCase() === 'outcome';
 
                         return {
                             template_id: ind.template_id,
-                            means_ids: finalMeansIds, // <-- Ahora sí está protegido
+                            means_ids: ind.means_ids || [],
                             target_total: ind.province_goals.reduce((acc, curr) => acc + curr.total, 0),
-                            target_men: ind.province_goals.reduce((acc, curr) => acc + curr.men, 0),
-                            target_women: ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
+                            // Si es outcome, mandamos null para no romper la nueva validación del server
+                            target_men: isOutcome ? null : ind.province_goals.reduce((acc, curr) => acc + curr.men, 0),
+                            target_women: isOutcome ? null : ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
                             verification_means: ind.verification_means,
                             observations: ind.observations,
+                            project_result_id: ind.project_result_id, // Importante mantener el ID
                             goals_by_province: ind.province_goals.map(pg => ({
                                 province_id: pg.province_id,
                                 target: pg.total,
-                                target_men: pg.men,
-                                target_women: pg.women
+                                // También limpiamos a nivel de provincia
+                                target_men: isOutcome ? null : pg.men,
+                                target_women: isOutcome ? null : pg.women
                             }))
                         };
                     })
@@ -312,7 +315,7 @@ const ProjectTechnicalSetup = () => {
                     });
 
                     if (res.ok) {
-                        setSelectedIndicators(updatedIndicators); // Actualiza pantalla
+                        setSelectedIndicators(updatedIndicators);
                         if (activeIndicatorId === indicatorId) setActiveIndicatorId(null);
                         toast.success("Eliminado permanentemente del servidor");
                     } else {
@@ -345,18 +348,14 @@ const ProjectTechnicalSetup = () => {
                 const comps = allMyProjects.filter(p => p.project_id === parseInt(projectId));
                 setMyCompetences(comps);
 
-                // --- CAMBIO CLAVE AQUÍ ---
-                // Cargamos las teorías de TODAS las competencias asignadas en paralelo
                 const theoryPromises = comps.map(c => apiFetch(`/competence/${c.competence_id}/theories`));
                 const theoryResponses = await Promise.all(theoryPromises);
                 const theoryDataArray = await Promise.all(theoryResponses.map(r => r.json()));
 
-                // Unificamos todo en una sola lista maestra
                 const allProjectTheories = theoryDataArray.flat();
 
                 if (comps.length > 0) {
                     setSelectedComp(comps[0]);
-                    // Para la vista inicial (Matriz), filtramos solo las de la primera competencia
                     const initialTheories = theoryDataArray[0];
                     setTheories(initialTheories);
                 }
@@ -366,8 +365,6 @@ const ProjectTechnicalSetup = () => {
                     const savedData = await resSaved.json();
 
                     const formattedSaved = savedData.map(ind => {
-                        // Ahora buscamos en la lista MAESTRA (allProjectTheories)
-                        // Así los de Wash encontrarán su teoría aunque estemos viendo Educación
                         const info = getIndicatorContext(ind.template_id, allProjectTheories);
 
                         return {
@@ -621,43 +618,70 @@ const ProjectTechnicalSetup = () => {
                                             <thead className="thead-oxford sticky-top">
                                                 <tr>
                                                     <th>Provincia</th>
-                                                    <th className="text-center">Total</th>
-                                                    <th className="text-center"><i className="fas fa-mars m-color"></i> H</th>
-                                                    <th className="text-center"><i className="fas fa-venus w-color"></i> M</th>
+                                                    <th className="text-center">Total {activeInd.result_type === 'outcome' ? '(%)' : ''}</th>
+                                                    {/* Solo mostramos H y M si NO es outcome */}
+                                                    {activeInd.result_type !== 'outcome' && (
+                                                        <>
+                                                            <th className="text-center"><i className="fas fa-mars m-color"></i> H</th>
+                                                            <th className="text-center"><i className="fas fa-venus w-color"></i> M</th>
+                                                        </>
+                                                    )}
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {/* Aquí recorremos las metas del indicador activo */}
                                                 {activeInd.province_goals.map((pg, index) => (
                                                     <tr key={`${pg.province_id}-${index}`} className="tr-transparent">
                                                         <td className="text-oxford-dynamic fw-bold">{pg.province_name || "Sin nombre"}</td>
+
+                                                        {/* Columna TOTAL con Input dinámico */}
                                                         <td>
-                                                            <input
-                                                                type="number"
-                                                                className={`form-control form-control-sm meta-input ${(pg.men + pg.women !== pg.total) ? 'border-danger text-danger' : ''}`}
-                                                                value={pg.total === 0 ? '' : pg.total}
-                                                                onChange={(e) => handleMetaChange(activeIndicatorId, pg.province_id, 'total', e.target.value)}
-                                                                placeholder="0"
-                                                            />
+                                                            <div className="input-group input-group-sm">
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max={activeInd.result_type === 'outcome' ? "100" : undefined} // Límite de 100 si es porcentaje
+                                                                    className={`form-control meta-input ${activeInd.result_type !== 'outcome' && (pg.men + pg.women !== pg.total)
+                                                                        ? 'border-danger text-danger'
+                                                                        : ''
+                                                                        }`}
+                                                                    value={pg.total === 0 ? '' : pg.total}
+                                                                    onChange={(e) => {
+                                                                        let val = parseFloat(e.target.value);
+                                                                        // Si es outcome y el usuario escribe más de 100, lo frenamos
+                                                                        if (activeInd.result_type === 'outcome' && val > 100) val = 100;
+                                                                        handleMetaChange(activeIndicatorId, pg.province_id, 'total', val || 0);
+                                                                    }}
+                                                                    placeholder="0"
+                                                                />
+                                                                {activeInd.result_type === 'outcome' && (
+                                                                    <span className="input-group-text bg-light-emerald text-emerald fw-bold">%</span>
+                                                                )}
+                                                            </div>
                                                         </td>
-                                                        <td>
-                                                            <input
-                                                                type="number"
-                                                                className="form-control form-control-sm border-primary-subtle"
-                                                                value={pg.men === 0 ? '' : pg.men}
-                                                                onChange={(e) => handleMetaChange(activeIndicatorId, pg.province_id, 'men', e.target.value)}
-                                                                placeholder="0"
-                                                            />
-                                                        </td>
-                                                        <td>
-                                                            <input
-                                                                type="number"
-                                                                className="form-control form-control-sm border-danger-subtle"
-                                                                value={pg.women === 0 ? '' : pg.women}
-                                                                onChange={(e) => handleMetaChange(activeIndicatorId, pg.province_id, 'women', e.target.value)}
-                                                                placeholder="0"
-                                                            />
-                                                        </td>
+
+                                                        {/* Columnas H y M condicionadas */}
+                                                        {activeInd.result_type !== 'outcome' && (
+                                                            <>
+                                                                <td>
+                                                                    <input
+                                                                        type="number"
+                                                                        className="form-control form-control-sm border-primary-subtle"
+                                                                        value={pg.men === 0 ? '' : pg.men}
+                                                                        onChange={(e) => handleMetaChange(activeIndicatorId, pg.province_id, 'men', e.target.value)}
+                                                                        placeholder="0"
+                                                                    />
+                                                                </td>
+                                                                <td>
+                                                                    <input
+                                                                        type="number"
+                                                                        className="form-control form-control-sm border-danger-subtle"
+                                                                        value={pg.women === 0 ? '' : pg.women}
+                                                                        onChange={(e) => handleMetaChange(activeIndicatorId, pg.province_id, 'women', e.target.value)}
+                                                                        placeholder="0"
+                                                                    />
+                                                                </td>
+                                                            </>
+                                                        )}
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -696,16 +720,20 @@ const ProjectTechnicalSetup = () => {
                                                             </span>
                                                         </td>
                                                         <td className="text-center">
-                                                            <div className="d-flex justify-content-center gap-1">
-                                                                <span className="badge bg-blue-100 text-primary border border-primary-subtle" title="Hombres">
-                                                                    <i className="fas fa-mars me-1"></i>
-                                                                    {ind.province_goals.reduce((acc, curr) => acc + (curr.men || 0), 0)}
-                                                                </span>
-                                                                <span className="badge bg-pink-100 text-danger border border-danger-subtle" title="Mujeres">
-                                                                    <i className="fas fa-venus me-1"></i>
-                                                                    {ind.province_goals.reduce((acc, curr) => acc + (curr.women || 0), 0)}
-                                                                </span>
-                                                            </div>
+                                                            {ind.result_type?.toLowerCase() === 'outcome' ? (
+                                                                <span className="text-muted small italic">Cualitativo</span>
+                                                            ) : (
+                                                                <div className="d-flex justify-content-center gap-1">
+                                                                    <span className="badge bg-blue-100 text-primary border border-primary-subtle" title="Hombres">
+                                                                        <i className="fas fa-mars me-1"></i>
+                                                                        {ind.province_goals.reduce((acc, curr) => acc + (curr.men || 0), 0)}
+                                                                    </span>
+                                                                    <span className="badge bg-pink-100 text-danger border border-danger-subtle" title="Mujeres">
+                                                                        <i className="fas fa-venus me-1"></i>
+                                                                        {ind.province_goals.reduce((acc, curr) => acc + (curr.women || 0), 0)}
+                                                                    </span>
+                                                                </div>
+                                                            )}
                                                         </td>
                                                         <td>
                                                             <span className="badge bg-emerald-light text-emerald border border-emerald">
@@ -844,18 +872,22 @@ const ProjectTechnicalSetup = () => {
                                                                                     <div key={idx} className="list-group-item py-2 px-3 border-0 bg-transparent">
                                                                                         <div className="d-flex justify-content-between align-items-center mb-1">
                                                                                             <span className="fw-bold text-oxford-dynamic">
-                                                                                                <i className="fas fa-map-marker-alt me-1 text-emerald" style={{ fontSize: '0.7rem' }}></i>
+                                                                                                <i className="fas fa-map-marker-alt me-1 text-emerald" style={{ fontSize: '1rem' }}></i>
                                                                                                 {pg.province_name}
                                                                                             </span>
-                                                                                            <span className="badge rounded-pill text-oxford-dynamic">
+                                                                                            <span className="badge rounded-pill text-oxford-dynamic" style={{ fontSize: '1rem' }}>
                                                                                                 {pg.total || pg.target}
+                                                                                                {/* Usamos el result_type para poner el símbolo de porcentaje */}
+                                                                                                {ind.result_type?.toLowerCase() === 'outcome' ? '%' : ''}
                                                                                             </span>
                                                                                         </div>
                                                                                         {/* Desagregación compacta */}
-                                                                                        <div className="d-flex gap-3 justify-content-end text-oxford-dynamic" style={{ fontSize: '0.75rem' }}>
-                                                                                            <span><i className="fas fa-mars text-primary me-1"></i>{pg.men}</span>
-                                                                                            <span><i className="fas fa-venus text-danger me-1"></i>{pg.women}</span>
-                                                                                        </div>
+                                                                                        {ind.result_type?.toLowerCase() !== 'outcome' && (
+                                                                                            <div className="d-flex gap-3 justify-content-end text-oxford-dynamic" style={{ fontSize: '0.85rem' }}>
+                                                                                                <span><i className="fas fa-mars text-primary me-1"></i>{pg.men}</span>
+                                                                                                <span><i className="fas fa-venus text-danger me-1"></i>{pg.women}</span>
+                                                                                            </div>
+                                                                                        )}
                                                                                     </div>
                                                                                 ))
                                                                             }
