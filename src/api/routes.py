@@ -553,7 +553,6 @@ def get_competences():
 
 
 @api.route('/competences', methods=['POST'])
-# <--- ¡Aquí está la magia! Ya no necesitas if user.rol == ...
 @manager_required
 def create_competence():
     data = request.json
@@ -606,7 +605,7 @@ def delete_competence(id):
 
 
 @api.route("/user/<int:user_id>/competences", methods=["PUT"])
-@jwt_required()  # Solo usuarios autenticados (y podrías validar que sea Admin)
+@jwt_required() 
 def assign_user_competences(user_id):
     data = request.get_json(silent=True)
 
@@ -835,8 +834,6 @@ def create_project():
         return jsonify({"msg": "El código único del proyecto es obligatorio"}), 400
 
     try:
-        # --- PASO 1: CREAR EL PROYECTO (DATOS GLOBALES) ---
-        # Extraemos targets con .get() para evitar KeyErrors si el campo no existe
         targets = data.get("unique_targets", {})
 
         new_project = Project(
@@ -859,7 +856,7 @@ def create_project():
         )
 
         db.session.add(new_project)
-        db.session.flush()  # Obtenemos el ID del proyecto para las relaciones
+        db.session.flush() 
 
         # --- PASO 2: UBICACIONES (GEOGRAFÍA DEL PROYECTO) ---
         if data.get("locations"):
@@ -878,7 +875,6 @@ def create_project():
                 db.session.add(new_loc)
 
         # --- PASO 3: BENEFICIARIOS ÚNICOS POR PROVINCIA ---
-        # (La suma de estos 'total' debe coincidir con el total del proyecto)
         province_targets = data.get("province_unique_targets", [])
         for p_target in province_targets:
             new_p_goal = ProjectProvinceGoal(
@@ -891,7 +887,6 @@ def create_project():
             db.session.add(new_p_goal)
 
         # --- PASO 4: INDICADORES Y SUS METAS PROPIAS ---
-        # (Recordemos: estas metas son de gestión y son independientes de los únicos)
         if data.get("indicators"):
             for ind_data in data["indicators"]:
                 # El 'id' aquí se refiere al ID del Template (el catálogo)
@@ -903,12 +898,11 @@ def create_project():
                     template_id=int(t_id),
                     project_id=new_project.id_project,
                     target_total=float(ind_data.get('target', 0)),
-                    # Si el frontend envía desglose global del indicador:
                     target_men=float(ind_data.get('men', 0)),
                     target_women=float(ind_data.get('women', 0))
                 )
                 db.session.add(new_indicator)
-                db.session.flush()  # Obtenemos id_indicator para las metas provinciales
+                db.session.flush() 
 
                 # Metas de este indicador desglosadas por estado
                 loc_targets = ind_data.get("location_targets", [])
@@ -946,8 +940,6 @@ def create_project():
 
     except Exception as e:
         db.session.rollback()
-        # El print es vital para que tú veas el error real en la terminal
-        print(f"ERROR EN CREATE_PROJECT: {str(e)}")
         return jsonify({
             "msg": "Error al procesar los datos",
             "error": str(e)
@@ -1029,8 +1021,6 @@ def get_project_detail(id):
     if not project:
         return jsonify({"msg": "Proyecto no encontrado"}), 404
 
-    # Gracias a que tu serialize() ya incluye 'locations', 'competences' e 'indicators',
-    # el frontend recibirá todo el "paquete" para llenar el Stepper de una vez.
     return jsonify(project.serialize()), 200
 
 
@@ -1142,17 +1132,21 @@ def bulk_indicators():
         
         # --- PASO 2: PROCESAR CADA INDICADOR (UPSERT) ---
         for item in indicators_list:
-            # Importamos lo necesario
             from api.models import IndicatorTemplate, ProjectResult, ProjectTheory
 
             # A. Buscamos la "llave maestra": el ProjectResult real para este proyecto
             template_info = IndicatorTemplate.query.get(item['template_id'])
+            is_outcome = template_info.result.type == 'outcome' if template_info and template_info.result else False
             
             # Buscamos el ID real uniendo ProjectResult con ProjectTheory para filtrar por este proyecto
             real_project_result = ProjectResult.query.join(ProjectTheory).filter(
                 ProjectTheory.project_id == project_id,
                 ProjectResult.result_template_id == template_info.result_id
-            ).first()
+                ).first()
+            
+            project_res_id = real_project_result.id if real_project_result else None
+            if not project_res_id:
+                print(f"⚠️ Alerta SIGSSEP: No se encontró ProjectResult para template_id {item['template_id']}")
 
             # B. Buscamos si el indicador ya existe en la base de datos
             indicator = Indicator.query.filter_by(
@@ -1160,27 +1154,27 @@ def bulk_indicators():
                 template_id=item['template_id']
             ).first()
 
+            t_total = item.get('target_total', 0)
+            t_men = item.get('target_men', 0) if not is_outcome else None
+            t_women = item.get('target_women', 0) if not is_outcome else None
+
             if indicator:
-                # ACTUALIZAR existente
-                indicator.target_total = item.get('target_total', indicator.target_total)
-                indicator.target_men = item.get('target_men', indicator.target_men)
-                indicator.target_women = item.get('target_women', indicator.target_women)
+                indicator.target_total = t_total
+                indicator.target_men = t_men
+                indicator.target_women = t_women
                 indicator.verification_means = item.get('verification_means', indicator.verification_means)
                 indicator.observations = item.get('observations', indicator.observations)
-                # Asignamos el ID real que encontramos arriba
-                indicator.project_result_id = real_project_result.id if real_project_result else None
+                indicator.project_result_id = project_res_id
             else:
-                # CREAR nuevo
                 indicator = Indicator(
                     project_id=project_id,
                     template_id=item['template_id'],
-                    target_total=item.get('target_total', 0),
-                    target_men=item.get('target_men', 0),
-                    target_women=item.get('target_women', 0),
+                    target_total=t_total,
+                    target_men=t_men,
+                    target_women=t_women,
                     verification_means=item.get('verification_means', ""),
                     observations=item.get('observations', ""),
-                    # Asignamos el ID real que encontramos arriba
-                    project_result_id=real_project_result.id if real_project_result else None,
+                    project_result_id = project_res_id,
                 )
                 db.session.add(indicator)
 
@@ -1192,11 +1186,9 @@ def bulk_indicators():
                 ).all()
                 indicator.selected_means_list = selected_means 
 
-            # Hacemos flush para que 'indicator.id_indicator' exista antes de las metas
             db.session.flush() 
 
             # D. METAS POR PROVINCIA
-            # Nota: usamos 'province_goals' que es como lo envías desde el front
             if 'goals_by_province' in item:
                 IndicatorLocationGoal.query.filter_by(indicator_id=indicator.id_indicator).delete()
                 for goal in item['goals_by_province']:
@@ -1204,8 +1196,8 @@ def bulk_indicators():
                         indicator_id=indicator.id_indicator,
                         province_id=goal['province_id'],
                         total_target=goal.get('target', 0),
-                        men=goal.get('target_men', 0), 
-                        women=goal.get('target_women', 0)
+                        men=goal.get('target_men', 0) if not is_outcome else None, 
+                        women=goal.get('target_women', 0) if not is_outcome else None
                     )
                     db.session.add(new_goal)
 
@@ -1482,9 +1474,6 @@ def record_activity():
 @api.route('/users/managers', methods=['GET'])
 @jwt_required()
 def get_managers():
-    """Devuelve solo los usuarios con rol de Gerente para asignaciones"""
-    # Suponiendo que el ID del rol Gerente es el que definiste en tu lógica de registro
-    # O podemos buscarlo por nombre
     managers = User.query.join(Rol).filter(
         Rol.name_rol == 'Gerente', User.is_active == True).all()
     return jsonify([m.serialize() for m in managers]), 200

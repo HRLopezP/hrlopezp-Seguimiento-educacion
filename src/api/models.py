@@ -299,8 +299,8 @@ class Indicator(db.Model):
     )
 
     target_total: Mapped[float] = mapped_column(Float, default=0.0)
-    target_men: Mapped[float] = mapped_column(Float, default=0.0)
-    target_women: Mapped[float] = mapped_column(Float, default=0.0)
+    target_men: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
+    target_women: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
 
     def serialize(self):
         res_temp = self.project_result.result_template if self.project_result else None
@@ -382,26 +382,29 @@ class IndicatorLocationGoal(db.Model):
         ForeignKey('province.id'), nullable=False)
 
     # Metas que el gerente asigna (Ejemplo: Indicador "Vacunación" en Apure: 4500)
-    total_target: Mapped[float] = mapped_column(Float, default=0.0)
-    men: Mapped[float] = mapped_column(Float, default=0.0)
-    women: Mapped[float] = mapped_column(Float, default=0.0)
+    total_target: Mapped[float] = mapped_column(Float, default=0.0) 
+    men: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
+    women: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
 
     indicator: Mapped["Indicator"] = relationship(
         back_populates="location_goals")
     province: Mapped["Province"] = relationship()
 
     def serialize(self):
+        is_outcome = False
+        if self.indicator and self.indicator.template and self.indicator.template.result:
+            is_outcome = self.indicator.template.result.type == 'outcome'
         return {
             "id_ilg": self.id_ilg,
             "indicator_id": self.indicator_id,
             "province_id": self.province_id,
             "province_name": self.province.name if self.province else None,
             "target": self.total_target,
-            "men": self.men,
-            "women": self.women
+            "is_percentage": is_outcome, # <-- Esto le avisará al Frontend que ponga el "%"
+            "men": self.men if not is_outcome else None, # Ocultamos si es outcome
+            "women": self.women if not is_outcome else None
         }
 
-# --- CATÁLOGOS ADICIONALES ---
 
 
 class Competence(db.Model):
