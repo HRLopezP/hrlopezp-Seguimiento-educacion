@@ -906,7 +906,6 @@ const ProjectTechnicalSetup = () => {
                                                                                             </span>
                                                                                             <span className="badge rounded-pill text-oxford-dynamic" style={{ fontSize: '1rem' }}>
                                                                                                 {pg.total || pg.target}
-                                                                                                {/* Usamos el result_type para poner el símbolo de porcentaje */}
                                                                                                 {ind.result_type?.toLowerCase() === 'outcome' ? '%' : ''}
                                                                                             </span>
                                                                                         </div>
