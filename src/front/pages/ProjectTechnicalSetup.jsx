@@ -177,17 +177,27 @@ const ProjectTechnicalSetup = () => {
 
     const validateData = () => {
         for (const ind of selectedIndicators) {
-            // --- LA CLAVE ESTÁ AQUÍ ---
-            // Si es Outcome, no validamos la suma de hombres y mujeres
-            if (ind.result_type?.toLowerCase() === 'outcome') continue;
+            // 1. Buscamos el tipo de forma más segura
+            const type = ind.result_type?.toLowerCase();
+
+            // 2. Si es Outcome, saltamos. 
+            // TIP DE PROFE: Agregamos una validación extra por si acaso el type viene vacío
+            if (type === 'outcome') continue;
 
             for (const pg of ind.province_goals) {
-                if (Number(pg.men) + Number(pg.women) !== Number(pg.total)) {
+                // Convertimos a número y usamos 0 por defecto
+                const h = Number(pg.men || 0);
+                const m = Number(pg.women || 0);
+                const t = Number(pg.total || 0);
+
+                // Solo validamos si es un OUTPUT (donde la suma DEBE coincidir)
+                // Si es un indicador donde el total es 85 y h/m son 0, y NO es outcome, fallará.
+                if (h + m !== t) {
                     Swal.fire({
                         title: 'Error de cálculo',
-                        html: `En el indicador <b>${ind.code}</b>,<br>la suma de hombres (${pg.men}) y mujeres (${pg.women}) <br>no coincide con el total (${pg.total}) en la provincia <b>${pg.province_name}</b>.`,
+                        html: `En el indicador <b>${ind.code}</b>,<br>la suma de hombres (${h}) y mujeres (${m}) <br>no coincide con el total (${t}) en la provincia <b>${pg.province_name}</b>.`,
                         icon: 'error',
-                        confirmButtonColor: '#1b263b' // Tu Oxford Grey
+                        confirmButtonColor: '#1b263b'
                     });
                     return false;
                 }
@@ -373,7 +383,7 @@ const ProjectTechnicalSetup = () => {
                             description: ind.description,
                             theory_name: info.theory_name,
                             result_name: info.result_name,
-                            result_type: info.result_type,
+                            result_type: ind.result_type || info.result_type,
                             means_tags: ind.means_tags || [],
                             means_ids: ind.means_ids || [],
                             verification_means: ind.verification_means || "",

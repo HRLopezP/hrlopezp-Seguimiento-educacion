@@ -307,6 +307,12 @@ class Indicator(db.Model):
         theo_temp = res_temp.theory if res_temp else None
         comp_temp = theo_temp.competence if theo_temp else None
 
+        final_type = "output"
+        if res_temp:
+            final_type = res_temp.type
+        elif self.template and self.template.result:
+            final_type = self.template.result.type
+
         if not comp_temp and self.template and self.template.result:
             res_temp = self.template.result
             theo_temp = res_temp.theory
@@ -330,7 +336,7 @@ class Indicator(db.Model):
             "comp_name": comp_temp.name if comp_temp else "Otras Competencias",
             "theory_name": theo_temp.name if theo_temp else "Sin Teoría",
             "result_name": res_temp.name if res_temp else "General",
-            "result_type": res_temp.type if res_temp else "output"
+            "result_type": final_type.lower() if final_type else "output"
         }
 
 
