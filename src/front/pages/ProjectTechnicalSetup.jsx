@@ -493,7 +493,7 @@ const ProjectTechnicalSetup = () => {
                                                     style={{ cursor: 'pointer' }}
                                                 >
                                                     <i className={`fas ${expandedResults[result.id] ? 'fa-chevron-down' : 'fa-chevron-right'} me-2 text-muted`}></i>
-                                                    <span className={`badge ${result.type === 'outcome' ? 'bg-emerald' : 'bg-primary'} me-2`}>
+                                                    <span className={`badge ${result.type === 'outcome' ? 'bg-primary' : 'bg-emerald'} me-2`}>
                                                         {result.type.toUpperCase()}
                                                     </span>
                                                     <span className="small fw-bold text-oxford-dynamic">{result.name}</span>
@@ -714,15 +714,34 @@ const ProjectTechnicalSetup = () => {
                                                 indicatorsOfSelectedComp.map((ind, idx) => (
                                                     <tr key={ind.template_id || idx} className="cursor-pointer transition-all hover-oxford-soft" onClick={() => setActiveIndicatorId(ind.template_id)}>
                                                         <td className="fw-bold text-emerald">{ind.code}</td>
+
                                                         <td className="fw-bold text-center">
-                                                            <span className="badge bg-emerald text-navy px-3 py-2" style={{ fontSize: '0.9rem' }}>
-                                                                {ind.province_goals.reduce((acc, curr) => acc + (curr.total || 0), 0)}
-                                                            </span>
+                                                            {ind.result_type?.toLowerCase() === 'outcome' ? (
+                                                                /* Para Outcomes, mostramos el promedio simple de las provincias */
+                                                                <span className="badge bg-primary text-navy px-3 py-2" style={{ fontSize: '0.9rem' }}>
+                                                                    {(ind.province_goals.reduce((acc, curr) => acc + (curr.total || 0), 0) /
+                                                                        ind.province_goals.filter(p => (p.total || 0) > 0).length || 0).toFixed(0)}%
+                                                                </span>
+                                                            ) : (
+                                                                /* Para Outputs, mantenemos la suma total */
+                                                                <span className="badge bg-emerald text-navy px-3 py-2" style={{ fontSize: '0.9rem' }}>
+                                                                    {ind.province_goals.reduce((acc, curr) => acc + (curr.total || 0), 0)}
+                                                                </span>
+                                                            )}
                                                         </td>
+
                                                         <td className="text-center">
                                                             {ind.result_type?.toLowerCase() === 'outcome' ? (
-                                                                <span className="text-muted small italic">Cualitativo</span>
+                                                                /* Si es Outcome: Mostramos desglose por provincia en miniatura */
+                                                                <div className="d-flex flex-column gap-1 align-items-center">
+                                                                    {ind.province_goals.filter(pg => pg.total > 0).map((pg, i) => (
+                                                                        <span key={i} className="badge border text-oxford-dynamic" style={{ fontSize: '0.65rem', minWidth: '80px' }}>
+                                                                            {pg.province_name.substring(0, 3)}: {pg.total}%
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
                                                             ) : (
+                                                                /* Si es Output: Mantenemos el desglose H / M */
                                                                 <div className="d-flex justify-content-center gap-1">
                                                                     <span className="badge bg-blue-100 text-primary border border-primary-subtle" title="Hombres">
                                                                         <i className="fas fa-mars me-1"></i>
