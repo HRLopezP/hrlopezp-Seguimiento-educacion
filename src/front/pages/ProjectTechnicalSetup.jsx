@@ -177,17 +177,27 @@ const ProjectTechnicalSetup = () => {
 
     const validateData = () => {
         for (const ind of selectedIndicators) {
-            // --- LA CLAVE ESTÁ AQUÍ ---
-            // Si es Outcome, no validamos la suma de hombres y mujeres
-            if (ind.result_type?.toLowerCase() === 'outcome') continue;
+            // 1. Buscamos el tipo de forma más segura
+            const type = ind.result_type?.toLowerCase();
+
+            // 2. Si es Outcome, saltamos. 
+            // TIP DE PROFE: Agregamos una validación extra por si acaso el type viene vacío
+            if (type === 'outcome') continue;
 
             for (const pg of ind.province_goals) {
-                if (Number(pg.men) + Number(pg.women) !== Number(pg.total)) {
+                // Convertimos a número y usamos 0 por defecto
+                const h = Number(pg.men || 0);
+                const m = Number(pg.women || 0);
+                const t = Number(pg.total || 0);
+
+                // Solo validamos si es un OUTPUT (donde la suma DEBE coincidir)
+                // Si es un indicador donde el total es 85 y h/m son 0, y NO es outcome, fallará.
+                if (h + m !== t) {
                     Swal.fire({
                         title: 'Error de cálculo',
-                        html: `En el indicador <b>${ind.code}</b>,<br>la suma de hombres (${pg.men}) y mujeres (${pg.women}) <br>no coincide con el total (${pg.total}) en la provincia <b>${pg.province_name}</b>.`,
+                        html: `En el indicador <b>${ind.code}</b>,<br>la suma de hombres (${h}) y mujeres (${m}) <br>no coincide con el total (${t}) en la provincia <b>${pg.province_name}</b>.`,
                         icon: 'error',
-                        confirmButtonColor: '#1b263b' // Tu Oxford Grey
+                        confirmButtonColor: '#1b263b'
                     });
                     return false;
                 }
@@ -373,7 +383,7 @@ const ProjectTechnicalSetup = () => {
                             description: ind.description,
                             theory_name: info.theory_name,
                             result_name: info.result_name,
-                            result_type: info.result_type,
+                            result_type: ind.result_type || info.result_type,
                             means_tags: ind.means_tags || [],
                             means_ids: ind.means_ids || [],
                             verification_means: ind.verification_means || "",
@@ -493,7 +503,7 @@ const ProjectTechnicalSetup = () => {
                                                     style={{ cursor: 'pointer' }}
                                                 >
                                                     <i className={`fas ${expandedResults[result.id] ? 'fa-chevron-down' : 'fa-chevron-right'} me-2 text-muted`}></i>
-                                                    <span className={`badge ${result.type === 'outcome' ? 'bg-emerald' : 'bg-primary'} me-2`}>
+                                                    <span className={`badge ${result.type === 'outcome' ? 'bg-primary' : 'bg-emerald'} me-2`}>
                                                         {result.type.toUpperCase()}
                                                     </span>
                                                     <span className="small fw-bold text-oxford-dynamic">{result.name}</span>
@@ -714,15 +724,34 @@ const ProjectTechnicalSetup = () => {
                                                 indicatorsOfSelectedComp.map((ind, idx) => (
                                                     <tr key={ind.template_id || idx} className="cursor-pointer transition-all hover-oxford-soft" onClick={() => setActiveIndicatorId(ind.template_id)}>
                                                         <td className="fw-bold text-emerald">{ind.code}</td>
+
                                                         <td className="fw-bold text-center">
-                                                            <span className="badge bg-emerald text-navy px-3 py-2" style={{ fontSize: '0.9rem' }}>
-                                                                {ind.province_goals.reduce((acc, curr) => acc + (curr.total || 0), 0)}
-                                                            </span>
+                                                            {ind.result_type?.toLowerCase() === 'outcome' ? (
+                                                                /* Para Outcomes, mostramos el promedio simple de las provincias */
+                                                                <span className="badge bg-primary text-navy px-3 py-2" style={{ fontSize: '0.9rem' }}>
+                                                                    {(ind.province_goals.reduce((acc, curr) => acc + (curr.total || 0), 0) /
+                                                                        ind.province_goals.filter(p => (p.total || 0) > 0).length || 0).toFixed(0)}%
+                                                                </span>
+                                                            ) : (
+                                                                /* Para Outputs, mantenemos la suma total */
+                                                                <span className="badge bg-emerald text-navy px-3 py-2" style={{ fontSize: '0.9rem' }}>
+                                                                    {ind.province_goals.reduce((acc, curr) => acc + (curr.total || 0), 0)}
+                                                                </span>
+                                                            )}
                                                         </td>
+
                                                         <td className="text-center">
                                                             {ind.result_type?.toLowerCase() === 'outcome' ? (
-                                                                <span className="text-muted small italic">Cualitativo</span>
+                                                                /* Si es Outcome: Mostramos desglose por provincia en miniatura */
+                                                                <div className="d-flex flex-column gap-1 align-items-center">
+                                                                    {ind.province_goals.filter(pg => pg.total > 0).map((pg, i) => (
+                                                                        <span key={i} className="badge border text-oxford-dynamic" style={{ fontSize: '0.65rem', minWidth: '80px' }}>
+                                                                            {pg.province_name.substring(0, 3)}: {pg.total}%
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
                                                             ) : (
+                                                                /* Si es Output: Mantenemos el desglose H / M */
                                                                 <div className="d-flex justify-content-center gap-1">
                                                                     <span className="badge bg-blue-100 text-primary border border-primary-subtle" title="Hombres">
                                                                         <i className="fas fa-mars me-1"></i>
@@ -877,7 +906,6 @@ const ProjectTechnicalSetup = () => {
                                                                                             </span>
                                                                                             <span className="badge rounded-pill text-oxford-dynamic" style={{ fontSize: '1rem' }}>
                                                                                                 {pg.total || pg.target}
-                                                                                                {/* Usamos el result_type para poner el símbolo de porcentaje */}
                                                                                                 {ind.result_type?.toLowerCase() === 'outcome' ? '%' : ''}
                                                                                             </span>
                                                                                         </div>
