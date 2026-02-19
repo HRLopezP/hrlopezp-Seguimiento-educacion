@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { apiFetch } from "../../utils/api";
 import "../styles/projectDetail.css";
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { toast, Toaster } from 'sonner';
 import Swal from 'sweetalert2';
 import TechnicalProgressCard from '../components/TechnicalProgressCard';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const ProjectDetail = () => {
     const { id } = useParams();
@@ -14,165 +14,220 @@ const ProjectDetail = () => {
     const [project, setProject] = useState(null);
     const [indicators, setIndicators] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [pdfExpandedComps, setPdfExpandedComps] = useState(null);
-    const [pdfExpandedTheories, setPdfExpandedTheories] = useState(null);
 
-    const exportToPDF = async () => {
-        const input = document.querySelector('.project-detail-main-container');
-        const actionButtons = document.querySelector('.btn-oxford');
-        const toastId = toast.loading("Preparando reporte oficial SIGSSEP...");
+
+    const exportToPDF = () => {
+        const dataToProcess = indicators || [];
+
+        if (!project) {
+            toast.error("Datos del proyecto no listos");
+            return;
+        }
+
+        const doc = new jsPDF('p', 'mm', 'a4');
+        const toastId = toast.loading("Generando reporte técnico...");
 
         try {
-            // 1. "Llave Maestra": Abrir niveles para el reporte
-            const forceComps = {};
-            const forceTheories = {};
-            indicators.forEach(ind => {
-                forceComps[ind.comp_name] = true;
-                if (ind.theory_name) forceTheories[ind.theory_name] = true;
+            // --- 1. ENCABEZADO Y TÍTULO ---
+            doc.setFontSize(18);
+            doc.setTextColor(27, 38, 59); // Color Oxford
+            doc.text("SIGSSEP - REPORTE TÉCNICO", 14, 15);
+
+            // Línea divisoria decorativa
+            doc.setDrawColor(25, 135, 84); // Verde Esmeralda
+            doc.line(14, 17, 196, 17);
+
+            // --- 2. FICHA TÉCNICA (DATOS INICIALES) ---
+            doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0);
+
+            // Bloque Izquierdo: Identificación
+            doc.setFont("helvetica", "bold");
+            doc.text("PROYECTO:", 14, 25);
+            doc.setFont("helvetica", "normal");
+            doc.text(`${project.project_name || 'N/A'}`, 40, 25);
+
+            doc.setFont("helvetica", "bold");
+            doc.text("CÓDIGO:", 14, 31);
+            doc.setFont("helvetica", "normal");
+            doc.text(`${project.code || 'N/A'}`, 40, 31);
+
+            doc.setFont("helvetica", "bold");
+            doc.text("DONANTE:", 14, 37);
+            doc.setFont("helvetica", "normal");
+            doc.text(`${project.donor_name || 'N/A'}`, 40, 37);
+
+            // Bloque Derecho: Fechas y Beneficiarios
+            doc.setFont("helvetica", "bold");
+            doc.text("PERIODO:", 120, 25);
+            doc.setFont("helvetica", "normal");
+            doc.text(`${project.start_date} al ${project.end_date}`, 145, 25);
+
+            doc.setFont("helvetica", "bold");
+            doc.text("BENEF. ÚNICOS:", 120, 31);
+            doc.setFont("helvetica", "normal");
+            const b = project.unique_targets || {};
+            doc.text(`${b.total || 0} (H: ${b.men || 0} / M: ${b.women || 0})`, 155, 31);
+
+            // --- 3. RESUMEN Y RESULTADOS (Texto largo) ---
+            // Usamos splitTextToSize para que el texto no se salga de la hoja
+            doc.setFont("helvetica", "bold");
+            doc.text("RESUMEN:", 14, 46);
+            doc.setFont("helvetica", "normal");
+            const summaryLines = doc.splitTextToSize(project.main_objective || "Sin resumen.", 182);
+            doc.text(summaryLines, 14, 51);
+
+            // Calculamos cuánto espacio ocupó el resumen para saber dónde poner los resultados
+            const summaryHeight = summaryLines.length * 5;
+            const resultsY = 51 + summaryHeight + 5;
+
+            doc.setFont("helvetica", "bold");
+            doc.text("RESULTADOS ESPERADOS:", 14, resultsY);
+            doc.setFont("helvetica", "normal");
+            const resultLines = doc.splitTextToSize(project.results_summary || "Sin resultados definidos.", 182);
+            doc.text(resultLines, 14, resultsY + 5);
+
+            // Punto de inicio de la tabla después de los textos
+            const startTableY = resultsY + 5 + (resultLines.length * 5) + 5;
+
+            // --- 4. PROCESAMIENTO DE INDICADORES (Tu lógica de agrupamiento se mantiene igual) ---
+            const acc = {};
+            dataToProcess.forEach(ind => {
+                const cName = ind.comp_name || "Sin Competencia";
+                const tName = ind.theory_name || "Sin Teoría";
+                const rType = (ind.result_type || "Output").toUpperCase();
+                const rName = ind.result_name || "Sin Resultado";
+
+                if (!acc[cName]) acc[cName] = {};
+                if (!acc[cName][tName]) acc[cName][tName] = {};
+                if (!acc[cName][tName][rType]) acc[cName][tName][rType] = {};
+                if (!acc[cName][tName][rType][rName]) acc[cName][tName][rType][rName] = [];
+                acc[cName][tName][rType][rName].push(ind);
             });
-            setPdfExpandedComps(forceComps);
-            setPdfExpandedTheories(forceTheories);
 
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            if (actionButtons) actionButtons.parentElement.style.visibility = 'hidden';
+            const tableRows = [];
 
-            // 2. Captura en Alta Definición
-            const canvas = await html2canvas(input, {
-                scale: 3,
-                useCORS: true,
-                backgroundColor: "#ffffff",
-                windowHeight: input.scrollHeight
+            // 3. Recorrido igual al renderizado de tu tabla
+            Object.keys(acc).forEach(cName => {
+                // Fila de COMPETENCIA (Verde)
+                tableRows.push([{
+                    content: `COMPETENCIA: ${cName}`,
+                    colSpan: 5,
+                    styles: { fillColor: [25, 135, 84], textColor: 255, fontStyle: 'bold' }
+                }]);
+
+                Object.keys(acc[cName]).forEach(tName => {
+                    // Fila de TEORÍA (Gris oscuro)
+                    tableRows.push([{
+                        content: `  TEORÍA: ${tName}`,
+                        colSpan: 5,
+                        styles: { fillColor: [44, 62, 80], textColor: [46, 204, 113], fontStyle: 'bold' }
+                    }]);
+
+                    Object.keys(acc[cName][tName]).forEach(rType => {
+                        Object.keys(acc[cName][tName][rType]).forEach(rName => {
+                            // Fila de RESULTADO (Gris claro)
+                            tableRows.push([{
+                                content: `    [${rType}] ${rName}`,
+                                colSpan: 5,
+                                styles: { fillColor: [245, 245, 245], fontStyle: 'bold' }
+                            }]);
+
+                            acc[cName][tName][rType][rName].forEach(ind => {
+                                // --- PROFE: AQUÍ ESTÁ LA MAGIA ---
+
+                                // 1. Unimos los tags y el texto de verificación
+                                const tags = (ind.means_tags || []).map(t => t.name).join(', ');
+                                const verificacion = `${tags}${tags && ind.verification_means ? ' / ' : ''}${ind.verification_means || ''}`;
+
+                                // 2. Formateamos las metas usando goals_by_province (como en tu componente)
+                                let metasTexto = "Sin metas";
+                                if (ind.goals_by_province && ind.goals_by_province.length > 0) {
+                                    metasTexto = ind.goals_by_province
+                                        .filter(gp => (gp.target_total || gp.target) > 0)
+                                        .map(gp => {
+                                            const total = gp.target_total || gp.target;
+                                            const suffix = ind.result_type?.toLowerCase() === 'outcome' ? '%' : '';
+                                            const prov = gp.province_name || gp.province;
+                                            // Agregamos H y M si no es outcome
+                                            const h = gp.target_men || gp.men || 0;
+                                            const m = gp.target_women || gp.women || 0;
+                                            const desglose = ind.result_type?.toLowerCase() !== 'outcome' ? ` (${h}H / ${m}M)` : '';
+
+                                            return `• ${prov}: ${total}${suffix}${desglose}`;
+                                        }).join('\n');
+                                }
+
+                                tableRows.push([
+                                    ind.indicator_code || '-',
+                                    ind.indicator_name || 'Sin nombre',
+                                    verificacion || '-',
+                                    metasTexto,
+                                    ind.observations || '-'
+                                ]);
+                            });
+                        });
+                    });
+                });
             });
 
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'mm', 'a4');
+            autoTable(doc, {
+                startY: startTableY, // <-- Empezamos justo después del texto superior
+                head: [['CÓDIGO', 'INDICADOR', 'VERIFICACIÓN', 'METAS POR PROVINCIA', 'OBS.']],
+                body: tableRows,
+                theme: 'grid',
+                styles: { fontSize: 7, cellPadding: 2 },
+                headStyles: { fillColor: [27, 38, 59] },
+                columnStyles: {
+                    0: { cellWidth: 15 },
+                    1: { cellWidth: 40 },
+                    2: { cellWidth: 40 },
+                    3: { cellWidth: 55 },
+                    4: { cellWidth: 25 }
+                }
+            });
 
-            // 3. Configuración de Espacios
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-            const margin = 15;
-            const printableWidth = pdfWidth - (margin * 2);
-            const printableHeight = pdfHeight - (margin * 2);
-
-            const imgWidth = canvas.width;
-            const imgHeight = canvas.height;
-            const ratio = printableWidth / imgWidth;
-            const totalImgHeightInPDF = imgHeight * ratio;
-
-            let heightLeft = totalImgHeightInPDF;
-            let position = 0;
-            let pageNumber = 1;
-
-            // --- GENERACIÓN DE DATOS DE TIEMPO ---
-            const now = new Date();
-            const timestamp = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-            // Función para el Pie de Página (Numeración + Fecha)
-            const addFooter = (current) => {
-                pdf.setFontSize(9);
-                pdf.setTextColor(150); // Gris más claro para que sea discreto
-
-                // Izquierda: Fecha de generación
-                pdf.text(`Generado el: ${timestamp}`, margin, pdfHeight - 10);
-
-                // Derecha: Numeración
-                pdf.text(`Página ${current}`, pdfWidth - margin, pdfHeight - 10, { align: 'right' });
-
-                // Centro: Marca de agua SIGSSEP
-                pdf.setFont("helvetica", "italic");
-                pdf.text("SIGSSEP - Reporte de Supervisión", pdfWidth / 2, pdfHeight - 10, { align: 'center' });
-            };
-
-            // --- CONSTRUCCIÓN DEL DOCUMENTO ---
-            // Página 1
-            pdf.addImage(imgData, 'PNG', margin, margin, printableWidth, totalImgHeightInPDF);
-            addFooter(pageNumber);
-            heightLeft -= printableHeight;
-
-            // Páginas siguientes
-            while (heightLeft > 0) {
-                pageNumber++;
-                position = heightLeft - totalImgHeightInPDF + margin;
-                pdf.addPage();
-                pdf.addImage(imgData, 'PNG', margin, position, printableWidth, totalImgHeightInPDF);
-                addFooter(pageNumber);
-                heightLeft -= printableHeight;
-            }
-
-            // 4. Finalización
-            pdf.save(`Reporte_SIGSSEP_${project.code}_${now.toISOString().split('T')[0]}.pdf`);
-            toast.success(`Reporte oficial de ${pageNumber} páginas generado`, { id: toastId });
+            doc.save(`Reporte_Tecnico_${project.code}.pdf`);
+            toast.success("Reporte generado con éxito", { id: toastId });
 
         } catch (error) {
-            console.error("Error PDF:", error);
-            toast.error("Error técnico al generar el documento");
-        } finally {
-            setPdfExpandedComps(null);
-            setPdfExpandedTheories(null);
-            if (actionButtons) actionButtons.parentElement.style.visibility = 'visible';
+            console.error(error);
+            toast.error("Error al generar el PDF", { id: toastId });
         }
     };
-
-
+    
+    // --- USE EFFECT CORREGIDO ---
     useEffect(() => {
         const fetchAllData = async () => {
             try {
                 setLoading(true);
-
-                // 1. Lanzamos ambas peticiones al mismo tiempo (Eficiencia)
                 const [resProj, resInd] = await Promise.all([
                     apiFetch(`/manager/projects/${id}`),
                     apiFetch(`/projects/${id}/indicators`)
                 ]);
 
-                // 2. Validamos el Proyecto (Seguridad)
-                if (resProj && resProj.ok) {
+                if (resProj.ok) {
                     const dataProj = await resProj.json();
                     setProject(dataProj);
                 } else {
-                    // Si el proyecto no viene bien, disparamos tu lógica original
-                    Swal.fire({
-                        title: 'Error',
-                        text: 'No se pudo encontrar la información del proyecto.',
-                        icon: 'error',
-                        confirmButtonColor: '#1b263b'
-                    });
-                    return navigate('/manager/projects');
+                    throw new Error("Proyecto no encontrado");
                 }
 
-                // 3. Validamos los Indicadores (Opcional)
-                if (resInd && resInd.ok) {
-                    const dataInd = await resInd.json();
-                    setIndicators(dataInd);
-                } else {
-                    // Si fallan solo los indicadores, no sacamos al usuario, 
-                    // solo dejamos la lista vacía
-                    console.warn("No se pudieron cargar los indicadores del proyecto");
-                    setIndicators([]);
+                if (resInd.ok) {
+                    setIndicators(await resInd.json());
                 }
-
             } catch (error) {
-                console.error("Error en fetchAllData:", error);
-                toast.error("Error de conexión con SIGSSEP");
+                Swal.fire('Error', error.message, 'error');
+                navigate('/manager/projects');
             } finally {
                 setLoading(false);
             }
         };
-
         fetchAllData();
-    }, [id, navigate]); // Mantenemos navigate en las dependencias por seguridad
+    }, [id, navigate]);
 
-    if (loading) return (
-        <div className="d-flex justify-content-center align-items-center vh-100">
-            <div className="spinner-border text-emerald" role="status">
-                <span className="visually-hidden">Cargando...</span>
-            </div>
-        </div>
-    );
-
+    if (loading) return <div className="spinner-grow text-emerald"></div>;
     if (!project) return null;
-
-    console.log({ indicators, project })
 
     return (
         <div className="project-detail-main-container fade-in py-4">
@@ -199,23 +254,22 @@ const ProjectDetail = () => {
                         <div className="row g-4">
                             {/* COLUMNA IZQUIERDA: FICHA TÉCNICA */}
                             <div className="col-lg-4 border-end-dynamic">
-                                <h5 className="text-oxford-dynamic fw-bold mb-4 d-flex align-items-center">
+                                <h5 className="text-oxford-dynamic fw-bold mb-4">
                                     <i className="fas fa-clipboard-list me-2 text-emerald"></i> Ficha Técnica
                                 </h5>
                                 <div className="tech-info-grid">
                                     <div className="mb-4">
-                                        {/* Esta clase text-muted ahora es controlada por el CSS que pusimos arriba */}
                                         <label className="small text-muted d-block fs-5">DONANTE</label>
                                         <span className="fw-bold fs-4">{project.donor_name || "No asignado"}</span>
                                     </div>
                                     <div className="row mb-5">
                                         <div className="col-6">
                                             <label className="small text-muted d-block">INICIO</label>
-                                            <span className="fw-bold fs-5 text-oxford-dynamic">{project.start_date}</span>
+                                            <span className="fw-bold fs-5">{project.start_date}</span>
                                         </div>
                                         <div className="col-6">
                                             <label className="small text-muted d-block">CIERRE</label>
-                                            <span className="fw-bold fs-5 text-oxford-dynamic">{project.end_date}</span>
+                                            <span className="fw-bold fs-5">{project.end_date}</span>
                                         </div>
                                     </div>
                                     <div className="mb-5">
@@ -357,29 +411,21 @@ const ProjectDetail = () => {
                 <div className="mb-5 fade-in">
                     <TechnicalProgressCard
                         allIndicators={indicators}
-                        allCompetences={project?.competences || []}
-                        externalExpandedComps={pdfExpandedComps} // Le pasamos el control del PDF
-                        externalExpandedTheories={pdfExpandedTheories}
+                        allCompetences={project.competences || []}
                     />
                 </div>
 
                 {/* BOTONES DE ACCIÓN */}
-                <div className="d-flex justify-content-between align-items-center bg-card-dynamic p-4 rounded-4 shadow-sm border border-light-subtle mt-4">
+                <div className="d-flex justify-content-between align-items-center bg-card-dynamic p-4 rounded-4 shadow-sm mt-4">
                     <button className="btn btn-outline-oxford px-4" onClick={() => navigate('/manager/projects')}>
-                        <i className="fas fa-arrow-left me-2"></i>Volver a la lista
+                        <i className="fas fa-arrow-left me-2"></i>Volver
                     </button>
                     <div className="d-flex gap-3">
-                        <button
-                            className="btn btn-oxford px-4 shadow-sm text-white d-flex align-items-center"
-                            onClick={exportToPDF}
-                        >
+                        <button className="btn btn-oxford px-4 text-white" onClick={exportToPDF}>
                             <i className="fas fa-file-pdf me-2"></i> Exportar PDF
                         </button>
-                        <Link
-                            to={`/manager/projects/edit/${id}`}
-                            className="btn btn-emerald px-4 shadow-sm text-white d-flex align-items-center"
-                        >
-                            <i className="fas fa-edit me-2"></i> Editar Proyecto
+                        <Link to={`/manager/projects/edit/${id}`} className="btn btn-emerald px-4 text-white">
+                            <i className="fas fa-edit me-2"></i> Editar
                         </Link>
                     </div>
                 </div>
