@@ -123,7 +123,7 @@ def login():
 
     # Extraemos solo los nombres (o IDs) de las competencias asignadas
     # Esto crea una lista simple: ["Educación", "Salud"]
-    user_competences = [c.name for c in user.competences]
+    user_competences = [{"id": c.id_competence, "name": c.name} for c in user.competences]
 
     additional_claims = {
         "is_administrator": is_admin,
@@ -254,9 +254,8 @@ def get_all_users():
     # Los devolvemos serializados para que React los pueda listar
     return jsonify([user.serialize() for user in users]), 200
 
+
 # 2. Activar o desactivar un usuario (El "Visto Bueno" del Administrador)
-
-
 @api.route("/manager/users/<int:user_id>/status", methods=["PATCH"])
 @jwt_required()
 @manager_required
@@ -1344,9 +1343,8 @@ def add_municipality():
     db.session.commit()
     return jsonify(new_muni.serialize()), 201
 
+
 # --- ENDPOINTS PARA PARROQUIAS ---
-
-
 @api.route('/municipalities/<int:municipality_id>/parishes', methods=['GET'])
 @jwt_required()
 def get_parishes_by_municipality(municipality_id):
@@ -1374,7 +1372,6 @@ def add_parish():
 
 
 # --- ENDPOINTS PARA MUNICIPIOS (CRUD RESTANTE) ---
-
 @api.route('/municipalities/<int:id>', methods=['PUT'])
 @jwt_required()
 @manager_required
@@ -1411,7 +1408,6 @@ def delete_municipality(id):
 
 
 # --- ENDPOINTS PARA PARROQUIAS (CRUD RESTANTE) ---
-
 @api.route('/parishes/<int:id>', methods=['PUT'])
 @jwt_required()
 @manager_required
@@ -1446,7 +1442,7 @@ def delete_parish(id):
 @jwt_required()
 def record_activity():
     data = request.get_json()
-    user_id = get_jwt_identity()  # El ID del Oficial logueado
+    user_id = get_jwt_identity()
 
     try:
         new_activity = Activity(
@@ -1458,6 +1454,7 @@ def record_activity():
             achievement_disability=data.get("disability", 0.0),
             indicator_id=data.get("indicator_id"),
             location_id=data.get("location_id"),
+            project_id=data.get("project_id"),
             user_id=user_id,
             status="Completada"
         )
@@ -1776,3 +1773,23 @@ def patch_indicator(id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": f"Error al actualizar: {str(e)}"}), 500
+
+
+# Llama indicadores por  oficial
+@api.route("/project/<int:project_id>/my-indicators", methods=["GET"])
+@jwt_required()
+def get_my_indicators(project_id):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    # 1. Obtenemos los IDs de las competencias que tiene el usuario
+    user_comp_ids = [c.id_competence for c in user.competences]
+    
+    # 2. Buscamos los indicadores del proyecto que coincidan con esas competencias
+    # Filtramos a través de: Indicator -> Template -> Competence
+    my_indicators = Indicator.query.join(IndicatorTemplate).filter(
+        Indicator.project_id == project_id,
+        IndicatorTemplate.competence_id.in_(user_comp_ids)
+    ).all()
+    
+    return jsonify([ind.serialize() for ind in my_indicators]), 200

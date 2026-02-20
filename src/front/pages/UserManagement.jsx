@@ -220,7 +220,17 @@ const UserManagement = () => {
                                                         <div className="user-avatar-mini me-3">
                                                             {user.name.charAt(0)}{user.lastname.charAt(0)}
                                                         </div>
-                                                        <span className="user-name-text">{user.name} {user.lastname}</span>
+                                                        <div>
+                                                            <span className="user-name-text d-block">{user.name} {user.lastname}</span>
+                                                            {/* Pequeños tags de competencias asignadas */}
+                                                            <div className="d-flex flex-wrap gap-1 mt-1">
+                                                                {user.competences?.map(c => (
+                                                                    <span key={c.id} className="badge bg-primary text-dark" style={{ fontSize: '0.65rem' }}>
+                                                                        {c.name}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </td>
                                                 <td className="user-email-text">{user.email}</td>

@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+//Nuevbo componente para crear las actividadesimport React, { useEffect, useState } from "react";
 import { toast, Toaster } from "sonner";
 import Swal from 'sweetalert2';
 import { apiFetch } from "../../utils/api";
 import "../styles/auth.css";
-import "../styles/roleManagement.css"; 
+import "../styles/roleManagement.css";
 
 const CompetenceManagement = () => {
     const [competences, setCompetences] = useState([]);

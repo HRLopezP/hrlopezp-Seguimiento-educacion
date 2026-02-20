@@ -78,15 +78,19 @@ class User(db.Model):
 
     def serialize(self):
         initials = f"{self.name} {self.lastname}"
-        competences_dict = {}
-        for c in self.competences:
-            competences_dict[c.id_competence] = c.serialize()
+        competences_list = []
+        seen_ids = set()
         
-    # 2. Metemos las competencias que vienen de ProjectCompetence
-        if hasattr(self, 'project_assignments'):
+        for c in self.competences:
+            if c.id_competence not in seen_ids:
+                competences_list.append(c.serialize())
+                seen_ids.add(c.id_competence)
+
+        if self.project_assignments:
             for pa in self.project_assignments:
-                if pa.competence and pa.competence.id_competence not in competences_dict:
-                    competences_dict[pa.competence.id_competence] = pa.competence.serialize()
+                if pa.competence and pa.competence.id_competence not in seen_ids:
+                    competences_list.append(pa.competence.serialize())
+                    seen_ids.add(pa.competence.id_competence)
 
         return {
         "id": self.id_user,
@@ -97,7 +101,7 @@ class User(db.Model):
         "rol_name": self.rol.name_rol if self.rol else None,
         "is_active": self.is_active,
         # Ahora sí, pasamos los valores del diccionario a una lista
-        "competences": list(competences_dict.values()),
+        "competences": competences_list,
         "image": self.profile if self.profile else f"https://ui-avatars.com/api/?name={initials.replace(' ', '+')}&size=128&background=random&rounded=true"
     }
 
@@ -488,17 +492,25 @@ class Activity(db.Model):
     location_id: Mapped[int] = mapped_column(
         ForeignKey('location.id_location'), nullable=False)
 
+    project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
+
     responsible: Mapped["User"] = relationship(back_populates="activities")
+
+    indicator: Mapped["Indicator"] = relationship() 
+    project: Mapped["Project"] = relationship()
 
     def serialize(self):
         return {
             "id": self.id_activity,
+            "project_id": self.project_id, 
+            "indicator_code": self.indicator.code if self.indicator else "N/A",
             "description": self.description,
             "date": self.implementation_date.strftime("%Y-%m-%d"),
             "achievements": {
                 "men": self.achievement_men,
                 "women": self.achievement_women,
-                "disability": self.achievement_disability
+                "disability": self.achievement_disability,
+                "total": self.achievement_men + self.achievement_women
             },
             "status": self.status,
             "responsible_name": f"{self.responsible.name} {self.responsible.lastname}" if self.responsible else "N/A"
