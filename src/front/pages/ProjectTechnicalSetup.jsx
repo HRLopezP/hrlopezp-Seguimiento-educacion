@@ -249,45 +249,46 @@ const ProjectTechnicalSetup = () => {
         }
     };
 
+    const prepareIndicatorsForServer = (indicatorsList) => {
+        return indicatorsList.map(ind => {
+            const isOutcome = ind.result_type?.toLowerCase() === 'outcome';
+
+            // Lógica inteligente para medios de verificación: prioriza IDs, luego mapea tags
+            const finalMeansIds = ind.means_ids && ind.means_ids.length > 0
+                ? ind.means_ids
+                : (ind.means_tags ? ind.means_tags.map(t => t.id) : []);
+
+            return {
+                template_id: ind.template_id,
+                means_ids: finalMeansIds,
+                target_total: ind.province_goals?.reduce((acc, curr) => acc + curr.total, 0) || 0,
+                target_men: isOutcome ? null : ind.province_goals?.reduce((acc, curr) => acc + curr.men, 0) || 0,
+                target_women: isOutcome ? null : ind.province_goals?.reduce((acc, curr) => acc + curr.women, 0) || 0,
+                verification_means: ind.verification_means || "",
+                observations: ind.observations || "",
+                project_result_id: ind.project_result_id,
+                goals_by_province: ind.province_goals?.map(pg => ({
+                    province_id: pg.province_id,
+                    target: pg.total,
+                    target_men: isOutcome ? null : pg.men,
+                    target_women: isOutcome ? null : pg.women
+                })) || []
+            };
+        });
+    };
+
     const handleSaveAll = async () => {
         if (selectedIndicators.length === 0) {
-            return toast.error("No has seleccionado ningún indicador para configurar.");
+            return toast.error("No has seleccionado ningún indicador.");
         }
 
         if (!validateData()) return;
 
+        // Usamos la fábrica
         const formattedData = {
             project_id: parseInt(projectId),
-            indicators: selectedIndicators.map(ind => {
-                const finalMeansIds = ind.means_ids && ind.means_ids.length > 0
-                    ? ind.means_ids
-                    : (ind.means_tags ? ind.means_tags.map(t => t.id) : []);
-
-                console.log(`🔍 Revisando Indicador ${ind.template_id}:`, {
-                    id_en_estado: ind.project_result_id,
-                    nombre: ind.indicator_name || ind.description
-                });
-                return {
-                    template_id: ind.template_id,
-                    means_ids: finalMeansIds,
-                    target_total: ind.province_goals.reduce((acc, curr) => acc + curr.total, 0),
-                    // Aseguramos que si es outcome, mande null y no intente sumar ceros
-                    target_men: ind.result_type?.toLowerCase() === 'outcome' ? null : ind.province_goals.reduce((acc, curr) => acc + curr.men, 0),
-                    target_women: ind.result_type?.toLowerCase() === 'outcome' ? null : ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
-                    verification_means: ind.verification_means,
-                    observations: ind.observations,
-                    project_result_id: ind.project_result_id,
-                    goals_by_province: ind.province_goals.map(pg => ({
-                        province_id: pg.province_id,
-                        target: pg.total,
-                        target_men: pg.men,
-                        target_women: pg.women
-                    }))
-                };
-            })
+            indicators: prepareIndicatorsForServer(selectedIndicators)
         };
-
-        console.log("🚀 DATA FINAL A ENVIAR:", formattedData);
 
         const result = await Swal.fire({
             title: '¿Guardar Configuración Técnica?',
@@ -311,9 +312,6 @@ const ProjectTechnicalSetup = () => {
 
                 if (res.ok) {
                     toast.success("¡Planificación técnica guardada con éxito!");
-
-                    // 🔥 AQUÍ ESTÁ EL TRUCO, AMIGUITO:
-                    // Refrescamos los datos inmediatamente sin recargar la página
                     await refreshProjectIndicators();
 
                 } else {
@@ -340,30 +338,12 @@ const ProjectTechnicalSetup = () => {
             color: document.documentElement.getAttribute('data-theme') === 'dark' ? '#ffffff' : '#1b263b',
         }).then(async (result) => {
             if (result.isConfirmed) {
-                // 1. Filtramos localmente para la petición
-                const updatedIndicators = selectedIndicators.filter(i => i.template_id !== indicatorId);
+                const remainingIndicators = selectedIndicators.filter(i => i.template_id !== indicatorId);
 
+                // 2. Preparamos la data con la misma lógica de guardado
                 const formattedData = {
                     project_id: parseInt(projectId),
-                    indicators: updatedIndicators.map(ind => {
-                        const isOutcome = ind.result_type?.toLowerCase() === 'outcome';
-                        return {
-                            template_id: ind.template_id,
-                            means_ids: ind.means_ids || [],
-                            target_total: ind.province_goals.reduce((acc, curr) => acc + curr.total, 0),
-                            target_men: isOutcome ? null : ind.province_goals.reduce((acc, curr) => acc + curr.men, 0),
-                            target_women: isOutcome ? null : ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
-                            verification_means: ind.verification_means,
-                            observations: ind.observations,
-                            project_result_id: ind.project_result_id,
-                            goals_by_province: ind.province_goals.map(pg => ({
-                                province_id: pg.province_id,
-                                target: pg.total,
-                                target_men: isOutcome ? null : pg.men,
-                                target_women: isOutcome ? null : pg.women
-                            }))
-                        };
-                    })
+                    indicators: prepareIndicatorsForServer(remainingIndicators)
                 };
 
                 try {
@@ -374,9 +354,6 @@ const ProjectTechnicalSetup = () => {
 
                     if (res.ok) {
                         toast.success("Eliminado y sincronizado con el servidor");
-
-                        // 🔥 LA CLAVE: Refrescamos todo el contexto técnico
-                        // Esto recalcula dependencias y limpia los Outcomes que apuntaban aquí
                         await refreshProjectIndicators();
 
                         if (activeIndicatorId === indicatorId) setActiveIndicatorId(null);
@@ -526,7 +503,7 @@ const ProjectTechnicalSetup = () => {
                                                     onClick={() => setExpandedResults(prev => ({ ...prev, [result.id]: !prev[result.id] }))}
                                                     style={{ cursor: 'pointer' }}
                                                 >
-                                                    <i className={`fas ${expandedResults[result.id] ? 'fa-chevron-down' : 'fa-chevron-right'} me-2 text-muted`}></i>
+                                                    <i className={`fas ${expandedResults[result.id] ? 'fa-chevron-down' : 'fa-chevron-right'} me-2 ${expandedResults[result.id] ? 'text-emerald' : 'text-oxford-dynamic'}`}></i>
                                                     <span className={`badge ${result.type === 'outcome' ? 'bg-primary' : 'bg-emerald'} me-2`}>
                                                         {result.type.toUpperCase()}
                                                     </span>
@@ -649,31 +626,28 @@ const ProjectTechnicalSetup = () => {
                                             <label className="uppercase-label text-emerald small fw-bold mb-2 d-block">
                                                 <i className="fas fa-link me-2"></i>Indicadores de Contribución (Outputs)
                                             </label>
-                                            <div className="accordion border-dynamic shadow-sm" id="accordionDependencies">
-                                                {/* 1. Iteramos sobre las teorías dentro de groupedData */}
+                                            <div className="accordion accordion-flush shadow-sm" id="accordionDependencies">
                                                 {Object.keys(groupedData).map((theoryName) => (
                                                     <React.Fragment key={theoryName}>
-                                                        {/* 2. Solo nos interesan los 'output' para las dependencias */}
                                                         {groupedData[theoryName]['output'] && Object.keys(groupedData[theoryName]['output']).map((resultName) => {
                                                             const indicatorsInGroup = groupedData[theoryName]['output'][resultName];
-                                                            // Creamos un ID único basado en el nombre del resultado para el acordeón
                                                             const collapseId = `collapse-${resultName.replace(/\s+/g, '-')}`;
 
                                                             return (
                                                                 <div className="accordion-item bg-card-dynamic border-dynamic" key={resultName}>
-                                                                    <h2 className="accordion-header">
+                                                                    <h1 className="accordion-header">
                                                                         <button
-                                                                            className="accordion-button collapsed bg-input-dynamic text-main-dynamic py-2 px-3 fw-bold"
+                                                                            className="accordion-button collapsed table-custom-sigssep py-2 px-3 fw-bold"
                                                                             type="button"
                                                                             data-bs-toggle="collapse"
                                                                             data-bs-target={`#${collapseId}`}
                                                                         >
                                                                             {resultName}
-                                                                            <span className="badge bg-oxford-grey ms-2 small">
+                                                                            <span className="badge bg-success ms-4 small">
                                                                                 {indicatorsInGroup.length}
                                                                             </span>
                                                                         </button>
-                                                                    </h2>
+                                                                    </h1>
                                                                     <div id={collapseId} className="accordion-collapse collapse" data-bs-parent="#accordionDependencies">
                                                                         <div className="accordion-body p-3">
                                                                             {/* 3. Mapeamos los indicadores reales dentro del grupo */}
@@ -692,7 +666,7 @@ const ProjectTechnicalSetup = () => {
                                                                                         }}
                                                                                     />
                                                                                     <label className="form-check-label ms-2 cursor-pointer" htmlFor={`chk-${outputInd.template_id}`}>
-                                                                                        <span className="text-emerald fw-bold">{outputInd.code}:</span> {outputInd.indicator_name}
+                                                                                        <span className="text-emerald fw-bold">{outputInd.code}:</span> <span style={{ fontSize: '0.75rem' }}>{outputInd.indicator_name}</span>
                                                                                     </label>
                                                                                 </div>
                                                                             ))}

@@ -88,3 +88,16 @@
 .border-outcome {
     border-bottom: 2.5px solid #52b788 !important;
 }
+
+
+/* 2. El truco de magia: Invertir el color de la flecha en modo oscuro */
+[data-theme='dark'] .accordion-button::after {
+    filter: invert(1) grayscale(1) brightness(1.5);
+}
+
+
+/* Aplicable solo al modo oscuro para mayor elegancia */
+[data-theme='dark'] .accordion-item {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important; /* Solo una línea divisoria fina */
+}
+
