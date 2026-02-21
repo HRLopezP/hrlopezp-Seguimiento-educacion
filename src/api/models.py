@@ -1,9 +1,10 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Integer, String, Column, Table, Boolean, DateTime, Text, Enum, ForeignKey, Float
+from sqlalchemy import Integer, func, String, Column, Table, Boolean, DateTime, Text, Enum, ForeignKey, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime, timezone
 from typing import Optional, List
 from sqlalchemy.ext.hybrid import hybrid_property
+import enum
 
 db = SQLAlchemy()
 
@@ -485,77 +486,74 @@ class ProjectCompetence(db.Model):
 # --- REGISTRO DE AVANCES (OPERATIVO) ---
 
 
+class ActivityStatus(enum.Enum):
+    PLANIFICADA = "Planificada"
+    EN_PROGRESO = "En Progreso"
+    COMPLETADA = "Completada"
+    VENCIDA = "Vencida"
+    CANCELADA = "Cancelada"
+
 class Activity(db.Model):
     __tablename__ = 'activity'
     id_activity: Mapped[int] = mapped_column(primary_key=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    implementation_date: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False)
+    
+    # Rango de fechas (Ej. 2 al 4 de enero)
+    start_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    end_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
-    # Logros numéricos
-    achievement_men: Mapped[float] = mapped_column(Float, default=0.0)
-    achievement_women: Mapped[float] = mapped_column(Float, default=0.0)
-    achievement_disability: Mapped[float] = mapped_column(Float, default=0.0)
-
-    status: Mapped[str] = mapped_column(String(20), default="Pendiente")
-
-    planned_date_end: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Meta esperada (Lo que el oficial promete alcanzar)
     planned_target: Mapped[float] = mapped_column(Float, default=0.0)
     
-    # NUEVO PARA EJECUCIÓN REAL
-    evidence_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    actual_observations: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Estatus con Enum
+    status: Mapped[ActivityStatus] = mapped_column(
+        db.Enum(ActivityStatus), default=ActivityStatus.PLANIFICADA
+    )
+
+    # --- RELACIONES CLAVE ---
+    indicator_id: Mapped[int] = mapped_column(ForeignKey('indicator.id_indicator'), nullable=False)
+    project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
+    location_id: Mapped[int] = mapped_column(ForeignKey('location.id_location'), nullable=False)
     
-    # PARA OUTCOMES INDEPENDIENTES (Denominador variable)
-    context_denominator: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Vinculamos a la asignación de competencia específica del proyecto
+    project_competence_id: Mapped[int] = mapped_column(ForeignKey('project_competence.id_pc'), nullable=False)
+
+    # --- CAMPOS DE AUDITORÍA (Lo que pidió el Gerente) ---
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, onupdate=func.now(), nullable=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey('user.id_user'), nullable=False)
+    updated_by_id: Mapped[int] = mapped_column(ForeignKey('user.id_user'), nullable=True)
 
     # Relaciones
-    indicator_id: Mapped[int] = mapped_column(
-        ForeignKey('indicator.id_indicator'), nullable=False)
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey('user.id_user'), nullable=False)
-    location_id: Mapped[int] = mapped_column(
-        ForeignKey('location.id_location'), nullable=False)
-
-    project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
-
-    responsible: Mapped["User"] = relationship(back_populates="activities")
-
-    indicator: Mapped["Indicator"] = relationship() 
-    project: Mapped["Project"] = relationship()
-
+    achievements: Mapped[List["AchievementRecord"]] = relationship(back_populates="activity", cascade="all, delete-orphan")
+    creator: Mapped["User"] = relationship(foreign_keys=[created_by_id])
+    
     def serialize(self):
+        # Calculamos el total real sumando todos los registros de logros vinculados
+        total_men = sum(rec.men_reached for rec in self.achievements)
+        total_women = sum(rec.women_reached for rec in self.achievements)
+
         return {
             "id": self.id_activity,
-            "project_id": self.project_id,
-            "indicator_id": self.indicator_id,
-            "indicator_code": self.indicator.template.code if self.indicator and self.indicator.template else "N/A",
             "description": self.description,
-            "status": self.status,
-            
-            # Fechas
-            "start_date": self.implementation_date.strftime("%Y-%m-%d"),
-            "end_date": self.planned_date_end.strftime("%Y-%m-%d") if self.planned_date_end else None,
-            
-            # Planificación vs Logros
-            "planned_target": self.planned_target,
-            "achievements": {
-                "men": self.achievement_men,
-                "women": self.achievement_women,
-                "disability": self.achievement_disability,
-                "total": self.achievement_men + self.achievement_women
+            "period": {
+                "start": self.start_date.strftime("%Y-%m-%d"),
+                "end": self.end_date.strftime("%Y-%m-%d")
             },
-            
-            # Resultados y Evidencias
-            "evidence_url": self.evidence_url,
-            "actual_observations": self.actual_observations,
-            "context_denominator": self.context_denominator, # Para outcomes variables
-            
-            # Ubicación y Responsable
-            "location_id": self.location_id,
-            "responsible_name": f"{self.responsible.name} {self.responsible.lastname}" if self.responsible else "N/A"
+            "status": self.status.value,
+            "planned_target": self.planned_target,
+            "real_progress": {
+                "men": total_men,
+                "women": total_women,
+                "total": total_men + total_women
+            },
+            "audit": {
+                "created_at": self.created_at.strftime("%Y-%m-%d %H:%M"),
+                "created_by": self.created_by_id,
+                "last_update": self.updated_at.strftime("%Y-%m-%d %H:%M") if self.updated_at else None
+            },
+            "achievements_history": [a.serialize() for a in self.achievements]
         }
-
 
 # --- CATÁLOGOS DE TERRITORIO (Los que el Admin llena primero) ---
 
@@ -679,4 +677,30 @@ class ProjectResult(db.Model):
             "indicators": [i.serialize() for i in self.indicators]
         }
 
+class AchievementRecord(db.Model):
+    __tablename__ = 'achievement_record'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    activity_id: Mapped[int] = mapped_column(ForeignKey('activity.id_activity'), nullable=False)
+    
+    # Lo que realmente se logró en esta entrega
+    men_reached: Mapped[float] = mapped_column(Float, default=0.0)
+    women_reached: Mapped[float] = mapped_column(Float, default=0.0)
+    disability_reached: Mapped[float] = mapped_column(Float, default=0.0)
+    
+    evidence_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    observations: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    execution_date: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    
+    # Auditoría: ¿Quién subió este logro?
+    user_id: Mapped[int] = mapped_column(ForeignKey('user.id_user'), nullable=False)
+    
+    activity: Mapped["Activity"] = relationship(back_populates="achievements")
 
+    def serialize(self):
+        return {
+            "id": self.id,
+            "date": self.execution_date.strftime("%Y-%m-%d %H:%M"),
+            "reach": {"men": self.men_reached, "women": self.women_reached, "total": self.men_reached + self.women_reached},
+            "evidence": self.evidence_url,
+            "recorded_by": self.user_id
+        }
