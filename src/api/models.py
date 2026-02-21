@@ -277,7 +277,12 @@ class MasterVerificationMean(db.Model):
     
     def serialize(self):
         return {"id": self.id, "name": self.name}
-    
+
+indicator_dependencies = db.Table(
+    'indicator_dependencies',
+    db.Column('indicator_id', db.Integer, db.ForeignKey('indicator.id_indicator'), primary_key=True),
+    db.Column('depends_on_id', db.Integer, db.ForeignKey('indicator.id_indicator'), primary_key=True)
+)
 
 class Indicator(db.Model):
     __tablename__ = 'indicator'
@@ -305,6 +310,14 @@ class Indicator(db.Model):
     target_total: Mapped[float] = mapped_column(Float, default=0.0)
     target_men: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
     target_women: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
+
+    depends_on: Mapped[List["Indicator"]] = relationship(
+        "Indicator",
+        secondary=indicator_dependencies,
+        primaryjoin=(id_indicator == indicator_dependencies.c.indicator_id),
+        secondaryjoin=(id_indicator == indicator_dependencies.c.depends_on_id),
+        backref="is_parent_of"
+    )
 
     def serialize(self):
         res_temp = self.project_result.result_template if self.project_result else None
@@ -340,7 +353,9 @@ class Indicator(db.Model):
             "comp_name": comp_temp.name if comp_temp else "Otras Competencias",
             "theory_name": theo_temp.name if theo_temp else "Sin Teoría",
             "result_name": res_temp.name if res_temp else "General",
-            "result_type": final_type.lower() if final_type else "output"
+            "result_type": final_type.lower() if final_type else "output",
+            # NUEVO: Para que el oficial sepa si el indicador es dependiente o independiente
+            "depends_on_ids": [i.id_indicator for i in self.depends_on]
         }
 
 
@@ -484,6 +499,16 @@ class Activity(db.Model):
 
     status: Mapped[str] = mapped_column(String(20), default="Pendiente")
 
+    planned_date_end: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    planned_target: Mapped[float] = mapped_column(Float, default=0.0)
+    
+    # NUEVO PARA EJECUCIÓN REAL
+    evidence_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    actual_observations: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # PARA OUTCOMES INDEPENDIENTES (Denominador variable)
+    context_denominator: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
     # Relaciones
     indicator_id: Mapped[int] = mapped_column(
         ForeignKey('indicator.id_indicator'), nullable=False)
@@ -502,17 +527,32 @@ class Activity(db.Model):
     def serialize(self):
         return {
             "id": self.id_activity,
-            "project_id": self.project_id, 
-            "indicator_code": self.indicator.code if self.indicator else "N/A",
+            "project_id": self.project_id,
+            "indicator_id": self.indicator_id,
+            "indicator_code": self.indicator.template.code if self.indicator and self.indicator.template else "N/A",
             "description": self.description,
-            "date": self.implementation_date.strftime("%Y-%m-%d"),
+            "status": self.status,
+            
+            # Fechas
+            "start_date": self.implementation_date.strftime("%Y-%m-%d"),
+            "end_date": self.planned_date_end.strftime("%Y-%m-%d") if self.planned_date_end else None,
+            
+            # Planificación vs Logros
+            "planned_target": self.planned_target,
             "achievements": {
                 "men": self.achievement_men,
                 "women": self.achievement_women,
                 "disability": self.achievement_disability,
                 "total": self.achievement_men + self.achievement_women
             },
-            "status": self.status,
+            
+            # Resultados y Evidencias
+            "evidence_url": self.evidence_url,
+            "actual_observations": self.actual_observations,
+            "context_denominator": self.context_denominator, # Para outcomes variables
+            
+            # Ubicación y Responsable
+            "location_id": self.location_id,
             "responsible_name": f"{self.responsible.name} {self.responsible.lastname}" if self.responsible else "N/A"
         }
 

@@ -1775,21 +1775,25 @@ def patch_indicator(id):
         return jsonify({"message": f"Error al actualizar: {str(e)}"}), 500
 
 
-# Llama indicadores por  oficial
 @api.route("/project/<int:project_id>/my-indicators", methods=["GET"])
 @jwt_required()
 def get_my_indicators(project_id):
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
     
-    # 1. Obtenemos los IDs de las competencias que tiene el usuario
+    if not user:
+        return jsonify({"message": "Usuario no encontrado"}), 404
+
     user_comp_ids = [c.id_competence for c in user.competences]
     
-    # 2. Buscamos los indicadores del proyecto que coincidan con esas competencias
-    # Filtramos a través de: Indicator -> Template -> Competence
-    my_indicators = Indicator.query.join(IndicatorTemplate).filter(
-        Indicator.project_id == project_id,
-        IndicatorTemplate.competence_id.in_(user_comp_ids)
-    ).all()
+    all_project_indicators = Indicator.query.filter_by(project_id=project_id).all()
     
-    return jsonify([ind.serialize() for ind in my_indicators]), 200
+    filtered_indicators = []
+    for ind in all_project_indicators:
+        res = ind.project_result.result_template if ind.project_result else (ind.template.result if ind.template else None)
+        comp_id = res.theory.competence_id if res and res.theory else None
+        
+        if comp_id in user_comp_ids:
+            filtered_indicators.append(ind.serialize())
+            
+    return jsonify(filtered_indicators), 200
