@@ -32,61 +32,67 @@ const ProjectTechnicalSetup = () => {
         let context = {
             theory_name: "Sin Teoría asignada",
             result_name: "Sin Resultado asignado",
-            result_type: "Output"
+            result_type: "output",
+            comp_name: "Sin Competencia" // <-- Agregamos esto
         };
 
         for (const t of allTheories) {
             if (!t.results) continue;
 
             for (const r of t.results) {
-                const found = r.indicators?.some(i => Number(i.id) === Number(templateId));
+                const found = r.indicators?.find(i => Number(i.id) === Number(templateId));
 
                 if (found) {
                     return {
                         theory_name: t.name,
                         result_name: r.name,
-                        result_type: r.type
+                        result_type: r.type?.toLowerCase() || "output",
+                        comp_name: t.competence_name || selectedComp?.competence_name || "General", // <-- Ojo aquí
+                        indicator_name: found.name // Aprovechamos de traer el nombre real
                     };
                 }
             }
         }
-
         return context;
     };
 
     const groupedData = useMemo(() => {
         if (!selectedComp || !theories.length) return {};
 
-        const currentTheoryNames = theories.map(t => t.name);
-        console.log("Teorías de la competencia actual:", currentTheoryNames);
-        console.log("Indicadores en la bolsa global:", selectedIndicators.map(i => i.theory_name));
-        return selectedIndicators
-            .filter(ind => currentTheoryNames.includes(ind.theory_name))
-            .reduce((acc, ind) => {
-                let indicatorName = "Nombre no encontrado";
-                theories.forEach(t => {
-                    t.results?.forEach(r => {
-                        const found = r.indicators?.find(i => i.id === ind.template_id);
-                        if (found) indicatorName = found.name;
-                    });
-                });
+        return selectedIndicators.reduce((acc, ind) => {
+            const context = getIndicatorContext(ind.template_id, theories);
 
-                const context = getIndicatorContext(ind.template_id, theories);
-                const tName = context.theory_name;
-                const rType = context.result_type;
-                const rName = context.result_name;
-
-                if (!acc[tName]) acc[tName] = {};
-                if (!acc[tName][rType]) acc[tName][rType] = {};
-                if (!acc[tName][rType][rName]) acc[tName][rType][rName] = [];
-
-                acc[tName][rType][rName].push({
-                    ...ind,
-                    indicator_name: indicatorName
-                });
+            if (context.theory_name === "Sin Teoría asignada") {
                 return acc;
-            }, {});
+            }
+
+            const tName = context.theory_name;
+            const rType = context.result_type;
+            const rName = context.result_name;
+
+            // 1. Aseguramos la jerarquía de Teoría y Tipo (Output/Outcome)
+            if (!acc[tName]) acc[tName] = {};
+            if (!acc[tName][rType]) acc[tName][rType] = {};
+
+            // 2. ¡AQUÍ ESTÁ EL TRUCO! 
+            // Si el nombre del resultado (ej. "Definidos") NO existe, creamos el array.
+            // Si YA existe, no hacemos nada y el código siguiente hará el .push()
+            if (!acc[tName][rType][rName]) {
+                acc[tName][rType][rName] = [];
+            }
+
+            // 3. Agregamos el indicador al grupo correspondiente
+            acc[tName][rType][rName].push({
+                ...ind,
+                indicator_name: context.indicator_name,
+                result_type: rType,
+                theory_name: tName
+            });
+
+            return acc;
+        }, {});
     }, [selectedIndicators, theories, selectedComp]);
+
 
     const handleMetaChange = (indicatorId, provinceId, field, value) => {
         setSelectedIndicators(prev => prev.map(ind => {
@@ -206,6 +212,43 @@ const ProjectTechnicalSetup = () => {
         return true;
     };
 
+    const refreshProjectIndicators = async (allTheories = theories) => {
+        try {
+            const resSaved = await apiFetch(`/projects/${projectId}/indicators`);
+            if (resSaved.ok) {
+                const savedData = await resSaved.json();
+                const formattedSaved = savedData.map(ind => {
+                    // Usamos la lista de teorías que nos pasen o la del estado
+                    const info = getIndicatorContext(ind.template_id, allTheories);
+                    return {
+                        template_id: ind.template_id,
+                        code: ind.indicator_code,
+                        description: ind.description,
+                        indicator_name: info.indicator_name || "Indicador",
+                        theory_name: info.theory_name,
+                        result_name: info.result_name,
+                        result_type: ind.result_type || info.result_type,
+                        comp_name: info.comp_name,
+                        means_ids: ind.means_ids || [],
+                        means_tags: ind.means_tags || [],
+                        verification_means: ind.verification_means || "",
+                        observations: ind.observations || "",
+                        province_goals: ind.goals_by_province.map(g => ({
+                            province_id: g.province_id,
+                            province_name: g.province_name,
+                            total: g.target || 0,
+                            men: g.men || 0,
+                            women: g.women || 0
+                        }))
+                    };
+                });
+                setSelectedIndicators(formattedSaved);
+            }
+        } catch (error) {
+            console.error("Error en refresh:", error);
+        }
+    };
+
     const handleSaveAll = async () => {
         if (selectedIndicators.length === 0) {
             return toast.error("No has seleccionado ningún indicador para configurar.");
@@ -269,6 +312,10 @@ const ProjectTechnicalSetup = () => {
                 if (res.ok) {
                     toast.success("¡Planificación técnica guardada con éxito!");
 
+                    // 🔥 AQUÍ ESTÁ EL TRUCO, AMIGUITO:
+                    // Refrescamos los datos inmediatamente sin recargar la página
+                    await refreshProjectIndicators();
+
                 } else {
                     toast.error("Hubo un error al guardar los indicadores.");
                 }
@@ -282,35 +329,36 @@ const ProjectTechnicalSetup = () => {
     const confirmDelete = (indicatorId, code) => {
         Swal.fire({
             title: `¿Eliminar indicador ${code}?`,
-            text: "Se borrará permanentemente del servidor.",
+            text: "Se borrará permanentemente del servidor y se actualizarán las dependencias.",
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#ef4444',
+            confirmButtonColor: '#ef4444', // Rojo para peligro
+            cancelButtonColor: '#1b263b',  // Oxford Grey para cancelar
             confirmButtonText: 'Sí, eliminar de la DB',
-            cancelButtonText: 'Cancelar'
+            cancelButtonText: 'Cancelar',
+            background: document.documentElement.getAttribute('data-theme') === 'dark' ? '#1b263b' : '#ffffff',
+            color: document.documentElement.getAttribute('data-theme') === 'dark' ? '#ffffff' : '#1b263b',
         }).then(async (result) => {
             if (result.isConfirmed) {
+                // 1. Filtramos localmente para la petición
                 const updatedIndicators = selectedIndicators.filter(i => i.template_id !== indicatorId);
 
                 const formattedData = {
                     project_id: parseInt(projectId),
                     indicators: updatedIndicators.map(ind => {
                         const isOutcome = ind.result_type?.toLowerCase() === 'outcome';
-
                         return {
                             template_id: ind.template_id,
                             means_ids: ind.means_ids || [],
                             target_total: ind.province_goals.reduce((acc, curr) => acc + curr.total, 0),
-                            // Si es outcome, mandamos null para no romper la nueva validación del server
                             target_men: isOutcome ? null : ind.province_goals.reduce((acc, curr) => acc + curr.men, 0),
                             target_women: isOutcome ? null : ind.province_goals.reduce((acc, curr) => acc + curr.women, 0),
                             verification_means: ind.verification_means,
                             observations: ind.observations,
-                            project_result_id: ind.project_result_id, // Importante mantener el ID
+                            project_result_id: ind.project_result_id,
                             goals_by_province: ind.province_goals.map(pg => ({
                                 province_id: pg.province_id,
                                 target: pg.total,
-                                // También limpiamos a nivel de provincia
                                 target_men: isOutcome ? null : pg.men,
                                 target_women: isOutcome ? null : pg.women
                             }))
@@ -325,17 +373,44 @@ const ProjectTechnicalSetup = () => {
                     });
 
                     if (res.ok) {
-                        setSelectedIndicators(updatedIndicators);
+                        toast.success("Eliminado y sincronizado con el servidor");
+
+                        // 🔥 LA CLAVE: Refrescamos todo el contexto técnico
+                        // Esto recalcula dependencias y limpia los Outcomes que apuntaban aquí
+                        await refreshProjectIndicators();
+
                         if (activeIndicatorId === indicatorId) setActiveIndicatorId(null);
-                        toast.success("Eliminado permanentemente del servidor");
                     } else {
-                        toast.error("El servidor recibió la orden pero no borró el dato.");
+                        toast.error("El servidor no pudo procesar la eliminación.");
                     }
                 } catch (error) {
-                    toast.error("Error de conexión con el servidor.");
+                    toast.error("Error de conexión al intentar eliminar.");
                 }
             }
         });
+    };
+
+
+    const handleCompetenceChange = async (comp) => {
+        setLoading(true);
+        try {
+            setSelectedComp(comp);
+            // 1. Buscamos las teorías específicas de ESTA nueva competencia
+            const res = await apiFetch(`/competence/${comp.competence_id}/theories`);
+            const newTheories = await res.json();
+
+            // 2. Actualizamos el estado de teorías
+            setTheories(newTheories);
+
+            // 3. ¡IMPORTANTE! Refrescamos los indicadores pasándole las NUEVAS teorías
+            // para que el mapeo de nombres y tipos sea correcto
+            await refreshProjectIndicators(newTheories);
+
+        } catch (error) {
+            toast.error("Error al cambiar de competencia");
+        } finally {
+            setLoading(false);
+        }
     };
 
 
@@ -343,66 +418,34 @@ const ProjectTechnicalSetup = () => {
         const loadInitialData = async () => {
             try {
                 setLoading(true);
-
-                const [resProj, resMaster] = await Promise.all([
+                const [resProj, resMaster, resMyProjs] = await Promise.all([
                     apiFetch(`/projects/${projectId}`),
-                    apiFetch('/verification-means')
+                    apiFetch('/verification-means'),
+                    apiFetch(`/my-assigned-projects`)
                 ]);
+
                 const dataProj = await resProj.json();
                 const dataMaster = await resMaster.json();
+                const allMyProjects = await resMyProjs.json();
+
                 setProject(dataProj);
                 setMasterMeans(dataMaster);
 
-                const resComp = await apiFetch(`/my-assigned-projects`);
-                const allMyProjects = await resComp.json();
-                const comps = allMyProjects.filter(p => p.project_id === parseInt(projectId));
-                setMyCompetences(comps);
+                const myComps = allMyProjects.filter(p => p.project_id === parseInt(projectId));
+                setMyCompetences(myComps);
 
-                const theoryPromises = comps.map(c => apiFetch(`/competence/${c.competence_id}/theories`));
-                const theoryResponses = await Promise.all(theoryPromises);
-                const theoryDataArray = await Promise.all(theoryResponses.map(r => r.json()));
-
-                const allProjectTheories = theoryDataArray.flat();
-
-                if (comps.length > 0) {
-                    setSelectedComp(comps[0]);
-                    const initialTheories = theoryDataArray[0];
+                if (myComps.length > 0) {
+                    setSelectedComp(myComps[0]);
+                    // Cargamos teorías de la primera competencia
+                    const resTheory = await apiFetch(`/competence/${myComps[0].competence_id}/theories`);
+                    const initialTheories = await resTheory.json();
                     setTheories(initialTheories);
+
+                    // Ahora que tenemos las teorías, refrescamos los indicadores guardados
+                    await refreshProjectIndicators(initialTheories);
                 }
-
-                const resSaved = await apiFetch(`/projects/${projectId}/indicators`);
-                if (resSaved.ok) {
-                    const savedData = await resSaved.json();
-
-                    const formattedSaved = savedData.map(ind => {
-                        const info = getIndicatorContext(ind.template_id, allProjectTheories);
-
-                        return {
-                            template_id: ind.template_id,
-                            code: ind.indicator_code,
-                            description: ind.description,
-                            theory_name: info.theory_name,
-                            result_name: info.result_name,
-                            result_type: ind.result_type || info.result_type,
-                            means_tags: ind.means_tags || [],
-                            means_ids: ind.means_ids || [],
-                            verification_means: ind.verification_means || "",
-                            observations: ind.observations || "",
-                            province_goals: ind.goals_by_province.map(g => ({
-                                province_id: g.province_id,
-                                province_name: g.province_name,
-                                total: g.target || 0,
-                                men: g.men || 0,
-                                women: g.women || 0
-                            }))
-                        };
-                    });
-                    setSelectedIndicators(formattedSaved);
-                }
-
             } catch (error) {
-                console.error(error);
-                toast.error("Error al cargar la configuración técnica");
+                toast.error("Error al sincronizar SIGSSEP");
             } finally {
                 setLoading(false);
             }
@@ -410,27 +453,7 @@ const ProjectTechnicalSetup = () => {
         loadInitialData();
     }, [projectId]);
 
-    useEffect(() => {
-        if (selectedComp) {
-            const fetchTheories = async () => {
-                const res = await apiFetch(`/competence/${selectedComp.competence_id}/theories`);
-                const data = await res.json();
-                setTheories(data);
-            };
-            fetchTheories();
-        }
-    }, [selectedComp]);
 
-    useEffect(() => {
-        const loadMasterMeans = async () => {
-            const res = await apiFetch("/verification-means");
-            if (res?.ok) {
-                const data = await res.json();
-                setMasterMeans(data);
-            }
-        };
-        loadMasterMeans();
-    }, []);
 
     const indicatorsOfSelectedComp = useMemo(() => {
         if (!selectedComp || !theories.length) return [];
@@ -468,10 +491,11 @@ const ProjectTechnicalSetup = () => {
                     {myCompetences.map(comp => (
                         <button
                             key={comp.competence_id}
-                            className={`btn ${selectedComp?.competence_id === comp.competence_id ? 'btn-emerald' : 'btn-outline-oxford'}`}
-                            onClick={() => setSelectedComp(comp)}
+                            className={`btn ${selectedComp?.competence_id === comp.competence_id ? 'btn-emerald' : 'btn-outline-oxford'} shadow-sm`}
+                            style={{ borderRadius: '8px', transition: 'all 0.3s ease' }}
+                            onClick={() => handleCompetenceChange(comp)} // <--- Cambiamos esto
                         >
-                            <i className="fas fa-briefcase me-2"></i>
+                            <i className={`fas fa-briefcase me-2 ${selectedComp?.competence_id === comp.competence_id ? 'text-white' : ''}`}></i>
                             {comp.competence_name}
                         </button>
                     ))}
@@ -619,6 +643,77 @@ const ProjectTechnicalSetup = () => {
                                         </div>
                                     </div>
 
+                                    {/* SECCIÓN DE DEPENDENCIAS (Solo para Outcomes) */}
+                                    {activeInd.result_type === 'outcome' && (
+                                        <div className="mb-4">
+                                            <label className="uppercase-label text-emerald small fw-bold mb-2 d-block">
+                                                <i className="fas fa-link me-2"></i>Indicadores de Contribución (Outputs)
+                                            </label>
+                                            <div className="accordion border-dynamic shadow-sm" id="accordionDependencies">
+                                                {/* 1. Iteramos sobre las teorías dentro de groupedData */}
+                                                {Object.keys(groupedData).map((theoryName) => (
+                                                    <React.Fragment key={theoryName}>
+                                                        {/* 2. Solo nos interesan los 'output' para las dependencias */}
+                                                        {groupedData[theoryName]['output'] && Object.keys(groupedData[theoryName]['output']).map((resultName) => {
+                                                            const indicatorsInGroup = groupedData[theoryName]['output'][resultName];
+                                                            // Creamos un ID único basado en el nombre del resultado para el acordeón
+                                                            const collapseId = `collapse-${resultName.replace(/\s+/g, '-')}`;
+
+                                                            return (
+                                                                <div className="accordion-item bg-card-dynamic border-dynamic" key={resultName}>
+                                                                    <h2 className="accordion-header">
+                                                                        <button
+                                                                            className="accordion-button collapsed bg-input-dynamic text-main-dynamic py-2 px-3 fw-bold"
+                                                                            type="button"
+                                                                            data-bs-toggle="collapse"
+                                                                            data-bs-target={`#${collapseId}`}
+                                                                        >
+                                                                            {resultName}
+                                                                            <span className="badge bg-oxford-grey ms-2 small">
+                                                                                {indicatorsInGroup.length}
+                                                                            </span>
+                                                                        </button>
+                                                                    </h2>
+                                                                    <div id={collapseId} className="accordion-collapse collapse" data-bs-parent="#accordionDependencies">
+                                                                        <div className="accordion-body p-3">
+                                                                            {/* 3. Mapeamos los indicadores reales dentro del grupo */}
+                                                                            {indicatorsInGroup.map((outputInd) => (
+                                                                                <div className="form-check mb-2" key={outputInd.template_id}>
+                                                                                    <input
+                                                                                        className="form-check-input"
+                                                                                        type="checkbox"
+                                                                                        id={`chk-${outputInd.template_id}`}
+                                                                                        checked={(activeInd.depends_on_ids || []).includes(outputInd.template_id)}
+                                                                                        onChange={(e) => {
+                                                                                            let currentDeps = [...(activeInd.depends_on_ids || [])];
+                                                                                            if (e.target.checked) currentDeps.push(outputInd.template_id);
+                                                                                            else currentDeps = currentDeps.filter(id => id !== outputInd.template_id);
+                                                                                            handleInfoChange(activeIndicatorId, 'depends_on_ids', currentDeps);
+                                                                                        }}
+                                                                                    />
+                                                                                    <label className="form-check-label ms-2 cursor-pointer" htmlFor={`chk-${outputInd.template_id}`}>
+                                                                                        <span className="text-emerald fw-bold">{outputInd.code}:</span> {outputInd.indicator_name}
+                                                                                    </label>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </React.Fragment>
+                                                ))}
+
+                                                {/* Mensaje de estado vacío si no hay indicadores agrupados */}
+                                                {Object.keys(groupedData).length === 0 && (
+                                                    <div className="p-4 text-center text-muted border-dynamic rounded bg-light-grey">
+                                                        <i className="fas fa-info-circle me-2"></i>
+                                                        No hay indicadores de Output seleccionados para esta competencia.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                     <h6 className="uppercase-label text-emerald mb-3 border-bottom-dynamic pb-2 small fw-bold">
                                         <i className="fas fa-map-marker-alt me-2"></i>Desglose por Estado
                                     </h6>
@@ -639,61 +734,87 @@ const ProjectTechnicalSetup = () => {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {activeInd.province_goals.map((pg, index) => (
-                                                    <tr key={`${pg.province_id}-${index}`} className="tr-transparent">
-                                                        <td className="text-oxford-dynamic fw-bold">{pg.province_name || "Sin nombre"}</td>
+                                                {activeInd.province_goals.map((pg, index) => {
+                                                    // --- INICIO LÓGICA DE FILTRO PRO ---
+                                                    const isOutcome = activeInd.result_type?.toLowerCase() === 'outcome';
+                                                    const hasDependencies = activeInd.depends_on_ids && activeInd.depends_on_ids.length > 0;
 
-                                                        {/* Columna TOTAL con Input dinámico */}
-                                                        <td>
-                                                            <div className="input-group input-group-sm">
-                                                                <input
-                                                                    type="number"
-                                                                    min="0"
-                                                                    max={activeInd.result_type === 'outcome' ? "100" : undefined} // Límite de 100 si es porcentaje
-                                                                    className={`form-control meta-input ${activeInd.result_type !== 'outcome' && (pg.men + pg.women !== pg.total)
-                                                                        ? 'border-danger text-danger'
-                                                                        : ''
-                                                                        }`}
-                                                                    value={pg.total === 0 ? '' : pg.total}
-                                                                    onChange={(e) => {
-                                                                        let val = parseFloat(e.target.value);
-                                                                        // Si es outcome y el usuario escribe más de 100, lo frenamos
-                                                                        if (activeInd.result_type === 'outcome' && val > 100) val = 100;
-                                                                        handleMetaChange(activeIndicatorId, pg.province_id, 'total', val || 0);
-                                                                    }}
-                                                                    placeholder="0"
-                                                                />
-                                                                {activeInd.result_type === 'outcome' && (
-                                                                    <span className="input-group-text bg-light-emerald text-emerald fw-bold">%</span>
-                                                                )}
-                                                            </div>
-                                                        </td>
+                                                    let isVisible = true;
 
-                                                        {/* Columnas H y M condicionadas */}
-                                                        {activeInd.result_type !== 'outcome' && (
-                                                            <>
-                                                                <td>
+                                                    if (isOutcome && hasDependencies) {
+                                                        // Buscamos los indicadores de los que depende este Outcome
+                                                        const parentIndicators = selectedIndicators.filter(s =>
+                                                            activeInd.depends_on_ids.includes(s.template_id)
+                                                        );
+
+                                                        // La provincia solo se muestra si existe en al menos un Output dependiente con meta > 0
+                                                        isVisible = parentIndicators.some(parent =>
+                                                            parent.province_goals.some(parentPg =>
+                                                                parentPg.province_id === pg.province_id && parentPg.total > 0
+                                                            )
+                                                        );
+                                                    }
+
+                                                    if (!isVisible) return null;
+                                                    // --- FIN LÓGICA DE FILTRO PRO ---
+
+                                                    return (
+                                                        <tr key={`${pg.province_id}-${index}`} className="tr-transparent">
+                                                            <td className="text-oxford-dynamic fw-bold">
+                                                                {pg.province_name || "Sin nombre"}
+                                                            </td>
+
+                                                            {/* Columna TOTAL con Input dinámico */}
+                                                            <td>
+                                                                <div className="input-group input-group-sm">
                                                                     <input
                                                                         type="number"
-                                                                        className="form-control form-control-sm border-primary-subtle"
-                                                                        value={pg.men === 0 ? '' : pg.men}
-                                                                        onChange={(e) => handleMetaChange(activeIndicatorId, pg.province_id, 'men', e.target.value)}
+                                                                        min="0"
+                                                                        max={activeInd.result_type === 'outcome' ? "100" : undefined}
+                                                                        className={`form-control meta-input ${activeInd.result_type !== 'outcome' && (pg.men + pg.women !== pg.total)
+                                                                            ? 'border-danger text-danger'
+                                                                            : ''
+                                                                            }`}
+                                                                        value={pg.total === 0 ? '' : pg.total}
+                                                                        onChange={(e) => {
+                                                                            let val = parseFloat(e.target.value);
+                                                                            if (activeInd.result_type === 'outcome' && val > 100) val = 100;
+                                                                            handleMetaChange(activeIndicatorId, pg.province_id, 'total', val || 0);
+                                                                        }}
                                                                         placeholder="0"
                                                                     />
-                                                                </td>
-                                                                <td>
-                                                                    <input
-                                                                        type="number"
-                                                                        className="form-control form-control-sm border-danger-subtle"
-                                                                        value={pg.women === 0 ? '' : pg.women}
-                                                                        onChange={(e) => handleMetaChange(activeIndicatorId, pg.province_id, 'women', e.target.value)}
-                                                                        placeholder="0"
-                                                                    />
-                                                                </td>
-                                                            </>
-                                                        )}
-                                                    </tr>
-                                                ))}
+                                                                    {activeInd.result_type === 'outcome' && (
+                                                                        <span className="input-group-text bg-light-emerald text-emerald fw-bold">%</span>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+
+                                                            {/* Columnas H y M condicionadas */}
+                                                            {activeInd.result_type !== 'outcome' && (
+                                                                <>
+                                                                    <td>
+                                                                        <input
+                                                                            type="number"
+                                                                            className="form-control form-control-sm border-primary-subtle"
+                                                                            value={pg.men === 0 ? '' : pg.men}
+                                                                            onChange={(e) => handleMetaChange(activeIndicatorId, pg.province_id, 'men', e.target.value)}
+                                                                            placeholder="0"
+                                                                        />
+                                                                    </td>
+                                                                    <td>
+                                                                        <input
+                                                                            type="number"
+                                                                            className="form-control form-control-sm border-danger-subtle"
+                                                                            value={pg.women === 0 ? '' : pg.women}
+                                                                            onChange={(e) => handleMetaChange(activeIndicatorId, pg.province_id, 'women', e.target.value)}
+                                                                            placeholder="0"
+                                                                        />
+                                                                    </td>
+                                                                </>
+                                                            )}
+                                                        </tr>
+                                                    );
+                                                })}
                                             </tbody>
                                         </table>
                                     </div>
