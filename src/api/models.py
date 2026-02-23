@@ -69,8 +69,18 @@ class User(db.Model):
     )
 
     # En Activity, el campo debería llamarse 'responsible' para que esto funcione
-    activities: Mapped[List["Activity"]] = relationship(
-        back_populates="responsible")
+    activities_created: Mapped[List["Activity"]] = relationship(
+        "Activity", 
+        foreign_keys="[Activity.created_by_id]", # <-- El "GPS" para SQLAlchemy
+        back_populates="creator"
+    )
+
+    # Actividades donde el usuario fue el último en editar
+    activities_updated: Mapped[List["Activity"]] = relationship(
+        "Activity", 
+        foreign_keys="[Activity.updated_by_id]", # <-- El otro camino
+        back_populates="editor"
+    )
 
     project_assignments: Mapped[List["ProjectCompetence"]] = relationship(back_populates="manager")
 
@@ -472,7 +482,7 @@ class ProjectCompetence(db.Model):
 
     competence: Mapped["Competence"] = relationship(
         back_populates="project_assignments")
-    manager: Mapped["User"] = relationship()
+    manager: Mapped["User"] = relationship(back_populates="project_assignments")
     project: Mapped["Project"] = relationship(
         back_populates="competence_assignments")
 
@@ -497,36 +507,32 @@ class Activity(db.Model):
     __tablename__ = 'activity'
     id_activity: Mapped[int] = mapped_column(primary_key=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    
-    # Rango de fechas (Ej. 2 al 4 de enero)
     start_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     end_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-
-    # Meta esperada (Lo que el oficial promete alcanzar)
     planned_target: Mapped[float] = mapped_column(Float, default=0.0)
-    
-    # Estatus con Enum
-    status: Mapped[ActivityStatus] = mapped_column(
-        db.Enum(ActivityStatus), default=ActivityStatus.PLANIFICADA
-    )
+    status: Mapped[ActivityStatus] = mapped_column(db.Enum(ActivityStatus), default=ActivityStatus.PLANIFICADA)
 
-    # --- RELACIONES CLAVE ---
     indicator_id: Mapped[int] = mapped_column(ForeignKey('indicator.id_indicator'), nullable=False)
     project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
     location_id: Mapped[int] = mapped_column(ForeignKey('location.id_location'), nullable=False)
-    
-    # Vinculamos a la asignación de competencia específica del proyecto
     project_competence_id: Mapped[int] = mapped_column(ForeignKey('project_competence.id_pc'), nullable=False)
 
-    # --- CAMPOS DE AUDITORÍA (Lo que pidió el Gerente) ---
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, onupdate=func.now(), nullable=True)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, onupdate=func.now())
     created_by_id: Mapped[int] = mapped_column(ForeignKey('user.id_user'), nullable=False)
-    updated_by_id: Mapped[int] = mapped_column(ForeignKey('user.id_user'), nullable=True)
+    updated_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey('user.id_user'), nullable=True)
 
-    # Relaciones
     achievements: Mapped[List["AchievementRecord"]] = relationship(back_populates="activity", cascade="all, delete-orphan")
-    creator: Mapped["User"] = relationship(foreign_keys=[created_by_id])
+    creator: Mapped["User"] = relationship(
+        "User", 
+        foreign_keys=[created_by_id], 
+        back_populates="activities_created" # <-- Debe coincidir con el nombre en User
+    )
+    editor: Mapped["User"] = relationship(
+        "User", 
+        foreign_keys=[updated_by_id], 
+        back_populates="activities_updated" # <-- Debe coincidir con el nombre en User
+    )
     
     def serialize(self):
         # Calculamos el total real sumando todos los registros de logros vinculados
@@ -550,7 +556,8 @@ class Activity(db.Model):
             "audit": {
                 "created_at": self.created_at.strftime("%Y-%m-%d %H:%M"),
                 "created_by": self.created_by_id,
-                "last_update": self.updated_at.strftime("%Y-%m-%d %H:%M") if self.updated_at else None
+                "last_update": self.updated_at.strftime("%Y-%m-%d %H:%M") if self.updated_at else None,
+                "updated_by": f"{self.editor.name} {self.editor.lastname}" if self.editor else None
             },
             "achievements_history": [a.serialize() for a in self.achievements]
         }
@@ -676,31 +683,80 @@ class ProjectResult(db.Model):
             "type": self.result_template.type,
             "indicators": [i.serialize() for i in self.indicators]
         }
+    
 
 class AchievementRecord(db.Model):
     __tablename__ = 'achievement_record'
     id: Mapped[int] = mapped_column(primary_key=True)
     activity_id: Mapped[int] = mapped_column(ForeignKey('activity.id_activity'), nullable=False)
     
-    # Lo que realmente se logró en esta entrega
     men_reached: Mapped[float] = mapped_column(Float, default=0.0)
     women_reached: Mapped[float] = mapped_column(Float, default=0.0)
     disability_reached: Mapped[float] = mapped_column(Float, default=0.0)
     
     evidence_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     observations: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    execution_date: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     
-    # Auditoría: ¿Quién subió este logro?
+    execution_date: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     user_id: Mapped[int] = mapped_column(ForeignKey('user.id_user'), nullable=False)
     
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, onupdate=func.now())
+    updated_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey('user.id_user'), nullable=True)
+    
     activity: Mapped["Activity"] = relationship(back_populates="achievements")
+    creator: Mapped["User"] = relationship("User", foreign_keys=[user_id])
+    editor: Mapped["User"] = relationship("User", foreign_keys=[updated_by_id])
 
     def serialize(self):
         return {
             "id": self.id,
+            "activity_id": self.activity_id,
             "date": self.execution_date.strftime("%Y-%m-%d %H:%M"),
-            "reach": {"men": self.men_reached, "women": self.women_reached, "total": self.men_reached + self.women_reached},
+            "reach": {
+                "men": self.men_reached, 
+                "women": self.women_reached, 
+                "disability": self.disability_reached,
+                "total": self.men_reached + self.women_reached
+            },
             "evidence": self.evidence_url,
-            "recorded_by": self.user_id
+            "observations": self.observations,
+            # Información para el Gerente
+            "audit": {
+                "created_by": f"{self.creator.name} {self.creator.lastname}" if self.creator else "N/A",
+                "updated_at": self.updated_at.strftime("%Y-%m-%d %H:%M") if self.updated_at else None,
+                "updated_by": f"{self.editor.name} {self.editor.lastname}" if self.editor else None
+            }
         }
+
+
+class SystemChangeLog(db.Model):
+    __tablename__ = 'system_change_log'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    
+    # 'Activity' o 'AchievementRecord'
+    entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # ID del registro afectado
+    entity_id: Mapped[int] = mapped_column(Integer, nullable=False) # Corregido a Integer
+    
+    user_id: Mapped[int] = mapped_column(ForeignKey('user.id_user'), nullable=False)
+    
+    field_changed: Mapped[str] = mapped_column(String(50)) 
+    old_value: Mapped[str] = mapped_column(Text, nullable=True) 
+    new_value: Mapped[str] = mapped_column(Text, nullable=True) 
+    
+    change_date: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    user: Mapped["User"] = relationship() 
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "entity": self.entity_type,
+            "entity_id": self.entity_id,
+            "field": self.field_changed,
+            "old": self.old_value,
+            "new": self.new_value,
+            "date": self.change_date.strftime("%Y-%m-%d %H:%M:%S"),
+            "user": f"{self.user.name} {self.user.lastname}" if self.user else "Desconocido"
+        }
+

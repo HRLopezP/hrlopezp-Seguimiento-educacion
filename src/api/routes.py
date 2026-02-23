@@ -2,7 +2,7 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 from flask import Flask, request, jsonify, url_for, Blueprint, json
-from api.models import db, User, Rol, Competence, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish, ProjectProvinceGoal, ProjectTheory, ProjectResult, MasterVerificationMean
+from api.models import db, User, Rol, Competence, SystemChangeLog, AchievementRecord, ActivityStatus, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish, ProjectProvinceGoal, ProjectTheory, ProjectResult, MasterVerificationMean
 from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -12,6 +12,7 @@ from flask_mail import Message
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from api.extensions import mail
+from sqlalchemy import func
 import os
 from .CloudinaryService import CloudinaryService
 
@@ -1438,34 +1439,34 @@ def delete_parish(id):
     return jsonify({"msg": "Parroquia eliminada correctamente"}), 200
 
 
-@api.route('/activities', methods=['POST'])
-@jwt_required()
-def record_activity():
-    data = request.get_json()
-    user_id = get_jwt_identity()
+# @api.route('/activities', methods=['POST'])
+# @jwt_required()
+# def record_activity():
+#     data = request.get_json()
+#     user_id = get_jwt_identity()
 
-    try:
-        new_activity = Activity(
-            description=data.get("description"),
-            implementation_date=datetime.strptime(
-                data.get("date"), "%Y-%m-%d"),
-            achievement_men=data.get("men", 0.0),
-            achievement_women=data.get("women", 0.0),
-            achievement_disability=data.get("disability", 0.0),
-            indicator_id=data.get("indicator_id"),
-            location_id=data.get("location_id"),
-            project_id=data.get("project_id"),
-            user_id=user_id,
-            status="Completada"
-        )
-        db.session.add(new_activity)
-        db.session.commit()
+#     try:
+#         new_activity = Activity(
+#             description=data.get("description"),
+#             implementation_date=datetime.strptime(
+#                 data.get("date"), "%Y-%m-%d"),
+#             achievement_men=data.get("men", 0.0),
+#             achievement_women=data.get("women", 0.0),
+#             achievement_disability=data.get("disability", 0.0),
+#             indicator_id=data.get("indicator_id"),
+#             location_id=data.get("location_id"),
+#             project_id=data.get("project_id"),
+#             user_id=user_id,
+#             status="Completada"
+#         )
+#         db.session.add(new_activity)
+#         db.session.commit()
 
-        # Aquí es donde tu lógica de get_manager_projects detectará el nuevo progreso
-        return jsonify({"message": "Logro registrado y descontado en tiempo real"}), 201
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+#         # Aquí es donde tu lógica de get_manager_projects detectará el nuevo progreso
+#         return jsonify({"message": "Logro registrado y descontado en tiempo real"}), 201
+#     except Exception as e:
+#         db.session.rollback()
+#         return jsonify({"error": str(e)}), 500
 
 
 @api.route('/users/managers', methods=['GET'])
@@ -1797,3 +1798,262 @@ def get_my_indicators(project_id):
             filtered_indicators.append(ind.serialize())
             
     return jsonify(filtered_indicators), 200
+
+
+@api.route('/activities', methods=['POST'])
+@jwt_required()
+def create_activity():
+    user_id = get_jwt_identity()
+    data = request.json
+
+    # Validaciones rápidas de campos obligatorios
+    required = ["description", "start_date", "end_date", "planned_target", "indicator_id", "project_id", "location_id", "project_competence_id"]
+    if not all(field in data for field in required):
+        return jsonify({"message": "Faltan datos obligatorios para la planificación"}), 400
+
+    try:
+        new_activity = Activity(
+            description=data['description'],
+            # Convertimos strings a objetos datetime
+            start_date=datetime.strptime(data['start_date'], '%Y-%m-%d'),
+            end_date=datetime.strptime(data['end_date'], '%Y-%m-%d'),
+            planned_target=data['planned_target'],
+            indicator_id=data['indicator_id'],
+            project_id=data['project_id'],
+            location_id=data['location_id'],
+            project_competence_id=data['project_competence_id'],
+            # Auditoría: Quién la crea
+            created_by_id=user_id,
+            status=ActivityStatus.PLANIFICADA
+        )
+
+        db.session.add(new_activity)
+        db.session.commit()
+        return jsonify(new_activity.serialize()), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Error al crear planificación: {str(e)}"}), 500
+        
+
+@api.route('/activities/<int:id>', methods=['PATCH'])
+@jwt_required()
+def patch_activity(id):
+    user_id = get_jwt_identity()
+    activity = Activity.query.get(id)
+    if not activity: return jsonify({"message": "No encontrada"}), 404
+
+    data = request.json
+    # Campos que queremos vigilar
+    for field in ["description", "planned_target", "status", "start_date", "end_date"]:
+        if field in data:
+            old_val = str(getattr(activity, field))
+            new_val = str(data[field])
+            
+            if old_val != new_val:
+                # GUARDAMOS EL "CHISME" EN EL LOG
+                log = SystemChangeLog(
+                    entity_type="Activity",
+                    entity_id=activity.id_activity,
+                    user_id=user_id,
+                    field_changed=field,
+                    old_value=old_val,
+                    new_value=new_val
+                )
+                db.session.add(log)
+                
+                # Actualizamos el valor real
+                if "date" in field:
+                    setattr(activity, field, datetime.strptime(data[field], '%Y-%m-%d'))
+                else:
+                    setattr(activity, field, data[field])
+
+    activity.updated_by_id = user_id
+    db.session.commit()
+    return jsonify({"message": "Planificación editada con historial"}), 200
+
+
+@api.route('/activities/<int:id>', methods=['DELETE'])
+@jwt_required()
+@manager_required # <--- Tu guardia de seguridad VIP
+def delete_activity(id):
+    activity = Activity.query.get(id)
+    if not activity:
+        return jsonify({"message": "Actividad no encontrada"}), 404
+
+    try:
+        db.session.delete(activity)
+        db.session.commit()
+        return jsonify({"message": "Actividad eliminada por el Gerente"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Error: {str(e)}"}), 500
+
+
+@api.route('/achievements', methods=['POST'])
+@jwt_required()
+def create_achievement():
+    user_id = get_jwt_identity()
+    data = request.json
+
+    # Validamos que la actividad exista
+    activity = Activity.query.get(data.get('activity_id'))
+    if not activity:
+        return jsonify({"message": "La actividad vinculada no existe"}), 404
+
+    try:
+        new_record = AchievementRecord(
+            activity_id=data['activity_id'],
+            men_reached=data.get('men_reached', 0),
+            women_reached=data.get('women_reached', 0),
+            disability_reached=data.get('disability_reached', 0),
+            evidence_url=data.get('evidence_url'),
+            observations=data.get('observations'),
+            user_id=user_id # Auditoría: Quién lo creó
+        )
+
+        # Si el oficial sube el primer logro, pasamos la actividad a "Completada" 
+        # o la mantenemos "En Progreso" según tu regla de negocio.
+        activity.status = ActivityStatus.COMPLETADA 
+
+        db.session.add(new_record)
+        db.session.commit()
+        return jsonify(new_record.serialize()), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Error al registrar logro: {str(e)}"}), 500
+    
+
+@api.route('/achievements/<int:id>', methods=['PATCH'])
+@jwt_required()
+def patch_achievement(id):
+    user_id = get_jwt_identity()
+    record = AchievementRecord.query.get(id)
+    if not record: return jsonify({"message": "Logro no encontrado"}), 404
+
+    data = request.json
+    # Vigilamos los números y la evidencia
+    for field in ["men_reached", "women_reached", "disability_reached", "observations"]:
+        if field in data:
+            old_val = str(getattr(record, field))
+            new_val = str(data[field])
+
+            if old_val != new_val:
+                log = SystemChangeLog(
+                    entity_type="AchievementRecord",
+                    entity_id=record.id,
+                    user_id=user_id,
+                    field_changed=field,
+                    old_value=old_val,
+                    new_value=new_val
+                )
+                db.session.add(log)
+                setattr(record, field, data[field])
+
+    record.updated_by_id = user_id
+    db.session.commit()
+    return jsonify({"message": "Registro de logro actualizado e historizado"}), 200
+    
+
+@api.route('/achievements/<int:id>', methods=['DELETE'])
+@jwt_required()
+@manager_required # <--- El candado de seguridad para el Gerente
+def delete_achievement(id):
+    achievement = AchievementRecord.query.get(id)
+    
+    if not achievement:
+        return jsonify({"message": "Registro de logro no encontrado"}), 404
+
+    try:
+        # Antes de borrar, podríamos querer guardar una referencia de qué se borró
+        # Pero por ahora, cumplimos con la orden de eliminación total por el Gerente.
+        db.session.delete(achievement)
+        db.session.commit()
+        
+        return jsonify({"message": "Logro eliminado permanentemente por el Gerente"}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Error al eliminar el registro: {str(e)}"}), 500
+
+
+@api.route('/project/<int:project_id>/progress-summary', methods=['GET'])
+@jwt_required()
+def get_project_progress(project_id):
+    indicators = Indicator.query.filter_by(project_id=project_id).all()
+    summary = []
+
+    for ind in indicators:
+        # Usamos outerjoin para que si no hay actividades, el indicador no desaparezca
+        total_achieved = db.session.query(
+            func.sum(AchievementRecord.men_reached).label("men"),
+            func.sum(AchievementRecord.women_reached).label("women"),
+            func.sum(AchievementRecord.disability_reached).label("disability")
+        ).select_from(Indicator)\
+         .outerjoin(Activity, Activity.indicator_id == Indicator.id_indicator)\
+         .outerjoin(AchievementRecord, AchievementRecord.activity_id == Activity.id_activity)\
+         .filter(Indicator.id_indicator == ind.id_indicator).first()
+
+        men = total_achieved.men or 0
+        women = total_achieved.women or 0
+        disability = total_achieved.disability or 0
+        reached_total = men + women
+
+        summary.append({
+            "indicator_id": ind.id_indicator,
+            "code": ind.template.code if ind.template else ind.custom_code,
+            "name": ind.template.name if ind.template else ind.description,
+            "target": {
+                "total": ind.target_total,
+                "men": ind.target_men,
+                "women": ind.target_women
+            },
+            "achieved": {
+                "men": men,
+                "women": women,
+                "disability": disability,
+                "total": reached_total
+            },
+            # Emerald Green Progress
+            "progress_percentage": round((reached_total / ind.target_total * 100), 2) if ind.target_total > 0 else 0
+        })
+
+    return jsonify(summary), 200
+
+
+@api.route('/audit-logs', methods=['GET'])
+@jwt_required()
+@manager_required # Solo el jefe tiene acceso a la bitácora
+def get_audit_logs():
+    # Podemos filtrar por tipo de entidad si el Gerente quiere algo específico
+    # Ejemplo: /audit-logs?type=Activity o /audit-logs?user_id=5
+    entity_type = request.args.get('type')
+    entity_id = request.args.get('id')
+    user_id = request.args.get('user_id')
+
+    query = SystemChangeLog.query
+
+    if entity_type:
+        query = query.filter_by(entity_type=entity_type)
+    if entity_id:
+        query = query.filter_by(entity_id=entity_id)
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+
+    # Ordenamos por fecha para ver lo más reciente primero
+    logs = query.order_by(SystemChangeLog.change_date.desc()).all()
+
+    results = []
+    for log in logs:
+        results.append({
+            "id": log.id,
+            "entity": log.entity_type,
+            "entity_id": log.entity_id,
+            "field": log.field_changed,
+            "old": log.old_value,
+            "new": log.new_value,
+            "date": log.change_date.strftime("%Y-%m-%d %H:%M:%S"),
+            "user": f"{log.user.name} {log.user.lastname}"
+        })
+
+    return jsonify(results), 200

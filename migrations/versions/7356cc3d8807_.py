@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: 54feb77a9f4c
+Revision ID: 7356cc3d8807
 Revises: 
-Create Date: 2026-01-30 21:52:54.215396
+Create Date: 2026-02-23 20:45:11.953261
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '54feb77a9f4c'
+revision = '7356cc3d8807'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -22,6 +22,12 @@ def upgrade():
     sa.Column('id_competence', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=100), nullable=False),
     sa.PrimaryKeyConstraint('id_competence'),
+    sa.UniqueConstraint('name')
+    )
+    op.create_table('master_verification_mean',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('name')
     )
     op.create_table('project',
@@ -120,6 +126,18 @@ def upgrade():
     sa.ForeignKeyConstraint(['theory_id'], ['theory_template.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('system_change_log',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('entity_type', sa.String(length=50), nullable=False),
+    sa.Column('entity_id', sa.Integer(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('field_changed', sa.String(length=50), nullable=False),
+    sa.Column('old_value', sa.Text(), nullable=True),
+    sa.Column('new_value', sa.Text(), nullable=True),
+    sa.Column('change_date', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], ['user.id_user'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('user_competence',
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('competence_id', sa.Integer(), nullable=False),
@@ -150,55 +168,121 @@ def upgrade():
     sa.ForeignKeyConstraint(['province_id'], ['province.id'], ),
     sa.PrimaryKeyConstraint('id_location')
     )
+    op.create_table('project_theory',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('project_id', sa.Integer(), nullable=False),
+    sa.Column('project_competence_id', sa.Integer(), nullable=False),
+    sa.Column('theory_template_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['project_competence_id'], ['project_competence.id_pc'], ),
+    sa.ForeignKeyConstraint(['project_id'], ['project.id_project'], ),
+    sa.ForeignKeyConstraint(['theory_template_id'], ['theory_template.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('project_result',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('project_theory_id', sa.Integer(), nullable=False),
+    sa.Column('result_template_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['project_theory_id'], ['project_theory.id'], ),
+    sa.ForeignKeyConstraint(['result_template_id'], ['result_template.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('indicator',
     sa.Column('id_indicator', sa.Integer(), nullable=False),
     sa.Column('template_id', sa.Integer(), nullable=False),
     sa.Column('project_id', sa.Integer(), nullable=False),
+    sa.Column('project_result_id', sa.Integer(), nullable=True),
+    sa.Column('verification_means', sa.Text(), nullable=True),
+    sa.Column('observations', sa.Text(), nullable=True),
     sa.Column('target_total', sa.Float(), nullable=False),
-    sa.Column('target_men', sa.Float(), nullable=False),
-    sa.Column('target_women', sa.Float(), nullable=False),
+    sa.Column('target_men', sa.Float(), nullable=True),
+    sa.Column('target_women', sa.Float(), nullable=True),
     sa.ForeignKeyConstraint(['project_id'], ['project.id_project'], ),
+    sa.ForeignKeyConstraint(['project_result_id'], ['project_result.id'], ),
     sa.ForeignKeyConstraint(['template_id'], ['indicator_template.id'], ),
     sa.PrimaryKeyConstraint('id_indicator')
     )
     op.create_table('activity',
     sa.Column('id_activity', sa.Integer(), nullable=False),
     sa.Column('description', sa.Text(), nullable=False),
-    sa.Column('implementation_date', sa.DateTime(), nullable=False),
-    sa.Column('achievement_men', sa.Float(), nullable=False),
-    sa.Column('achievement_women', sa.Float(), nullable=False),
-    sa.Column('achievement_disability', sa.Float(), nullable=False),
-    sa.Column('status', sa.String(length=20), nullable=False),
+    sa.Column('start_date', sa.DateTime(), nullable=False),
+    sa.Column('end_date', sa.DateTime(), nullable=False),
+    sa.Column('planned_target', sa.Float(), nullable=False),
+    sa.Column('status', sa.Enum('PLANIFICADA', 'EN_PROGRESO', 'COMPLETADA', 'VENCIDA', 'CANCELADA', name='activitystatus'), nullable=False),
     sa.Column('indicator_id', sa.Integer(), nullable=False),
-    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('project_id', sa.Integer(), nullable=False),
     sa.Column('location_id', sa.Integer(), nullable=False),
+    sa.Column('project_competence_id', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('created_by_id', sa.Integer(), nullable=False),
+    sa.Column('updated_by_id', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['created_by_id'], ['user.id_user'], ),
     sa.ForeignKeyConstraint(['indicator_id'], ['indicator.id_indicator'], ),
     sa.ForeignKeyConstraint(['location_id'], ['location.id_location'], ),
-    sa.ForeignKeyConstraint(['user_id'], ['user.id_user'], ),
+    sa.ForeignKeyConstraint(['project_competence_id'], ['project_competence.id_pc'], ),
+    sa.ForeignKeyConstraint(['project_id'], ['project.id_project'], ),
+    sa.ForeignKeyConstraint(['updated_by_id'], ['user.id_user'], ),
     sa.PrimaryKeyConstraint('id_activity')
+    )
+    op.create_table('indicator_dependencies',
+    sa.Column('indicator_id', sa.Integer(), nullable=False),
+    sa.Column('depends_on_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['depends_on_id'], ['indicator.id_indicator'], ),
+    sa.ForeignKeyConstraint(['indicator_id'], ['indicator.id_indicator'], ),
+    sa.PrimaryKeyConstraint('indicator_id', 'depends_on_id')
     )
     op.create_table('indicator_location_goal',
     sa.Column('id_ilg', sa.Integer(), nullable=False),
     sa.Column('indicator_id', sa.Integer(), nullable=False),
     sa.Column('province_id', sa.Integer(), nullable=False),
     sa.Column('total_target', sa.Float(), nullable=False),
-    sa.Column('men', sa.Float(), nullable=False),
-    sa.Column('women', sa.Float(), nullable=False),
+    sa.Column('men', sa.Float(), nullable=True),
+    sa.Column('women', sa.Float(), nullable=True),
     sa.ForeignKeyConstraint(['indicator_id'], ['indicator.id_indicator'], ),
     sa.ForeignKeyConstraint(['province_id'], ['province.id'], ),
     sa.PrimaryKeyConstraint('id_ilg')
+    )
+    op.create_table('indicator_verification_means',
+    sa.Column('indicator_id', sa.Integer(), nullable=False),
+    sa.Column('mean_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['indicator_id'], ['indicator.id_indicator'], ),
+    sa.ForeignKeyConstraint(['mean_id'], ['master_verification_mean.id'], ),
+    sa.PrimaryKeyConstraint('indicator_id', 'mean_id')
+    )
+    op.create_table('achievement_record',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('activity_id', sa.Integer(), nullable=False),
+    sa.Column('men_reached', sa.Float(), nullable=False),
+    sa.Column('women_reached', sa.Float(), nullable=False),
+    sa.Column('disability_reached', sa.Float(), nullable=False),
+    sa.Column('evidence_url', sa.Text(), nullable=True),
+    sa.Column('observations', sa.Text(), nullable=True),
+    sa.Column('execution_date', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('updated_by_id', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['activity_id'], ['activity.id_activity'], ),
+    sa.ForeignKeyConstraint(['updated_by_id'], ['user.id_user'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['user.id_user'], ),
+    sa.PrimaryKeyConstraint('id')
     )
     # ### end Alembic commands ###
 
 
 def downgrade():
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_table('achievement_record')
+    op.drop_table('indicator_verification_means')
     op.drop_table('indicator_location_goal')
+    op.drop_table('indicator_dependencies')
     op.drop_table('activity')
     op.drop_table('indicator')
+    op.drop_table('project_result')
+    op.drop_table('project_theory')
     op.drop_table('location')
     op.drop_table('indicator_template')
     op.drop_table('user_competence')
+    op.drop_table('system_change_log')
     op.drop_table('result_template')
     op.drop_table('project_competence')
     op.drop_table('parish')
@@ -209,5 +293,6 @@ def downgrade():
     op.drop_table('rol')
     op.drop_table('province')
     op.drop_table('project')
+    op.drop_table('master_verification_mean')
     op.drop_table('competence')
     # ### end Alembic commands ###
