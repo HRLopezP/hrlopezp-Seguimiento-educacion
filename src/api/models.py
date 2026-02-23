@@ -50,7 +50,6 @@ class User(db.Model):
     profile: Mapped[Optional[str]] = mapped_column(
         String(255), nullable=True, default=None)
 
-    # Cambiado a False para cumplir con la regla del SIGSSEP
     is_active: Mapped[bool] = mapped_column(
         Boolean(), nullable=False, default=False)
 
@@ -68,14 +67,12 @@ class User(db.Model):
         back_populates="users"
     )
 
-    # En Activity, el campo debería llamarse 'responsible' para que esto funcione
     activities_created: Mapped[List["Activity"]] = relationship(
         "Activity", 
         foreign_keys="[Activity.created_by_id]", # <-- El "GPS" para SQLAlchemy
         back_populates="creator"
     )
 
-    # Actividades donde el usuario fue el último en editar
     activities_updated: Mapped[List["Activity"]] = relationship(
         "Activity", 
         foreign_keys="[Activity.updated_by_id]", # <-- El otro camino
@@ -117,8 +114,6 @@ class User(db.Model):
     }
 
 
-# --- CATÁLOGOS / MOLDES (Lo que el Admin define) ---
-
 class TheoryTemplate(db.Model):
     __tablename__ = 'theory_template'
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -155,11 +150,9 @@ class ResultTemplate(db.Model):
     theory_id: Mapped[int] = mapped_column(ForeignKey('theory_template.id'))
     theory: Mapped["TheoryTemplate"] = relationship(back_populates="results")
 
-    # Cascade delete es vital aquí: si borras un output, se van sus indicadores
     indicators: Mapped[List["IndicatorTemplate"]] = relationship(
         back_populates="result", cascade="all, delete-orphan")
 
-    # ¡IMPORTANTE! Añadir serialize para el siguiente paso del proyecto
     def serialize(self):
         return {
             "id": self.id,
@@ -191,8 +184,6 @@ class IndicatorTemplate(db.Model):
         }
 
 
-# --- INSTANCIAS DEL PROYECTO (Lo que el Gerente llena) ---
-
 class Project(db.Model):
     __tablename__ = 'project'
     id_project: Mapped[int] = mapped_column(primary_key=True)
@@ -210,7 +201,6 @@ class Project(db.Model):
     status: Mapped[str] = mapped_column(
         String(20), default="En Progreso", nullable=False)
 
-    # Estos son los BENEFICIARIOS ÚNICOS (Los 10,000 del ejemplo)
     target_total: Mapped[float] = mapped_column(Float, default=0.0)
     target_men: Mapped[float] = mapped_column(Float, default=0.0)
     target_women: Mapped[float] = mapped_column(Float, default=0.0)
@@ -225,7 +215,6 @@ class Project(db.Model):
             return max(0, delta.days)
         return 0
 
-    # Relaciones
     locations: Mapped[List["Location"]] = relationship(
         back_populates="project")
     indicators: Mapped[List["Indicator"]] = relationship(
@@ -267,7 +256,6 @@ class Project(db.Model):
                     "manager_name": f"{cp.manager.name} {cp.manager.lastname}"
                 } for cp in self.competence_assignments
             ],
-            # Aquí se ven Apure: 4000, Zulia: 6000
             "province_unique_breakdown": [pg.serialize() for pg in self.province_goals],
             "locations": [loc.serialize() for loc in self.locations],
             "indicators": [ind.serialize() for ind in self.indicators],
@@ -280,7 +268,6 @@ indicator_verification_means = db.Table(
     db.Column('mean_id', db.Integer, db.ForeignKey('master_verification_mean.id'), primary_key=True)
 )
 
-# 2. CATÁLOGO MAESTRO
 class MasterVerificationMean(db.Model):
     __tablename__ = 'master_verification_mean'
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -309,11 +296,9 @@ class Indicator(db.Model):
     project_result: Mapped["ProjectResult"] = relationship(back_populates="indicators")
     template: Mapped["IndicatorTemplate"] = relationship()
     
-    # --- MANTENEMOS TUS CAMPOS ORIGINALES ---
     verification_means: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # <-- NO CAMBIA
     observations: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    # --- NUEVA RELACIÓN (LO EXTRA) ---
     selected_means_list: Mapped[List["MasterVerificationMean"]] = relationship(
         secondary=indicator_verification_means
     )
@@ -384,11 +369,9 @@ class Location(db.Model):
     community_institution: Mapped[Optional[str]
                                   ] = mapped_column(String(100), nullable=True)
 
-    # El "dueño" de esta ubicación es el proyecto
     project_id: Mapped[int] = mapped_column(
         ForeignKey('project.id_project'), nullable=False)
 
-    # Relaciones para poder acceder al nombre fácilmente
     province_ref: Mapped["Province"] = relationship()
     municipality_ref: Mapped["Municipality"] = relationship()
     parish_ref: Mapped["Parish"] = relationship()
@@ -413,11 +396,9 @@ class IndicatorLocationGoal(db.Model):
     indicator_id: Mapped[int] = mapped_column(
         ForeignKey('indicator.id_indicator'), nullable=False)
 
-    # Lo vinculamos a la Provincia para saber a qué meta de estado pertenece
     province_id: Mapped[int] = mapped_column(
         ForeignKey('province.id'), nullable=False)
 
-    # Metas que el gerente asigna (Ejemplo: Indicador "Vacunación" en Apure: 4500)
     total_target: Mapped[float] = mapped_column(Float, default=0.0) 
     men: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
     women: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
@@ -448,7 +429,6 @@ class Competence(db.Model):
     id_competence: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
 
-    # Relación inversa hacia User
     users: Mapped[List["User"]] = relationship(
         secondary=user_competence,
         back_populates="competences"
@@ -467,7 +447,6 @@ class Competence(db.Model):
             "theories": [t.serialize() for t in self.theories] if self.theories else []
         }
 
-# --- RELACIONES DE GESTIÓN ---
 
 
 class ProjectCompetence(db.Model):
@@ -493,7 +472,6 @@ class ProjectCompetence(db.Model):
             "competence": self.competence.serialize() if self.competence else None,
             "manager": self.manager.serialize() if self.manager else None
         }
-# --- REGISTRO DE AVANCES (OPERATIVO) ---
 
 
 class ActivityStatus(enum.Enum):
@@ -535,7 +513,6 @@ class Activity(db.Model):
     )
     
     def serialize(self):
-        # Calculamos el total real sumando todos los registros de logros vinculados
         total_men = sum(rec.men_reached for rec in self.achievements)
         total_women = sum(rec.women_reached for rec in self.achievements)
 
@@ -562,7 +539,6 @@ class Activity(db.Model):
             "achievements_history": [a.serialize() for a in self.achievements]
         }
 
-# --- CATÁLOGOS DE TERRITORIO (Los que el Admin llena primero) ---
 
 class Province(db.Model):
     __tablename__ = 'province'
@@ -621,7 +597,6 @@ class ProjectProvinceGoal(db.Model):
     province_id: Mapped[int] = mapped_column(
         ForeignKey('province.id'), nullable=False)
 
-    # Metas por provincia (Apure: 4000...)
     target_total: Mapped[float] = mapped_column(Float, default=0.0)
     target_men: Mapped[float] = mapped_column(Float, default=0.0)
     target_women: Mapped[float] = mapped_column(Float, default=0.0)
@@ -640,21 +615,15 @@ class ProjectProvinceGoal(db.Model):
         }
 
 
-# --- NUEVOS MODELOS DE INSTANCIA ---
-
 class ProjectTheory(db.Model):
     __tablename__ = 'project_theory'
     id: Mapped[int] = mapped_column(primary_key=True)
     project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
-    # Quién es el dueño de esta selección
     project_competence_id: Mapped[int] = mapped_column(ForeignKey('project_competence.id_pc'), nullable=False)
-    # Qué teoría del catálogo seleccionó
     theory_template_id: Mapped[int] = mapped_column(ForeignKey('theory_template.id'), nullable=False)
 
-    # Relaciones
     project: Mapped["Project"] = relationship(back_populates="theories_assigned")
     theory_template: Mapped["TheoryTemplate"] = relationship()
-    # Esto nos permite llegar a los resultados seleccionados
     selected_results: Mapped[List["ProjectResult"]] = relationship(back_populates="project_theory", cascade="all, delete-orphan")
 
     def serialize(self):
@@ -673,7 +642,6 @@ class ProjectResult(db.Model):
 
     project_theory: Mapped["ProjectTheory"] = relationship(back_populates="selected_results")
     result_template: Mapped["ResultTemplate"] = relationship()
-    # Conectamos con los indicadores reales que el gerente va a llenar
     indicators: Mapped[List["Indicator"]] = relationship(back_populates="project_result", cascade="all, delete-orphan")
 
     def serialize(self):
@@ -720,7 +688,6 @@ class AchievementRecord(db.Model):
             },
             "evidence": self.evidence_url,
             "observations": self.observations,
-            # Información para el Gerente
             "audit": {
                 "created_by": f"{self.creator.name} {self.creator.lastname}" if self.creator else "N/A",
                 "updated_at": self.updated_at.strftime("%Y-%m-%d %H:%M") if self.updated_at else None,
@@ -733,9 +700,7 @@ class SystemChangeLog(db.Model):
     __tablename__ = 'system_change_log'
     id: Mapped[int] = mapped_column(primary_key=True)
     
-    # 'Activity' o 'AchievementRecord'
     entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    # ID del registro afectado
     entity_id: Mapped[int] = mapped_column(Integer, nullable=False) # Corregido a Integer
     
     user_id: Mapped[int] = mapped_column(ForeignKey('user.id_user'), nullable=False)

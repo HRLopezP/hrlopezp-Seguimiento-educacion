@@ -1,35 +1,37 @@
 import click
-from werkzeug.security import generate_password_hash
+import random
 from api.models import (
     db, Rol, User, Competence, Province, Municipality, Parish, 
     MasterVerificationMean, TheoryTemplate, ResultTemplate, IndicatorTemplate
 )
+from faker import Faker
+
+fake = Faker()
 
 def setup_commands(app):
-    
     @app.cli.command("seed-data")
     def seed_data():
         print("🚀 Iniciando población de datos para SIGSSEP...")
         
-        # 1. ROLES (Administrador, Gerente y Oficial)
+        # 1. ROLES
         roles = {}
         for r_name in ["Administrador", "Gerente", "Oficial"]:
             rol = Rol.query.filter_by(name_rol=r_name).first()
             if not rol:
                 rol = Rol(name_rol=r_name)
                 db.session.add(rol)
-                db.session.flush() 
             roles[r_name] = rol
+        db.session.commit()
 
-        # 2. COMPETENCIAS (Educación, Salud, Protección y Wash)
+        # 2. COMPETENCIAS
         competencias = {}
         for c_name in ["Educación", "Salud", "Protección", "Wash"]:
             comp = Competence.query.filter_by(name=c_name).first()
             if not comp:
                 comp = Competence(name=c_name)
                 db.session.add(comp)
-                db.session.flush()
             competencias[c_name] = comp
+        db.session.commit()
 
         # 3. GEOGRAFÍA (Táchira, Zulia, Apure, Bolívar)
         geo_data = {
@@ -69,8 +71,8 @@ def setup_commands(app):
                 for par_name in parishes:
                     db.session.add(Parish(name=par_name, municipality_id=muni.id))
         
-        # 4. USUARIOS (Con clave Linda.0704 y asignación de competencias)
-        pass_linda = "Linda.0704" 
+        # 4. USUARIOS (Lógica de claves y competencias)
+        pass_linda = "Linda.0704" # Nota: En producción usar werkzeug.security.generate_password_hash
         users_to_create = [
             {"email": "sigssep@gmail.com", "n": "Sistema", "ln": "Gestión", "r": "Administrador", "comps": []},
             {"email": "hrlp843@gmail.com", "n": "Hector", "ln": "Lopez", "r": "Gerente", "comps": ["Salud", "Protección"]},
@@ -84,52 +86,45 @@ def setup_commands(app):
             if not user:
                 user = User(
                     email=u["email"], name=u["n"], lastname=u["ln"],
-                    password=generate_password_hash(pass_linda), is_active=True,
+                    password=pass_linda, is_active=True,
                     rol_id=roles[u["r"]].id_rol
                 )
-                db.session.add(user)
-                db.session.flush()
                 for c_name in u["comps"]:
                     user.competences.append(competencias[c_name])
+                db.session.add(user)
 
-        # 5. MEDIOS DE VERIFICACIÓN (10 registros)
-        medios = ["Listado de Asistencia", "Registro Fotográfico", "Factura Comercial", "Encuesta de Satisfacción", 
-                  "Informe Técnico", "Cuestionario Kobo", "Acta de Entrega", "Video Testimonio", 
-                  "Certificado de Participación", "Bitácora de Campo"]
+        # 5. MEDIOS DE VERIFICACIÓN
+        medios = ["Listado de Asistencia", "Fotos", "Facturas", "Encuestas", "Informes Diarios", 
+                  "Cuestionarios", "Actas de Entrega", "Videos", "Certificados", "Registro de Visitas"]
         for m in medios:
             if not MasterVerificationMean.query.filter_by(name=m).first():
                 db.session.add(MasterVerificationMean(name=m))
 
-        # 6. CATÁLOGO DE TEORÍA DE CAMBIO (Lógica: 3 Teorías -> 3 Out/3 Ocm -> 4 Ind)
-        print("🏗️  Construyendo catálogo de indicadores...")
+        # 6. CATÁLOGO DE TEORÍA DE CAMBIO (3 Teorías x 6 Resultados x 4 Indicadores)
         for c_name, comp_obj in competencias.items():
             for t_idx in range(1, 4):
-                theory = TheoryTemplate(name=f"Estrategia {c_name} - T{t_idx}", competence_id=comp_obj.id_competence)
+                theory = TheoryTemplate(name=f"Estrategia {c_name} Fase {t_idx}", competence_id=comp_obj.id_competence)
                 db.session.add(theory)
                 db.session.flush()
 
                 for res_type in ["output", "outcome"]:
                     for r_idx in range(1, 4):
                         res = ResultTemplate(
-                            name=f"{res_type.capitalize()} {r_idx} de {theory.name}",
+                            name=f"{res_type.capitalize()} {r_idx} para {theory.name}",
                             type=res_type, theory_id=theory.id
                         )
                         db.session.add(res)
                         db.session.flush()
 
                         for i_idx in range(1, 5):
-                            tipo_cod = "OUT" if res_type == "output" else "OCM"
-                            code = f"{c_name[:2].upper()}-T{t_idx}-{tipo_cod}{r_idx}-0{i_idx}"
+                            code = f"{c_name[:2].upper()}-{theory.id}-{res_type[0].upper()}{r_idx}-0{i_idx}"
                             ind = IndicatorTemplate(
                                 code=code,
                                 name=f"Indicador {code}",
-                                description=f"Descripción para el indicador {code} de la competencia {c_name}",
+                                description=f"Descripción detallada del indicador {code} para el seguimiento de {c_name}",
                                 result_id=res.id
                             )
                             db.session.add(ind)
 
         db.session.commit()
-        print("✅ ¡Base de datos de SIGSSEP populada exitosamente!")
-
-        # Correr con el comando
-        # pipenv run python3 -m flask seed-data
+        print("✅ Base de datos populada exitosamente. ¡Listo para probar!")
