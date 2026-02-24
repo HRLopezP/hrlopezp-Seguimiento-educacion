@@ -88,8 +88,10 @@ const ContextSelector = ({ onContextChange }) => {
                             onChange={handleChange}
                         >
                             <option value="">Selecciona una competencia...</option>
-                            {competencias?.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
+                            {(competencias && Array.isArray(competencias) ? competencias : []).map((comp) => (
+                                <option key={comp.id} value={comp.id}>
+                                    {comp.name}
+                                </option>
                             ))}
                         </select>
                     </div>

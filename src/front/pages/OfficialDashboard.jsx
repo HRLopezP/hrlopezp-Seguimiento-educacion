@@ -1,13 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { apiFetch } from "../../utils/api";
 import ContextSelector from '../components/ContextSelector';
+import ExecutionCalendar from "../components/ExecutionCalendar";
+import ActivityWizard from "../components/ActivityWizard";
 
 export const OfficialDashboard = () => {
-    const [contexto, setContexto] = useState(null);
+    const [activities, setActivities] = useState([]);
+    const [context, setContext] = useState(null);
+    const [selectedDate, setSelectedDate] = useState(null);
+    const [showModal, setShowModal] = useState(false);
 
-    const handleContextChange = (nuevoContexto) => {
-        console.log("Contexto Global Actualizado:", nuevoContexto);
-        setContexto(nuevoContexto);
-        // Aquí es donde más adelante dispararemos la carga del calendario
+    const handleContextChange = (newSelection) => {
+        setContext(newSelection);
+    };
+
+
+    const loadActivities = async () => {
+        const res = await apiFetch("/official/activities");
+        if (res && res.ok) {
+            const data = await res.json();
+            setActivities(data);
+        }
+    };
+
+    // Cargar al inicio
+    useEffect(() => {
+        loadActivities();
+    }, []);
+
+    // Esta es la función que pasamos al Calendario
+    const handleDateSelect = (dateStr) => {
+        if (!context?.proyectoId) {
+            toast.warning("Por favor, selecciona primero un proyecto en el selector superior.");
+            return;
+        }
+        setSelectedDate(dateStr);
+        setShowModal(true);
     };
 
     return (
@@ -22,14 +50,35 @@ export const OfficialDashboard = () => {
                 <ContextSelector onContextChange={handleContextChange} />
 
                 {/* Área de trabajo que reacciona al contexto */}
-                {contexto ? (
+                {context ? (
                     <div className="fade-in mt-4">
                         <div className="summary-box-emerald p-3 rounded shadow-sm">
                             <i className="fas fa-info-circle me-2"></i>
-                            Has seleccionado el proyecto <strong>ID: {contexto.proyectoId}</strong>. 
+                            Has seleccionado el proyecto <strong>ID: {context.proyectoId}</strong>.
                             Ahora puedes proceder a planificar tus actividades.
                         </div>
-                        {/* AQUÍ IRÁ EL FULLCALENDAR PRÓXIMAMENTE */}
+                        {/* 2. El Calendario */}
+                        <div className="mt-4">
+                            <ExecutionCalendar
+                                onDateSelect={handleDateSelect}
+                                activities={activities}
+                            />
+                        </div>
+                        {/* 3. El Modal del Wizard (Condicional) */}
+                        {showModal && (
+                            <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                                <div className="modal-dialog modal-lg modal-dialog-centered">
+                                    <ActivityWizard
+                                        selectedDate={selectedDate}
+                                        proyectoId={context.proyectoId}
+                                        onClose={() => {
+                                            setShowModal(false);
+                                            loadActivities(); 
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div className="text-center py-5 opacity-50">

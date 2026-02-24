@@ -1676,7 +1676,7 @@ def get_technical_status(proj_id, comp_id):
 # para mostrar los indicadores de un proyecto en específico
 @api.route('/projects/<int:project_id>/indicators', methods=['GET'])
 @jwt_required()
-def get_project_indicators(project_id):
+def get_project_indicatores(project_id):
     # Buscamos todos los indicadores que ya pertenecen a este proyecto
     indicators = Indicator.query.filter_by(project_id=project_id).all()
     
@@ -2084,7 +2084,7 @@ def get_oficial_competencias():
     
     return jsonify(competencias), 200
 
-@api.route('/official/projects', methods=['GET']) # Cambiado de /proyectos a /projects para ser consistentes
+@api.route('/official/projects', methods=['GET'])
 @jwt_required()
 def get_proyectos_por_competencia():
     competencia_id = request.args.get('competencia_id')
@@ -2107,3 +2107,108 @@ def get_proyectos_por_competencia():
             })
             
     return jsonify(proyectos_data), 200
+
+
+@api.route('/official/activities', methods=['POST'])
+@jwt_required()
+def create_activitys():
+    user_id = get_jwt_identity()
+    data = request.json
+
+    required_fields = ['description', 'indicator_id', 'location_id', 'project_id', 'start_date', 'end_date', 'planned_target', 'project_competence_id']
+    if not all(field in data for field in required_fields):
+        return jsonify({"msg": "Faltan campos obligatorios"}), 400
+
+    try:
+        # Limpiamos las fechas para que strptime no falle si vienen con hora
+        clean_start = data['start_date'].split('T')[0] if 'T' in data['start_date'] else data['start_date']
+        clean_end = data['end_date'].split('T')[0] if 'T' in data['end_date'] else data['end_date']
+
+        new_activity = Activity(
+            description=data['description'],
+            start_date=datetime.strptime(clean_start, '%Y-%m-%d'),
+            end_date=datetime.strptime(clean_end, '%Y-%m-%d'),
+            planned_target=float(data['planned_target']),
+            status=ActivityStatus.PLANIFICADA, 
+            indicator_id=int(data['indicator_id']),
+            project_id=int(data['project_id']),
+            location_id=int(data['location_id']),
+            project_competence_id=int(data['project_competence_id']),
+            created_by_id=user_id # El creador es el usuario actual
+        )
+
+        db.session.add(new_activity)
+        db.session.commit()
+
+        # TIP: Si el serialize() falla, el commit ya se hizo. 
+        # Es más seguro devolver los datos básicos si no confías en el serialize()
+        return jsonify({
+            "msg": "Actividad planificada exitosamente", 
+            "activity": new_activity.serialize() 
+        }), 201
+
+    except ValueError as ve:
+        return jsonify({"msg": "Formato de fecha inválido. Use YYYY-MM-DD", "error": str(ve)}), 400
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en create_activity: {str(e)}") 
+        return jsonify({"msg": "Error interno del servidor", "error": str(e)}), 500
+    
+
+@api.route('/official/indicators/<int:indicator_id>/locations', methods=['GET'])
+@jwt_required()
+def get_indicator_locations(indicator_id):
+    # 1. Buscamos el indicador para saber a qué proyecto pertenece
+    indicador = Indicator.query.get(indicator_id)
+    if not indicador:
+        return jsonify({"msg": "Indicador no encontrado"}), 404
+
+    # 2. Obtenemos las metas por provincia de este indicador
+    goals = IndicatorLocationGoal.query.filter_by(indicator_id=indicator_id).all()
+    
+    # Creamos una lista de IDs de provincias donde este indicador tiene metas
+    allowed_province_ids = [g.province_id for g in goals]
+
+    # 3. Buscamos las UBICACIONES (Location) del proyecto que están en esas provincias
+    # Esto es lo que el oficial realmente necesita para el formulario de la actividad
+    locations = Location.query.filter(
+        Location.project_id == indicador.project_id,
+        Location.province_id.in_(allowed_province_ids)
+    ).all()
+    
+    # 4. Cruzamos la info: enviamos la ubicación detallada + la meta de esa provincia
+    results = []
+    for loc in locations:
+        # Buscamos la meta específica de la provincia de esta ubicación
+        goal_info = next((g for g in goals if g.province_id == loc.province_id), None)
+        
+        results.append({
+            "id_location": loc.id_location, # ID real para el combo/select del form
+            "province_name": loc.province_ref.name,
+            "municipality_name": loc.municipality_ref.name,
+            "parish_name": loc.parish_ref.name if loc.parish_ref else "N/A",
+            "community": loc.community_institution,
+            "province_target": goal_info.total_target if goal_info else 0
+        })
+    
+    return jsonify(results), 200
+
+
+@api.route('/official/activities', methods=['GET'])
+@jwt_required()
+def get_activities():
+    user_id = get_jwt_identity()
+    # Traemos las actividades creadas por este oficial
+    activities = Activity.query.filter_by(created_by_id=user_id).all()
+    
+    # Usamos el método serialize() que ya tienes en tu modelo
+    return jsonify([act.serialize() for act in activities]), 200
+
+
+# Agrega esto a tu archivo de rutas en Flask
+@api.route('/official/projects/<int:project_id>/indicators', methods=['GET'])
+@jwt_required()
+def get_project_indicators(project_id):
+    # Buscamos todos los indicadores que pertenecen a este proyecto
+    indicators = Indicator.query.filter_by(project_id=project_id).all()
+    return jsonify([i.serialize() for i in indicators]), 200

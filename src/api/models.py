@@ -69,13 +69,13 @@ class User(db.Model):
 
     activities_created: Mapped[List["Activity"]] = relationship(
         "Activity", 
-        foreign_keys="[Activity.created_by_id]", # <-- El "GPS" para SQLAlchemy
+        foreign_keys="[Activity.created_by_id]",
         back_populates="creator"
     )
 
     activities_updated: Mapped[List["Activity"]] = relationship(
         "Activity", 
-        foreign_keys="[Activity.updated_by_id]", # <-- El otro camino
+        foreign_keys="[Activity.updated_by_id]",
         back_populates="editor"
     )
 
@@ -326,6 +326,16 @@ class Indicator(db.Model):
         theo_temp = res_temp.theory if res_temp else None
         comp_temp = theo_temp.competence if theo_temp else None
 
+
+        pc_id = None
+        if theo_temp:
+            pc = ProjectCompetence.query.filter_by(
+                project_id=self.project_id, 
+                competence_id=theo_temp.competence_id
+                ).first()
+            if pc:
+                pc_id = pc.id_pc
+
         final_type = "output"
         if res_temp:
             final_type = res_temp.type
@@ -345,6 +355,7 @@ class Indicator(db.Model):
             "description": self.template.description,
             "verification_means": self.verification_means or "", 
             "observations": self.observations or "",
+            "project_competence_id": pc_id,
             "means_tags": [m.serialize() for m in self.selected_means_list],
             "indicator_targets": {
                 "total": self.target_total,
@@ -510,41 +521,44 @@ class Activity(db.Model):
     creator: Mapped["User"] = relationship(
         "User", 
         foreign_keys=[created_by_id], 
-        back_populates="activities_created" # <-- Debe coincidir con el nombre en User
+        back_populates="activities_created" 
     )
     editor: Mapped["User"] = relationship(
         "User", 
         foreign_keys=[updated_by_id], 
-        back_populates="activities_updated" # <-- Debe coincidir con el nombre en User
+        back_populates="activities_updated" 
     )
     
     def serialize(self):
         total_men = sum(rec.men_reached for rec in self.achievements)
         total_women = sum(rec.women_reached for rec in self.achievements)
-
+        
         return {
             "id": self.id_activity,
             "description": self.description,
+            "indicator_id": self.indicator_id,   # <-- Vital para el form de edición
+            "location_id": self.location_id,     # <-- Vital para el form de edición
+            "project_id": self.project_id,
+            "project_competence_id": self.project_competence_id,+
             "period": {
                 "start": self.start_date.strftime("%Y-%m-%d"),
                 "end": self.end_date.strftime("%Y-%m-%d")
-            },
-            "status": self.status.value,
-            "planned_target": self.planned_target,
-            "real_progress": {
-                "men": total_men,
-                "women": total_women,
-                "total": total_men + total_women
-            },
-            "audit": {
-                "created_at": self.created_at.strftime("%Y-%m-%d %H:%M"),
-                "created_by": self.created_by_id,
-                "last_update": self.updated_at.strftime("%Y-%m-%d %H:%M") if self.updated_at else None,
-                "updated_by": f"{self.editor.name} {self.editor.lastname}" if self.editor else None
-            },
-            "achievements_history": [a.serialize() for a in self.achievements]
-        }
-
+                },
+                "status": self.status.value,
+                "planned_target": self.planned_target,
+                "real_progress": {
+                    "men": total_men,
+                    "women": total_women,
+                    "total": total_men + total_women
+                    },
+                    "audit": {
+                        "created_at": self.created_at.strftime("%Y-%m-%d %H:%M"),
+                        "created_by_name": f"{self.creator.first_name} {self.creator.last_name}" if self.creator else "Sistema",
+                        "last_update": self.updated_at.isoformat() if self.updated_at else None,
+                        "updated_by_name": f"{self.editor.first_name} {self.editor.last_name}" if self.editor else "Sin cambios"
+                        },
+                        "achievements_history": [a.serialize() for a in self.achievements]
+                        }
 
 class Province(db.Model):
     __tablename__ = 'province'
