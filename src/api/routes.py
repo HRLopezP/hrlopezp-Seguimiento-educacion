@@ -2,7 +2,7 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 from flask import Flask, request, jsonify, url_for, Blueprint, json
-from api.models import db, User, Rol, Competence, SystemChangeLog, AchievementRecord, ActivityStatus, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish, ProjectProvinceGoal, ProjectTheory, ProjectResult, MasterVerificationMean
+from api.models import db, User, Rol, Competence, ProjectStatus, SystemChangeLog, AchievementRecord, ActivityStatus, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish, ProjectProvinceGoal, ProjectTheory, ProjectResult, MasterVerificationMean
 from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -852,7 +852,7 @@ def create_project():
                 data['start_date'], '%Y-%m-%d') if data.get('start_date') else None,
             end_date=datetime.strptime(
                 data['end_date'], '%Y-%m-%d') if data.get('end_date') else None,
-            status="En Progreso"
+            status=ProjectStatus.EN_PROGRESO
         )
 
         db.session.add(new_project)
@@ -960,15 +960,17 @@ def get_manager_projects():
 
         for indicator in project.indicators:
             activities = Activity.query.filter_by(
-                indicator_id=indicator.id_indicator, status="Completada").all()
+                indicator_id=indicator.id_indicator, 
+                status=ActivityStatus.COMPLETADA # Usamos Enum de Actividad
+            ).all()
             total_achieved += sum((act.achievement_men +
                                   act.achievement_women) for act in activities)
 
         progress_percentage = round((total_achieved / total_goal) * 100, 2)
 
         # Actualizamos el status si es necesario
-        if progress_percentage >= 100 and project.status != "Completado":
-            project.status = "Completado"
+        if progress_percentage >= 100 and project.status != ProjectStatus.COMPLETADO:
+            project.status = ProjectStatus.COMPLETADO
             # No hagas return aquí, deja que el bucle siga
 
         # Preparamos la data
@@ -1034,12 +1036,17 @@ def update_project(id):
     data = request.json
 
     try:
-        # 1. Datos básicos (Añadimos 'code' para que puedas corregir errores)
         fields = ['project_name', 'donor_name', 'main_objective', 
-                  'results_summary', 'status', 'code'] # <-- 'code' añadido aquí
+                  'results_summary', 'code'] 
         for field in fields:
             if field in data:
                 setattr(project, field, data[field])
+        
+        if 'status' in data:
+            try:
+                project.status = ProjectStatus(data['status'])
+            except ValueError:
+                return jsonify({"msg": f"Estado {data['status']} no es válido"}), 400
 
         # 2. Beneficiarios Únicos Globales (Actualizamos la tabla Project)
         # Tu frontend envía esto dentro de 'unique_targets'
@@ -1221,7 +1228,7 @@ def get_project_summary(id):
     return jsonify({
         "project_name": project.project_name,
         "total_locations": len(project.locations),
-        "status": project.status,
+        "status": project.status.value if hasattr(project.status, 'value') else project.status,
         # --- AQUÍ ESTÁ EL CAMBIO CLAVE ---
         # Enviamos todos los indicadores usando el método serialize que mejoraste
         "indicators": [ind.serialize() for ind in project.indicators]
@@ -1596,7 +1603,7 @@ def get_my_assignments():
             "project_code": asig.project.code,
             "competence_id": asig.competence_id,
             "competence_name": asig.competence.name,
-            "status": asig.project.status
+            "status": asig.project.status.value
         })
     
     return jsonify(results), 200
@@ -1992,7 +1999,8 @@ def get_project_progress(project_id):
         ).select_from(Indicator)\
          .outerjoin(Activity, Activity.indicator_id == Indicator.id_indicator)\
          .outerjoin(AchievementRecord, AchievementRecord.activity_id == Activity.id_activity)\
-         .filter(Indicator.id_indicator == ind.id_indicator).first()
+         .filter(Indicator.id_indicator == ind.id_indicator).first()\
+         .filter(Activity.status == ActivityStatus.COMPLETADA).first()
 
         men = total_achieved.men or 0
         women = total_achieved.women or 0

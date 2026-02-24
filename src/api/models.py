@@ -184,6 +184,13 @@ class IndicatorTemplate(db.Model):
         }
 
 
+class ProjectStatus(enum.Enum):
+    PLANIFICADO = "Planificado"
+    EN_PROGRESO = "En Progreso"
+    COMPLETADO = "Completado"
+    SUSPENDIDO = "Suspendido"
+
+
 class Project(db.Model):
     __tablename__ = 'project'
     id_project: Mapped[int] = mapped_column(primary_key=True)
@@ -198,8 +205,8 @@ class Project(db.Model):
         DateTime, nullable=True)
     end_date: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True)
-    status: Mapped[str] = mapped_column(
-        String(20), default="En Progreso", nullable=False)
+    status: Mapped[ProjectStatus] = mapped_column(
+        db.Enum(ProjectStatus), default=ProjectStatus.EN_PROGRESO, nullable=False)
 
     target_total: Mapped[float] = mapped_column(Float, default=0.0)
     target_men: Mapped[float] = mapped_column(Float, default=0.0)
@@ -237,7 +244,7 @@ class Project(db.Model):
             "results_summary": self.results_summary,
             "start_date": self.start_date.strftime("%Y-%m-%d") if self.start_date else None,
             "end_date": self.end_date.strftime("%Y-%m-%d") if self.end_date else None,
-            "status": self.status,
+            "status": self.status.value if hasattr(self.status, 'value') else self.status,
             "remaining_days": self.remaining_days,
             "theories_and_indicators": [t.serialize() for t in self.theories_assigned],
             "unique_targets": {
@@ -251,8 +258,7 @@ class Project(db.Model):
                     "id": cp.id_pc,  # Usamos 'id' a secas para que React lo maneje mejor como key
                     "competence_id": cp.competence_id,
                     "manager_id": cp.manager_id,
-                    "name": cp.competence.name,  # Para mostrar en la tabla
-                    # Para mostrar en la tabla
+                    "name": cp.competence.name,  
                     "manager_name": f"{cp.manager.name} {cp.manager.lastname}"
                 } for cp in self.competence_assignments
             ],
