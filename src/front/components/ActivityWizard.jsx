@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from "../../utils/api";
 import Swal from 'sweetalert2'; // Importamos para la confirmación
 
-const ActivityWizard = ({ selectedDate, proyectoId, onClose }) => {
+const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
     const [indicadores, setIndicadores] = useState([]);
     const [lugares, setLugares] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -17,6 +17,23 @@ const ActivityWizard = ({ selectedDate, proyectoId, onClose }) => {
         project_id: proyectoId,
         project_competence_id: '' // AGREGADO: Requerido por el modelo
     });
+
+
+    useEffect(() => {
+        // Solo ejecutamos si initialData existe (modo edición)
+        if (initialData) {
+            setForm({
+                description: initialData.description || '',
+                indicator_id: initialData.indicator_id || '',
+                location_id: initialData.location_id || '',
+                planned_target: initialData.planned_target || 0,
+                start_date: initialData.period?.start || selectedDate,
+                end_date: initialData.period?.end || selectedDate,
+                project_id: initialData.project_id || proyectoId,
+                project_competence_id: initialData.project_competence_id || ''
+            });
+        }
+    }, [initialData]);
 
     // 1. Cargar indicadores del proyecto
     useEffect(() => {
@@ -63,24 +80,42 @@ const ActivityWizard = ({ selectedDate, proyectoId, onClose }) => {
 
     const handleSave = async () => {
         setLoading(true);
+
+        // 1. Verificación de seguridad
+        console.log("Datos que se enviarán:", form);
+        console.log("¿Estamos editando?:", !!initialData);
+
         try {
-            const res = await apiFetch("/official/activities", {
-                method: "POST",
+            // Determinamos URL y Método
+            const url = initialData
+                ? `/official/activities/${initialData.id}`
+                : "/official/activities";
+
+            const method = initialData ? "PATCH" : "POST";
+
+            const res = await apiFetch(url, {
+                method: method,
                 body: JSON.stringify(form)
             });
 
-            if (res?.ok) {
-                // AQUÍ USAMOS SWEETALERT PARA EL ÉXITO (Elegante y profesional)
-                Swal.fire({
+            // 2. Manejo de respuesta detallado
+            if (res && res.ok) {
+                await Swal.fire({
                     title: '¡Éxito!',
-                    text: 'Actividad planificada correctamente',
+                    text: initialData ? 'Planificación actualizada' : 'Planificación guardada',
                     icon: 'success',
-                    confirmButtonColor: '#10b981', // Emerald Green
+                    timer: 2000
                 });
-                onClose();
+                onClose(); // Cerramos el modal y refrescamos el dashboard
+            } else {
+                // Si el res no es ok, intentamos leer el mensaje de error del backend
+                const errorData = await res.json();
+                throw new Error(errorData.msg || "Error desconocido en el servidor");
             }
+
         } catch (error) {
-            Swal.fire('Error', 'No se pudo guardar la planificación', 'error');
+            console.error("Error detallado en handleSave:", error);
+            Swal.fire('Error', `No se pudo guardar: ${error.message}`, 'error');
         } finally {
             setLoading(false);
         }
@@ -101,7 +136,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, onClose }) => {
                 <div className="row g-3 text-start">
                     <div className="col-12">
                         <label className="form-label text-oxford fw-bold small">INDICADOR</label>
-                        <select className="form-select border-emerald" onChange={handleIndicatorChange}>
+                        <select className="form-select border-emerald" value={form.indicator_id} onChange={handleIndicatorChange}>
                             <option value="">Selecciona un indicador...</option>
                             {indicadores.map(ind => (
                                 // AJUSTADO: Usamos ind.indicator_code e ind.indicator_name del serialize
@@ -117,6 +152,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, onClose }) => {
                         <select
                             className="form-select border-emerald"
                             disabled={!form.indicator_id}
+                            value={form.location_id}
                             onChange={(e) => setForm({ ...form, location_id: e.target.value })}
                         >
                             <option value="">Selecciona ubicación...</option>
@@ -135,6 +171,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, onClose }) => {
                             className="form-control"
                             rows="2"
                             placeholder="Ej: Taller de capacitación en..."
+                            value={form.description}
                             onChange={(e) => setForm({ ...form, description: e.target.value })}
                         ></textarea>
                     </div>
@@ -144,6 +181,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, onClose }) => {
                         <input
                             type="number"
                             className="form-control border-emerald"
+                            value={form.planned_target}
                             onChange={(e) => setForm({ ...form, planned_target: e.target.value })}
                         />
                     </div>

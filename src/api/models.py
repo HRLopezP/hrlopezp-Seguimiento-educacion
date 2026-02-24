@@ -530,35 +530,32 @@ class Activity(db.Model):
     )
     
     def serialize(self):
-        total_men = sum(rec.men_reached for rec in self.achievements)
-        total_women = sum(rec.women_reached for rec in self.achievements)
+        total_men = sum((rec.men_reached or 0) for rec in self.achievements)
+        total_women = sum((rec.women_reached or 0) for rec in self.achievements)
         
         return {
             "id": self.id_activity,
             "description": self.description,
-            "indicator_id": self.indicator_id,   # <-- Vital para el form de edición
-            "location_id": self.location_id,     # <-- Vital para el form de edición
+            "indicator_id": self.indicator_id,
+            "location_id": self.location_id,
             "project_id": self.project_id,
-            "project_competence_id": self.project_competence_id,+
+            "project_competence_id": self.project_competence_id, # Quitamos el + que estaba aquí
             "period": {
-                "start": self.start_date.strftime("%Y-%m-%d"),
-                "end": self.end_date.strftime("%Y-%m-%d")
-                },
-                "status": self.status.value,
-                "planned_target": self.planned_target,
-                "real_progress": {
-                    "men": total_men,
-                    "women": total_women,
-                    "total": total_men + total_women
-                    },
-                    "audit": {
-                        "created_at": self.created_at.strftime("%Y-%m-%d %H:%M"),
-                        "created_by_name": f"{self.creator.first_name} {self.creator.last_name}" if self.creator else "Sistema",
-                        "last_update": self.updated_at.isoformat() if self.updated_at else None,
-                        "updated_by_name": f"{self.editor.first_name} {self.editor.last_name}" if self.editor else "Sin cambios"
-                        },
-                        "achievements_history": [a.serialize() for a in self.achievements]
-                        }
+                "start": self.start_date.strftime("%Y-%m-%d") if self.start_date else None,
+                "end": self.end_date.strftime("%Y-%m-%d") if self.end_date else None
+            },
+            "status": self.status.value if self.status else "Planificada",
+            "planned_target": self.planned_target,
+            "real_progress": { "men": total_men, "women": total_women, "total": total_men + total_women },
+            "audit": {
+                "created_at": self.created_at.strftime("%Y-%m-%d %H:%M") if self.created_at else None,
+            # Usamos getattr para evitar errores si la relación no cargó a tiempo
+                "created_by_name": f"{getattr(self.creator, 'name', 'Usuario')} {getattr(self.creator, 'lastname', '')}".strip() if self.creator else "Sistema",
+                "last_update": self.updated_at.isoformat() if self.updated_at else None,
+                "updated_by_name": f"{getattr(self.editor, 'name', '')} {getattr(self.editor, 'lastname', '')}".strip() if self.editor else "Sin cambios"
+            },
+            "achievements_history": [a.serialize() for a in self.achievements]
+        }
 
 class Province(db.Model):
     __tablename__ = 'province'

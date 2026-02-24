@@ -2120,21 +2120,18 @@ def create_activitys():
         return jsonify({"msg": "Faltan campos obligatorios"}), 400
 
     try:
-        # Limpiamos las fechas para que strptime no falle si vienen con hora
-        clean_start = data['start_date'].split('T')[0] if 'T' in data['start_date'] else data['start_date']
-        clean_end = data['end_date'].split('T')[0] if 'T' in data['end_date'] else data['end_date']
 
         new_activity = Activity(
-            description=data['description'],
-            start_date=datetime.strptime(clean_start, '%Y-%m-%d'),
-            end_date=datetime.strptime(clean_end, '%Y-%m-%d'),
-            planned_target=float(data['planned_target']),
-            status=ActivityStatus.PLANIFICADA, 
+            description=data.get('description', ''),
+            start_date=datetime.strptime(data['start_date'].split('T')[0], '%Y-%m-%d'),
+            end_date=datetime.strptime(data['end_date'].split('T')[0], '%Y-%m-%d'),
+            planned_target=float(data.get('planned_target', 0)),
+            status=ActivityStatus.PLANIFICADA,
             indicator_id=int(data['indicator_id']),
             project_id=int(data['project_id']),
             location_id=int(data['location_id']),
             project_competence_id=int(data['project_competence_id']),
-            created_by_id=user_id # El creador es el usuario actual
+            created_by_id=user_id
         )
 
         db.session.add(new_activity)

@@ -3,7 +3,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import bootstrap5Plugin from '@fullcalendar/bootstrap5';
-// import 'bootstrap-icons/font/bootstrap-icons.css'; 
+import 'bootstrap-icons/font/bootstrap-icons.css'; 
 
 const ExecutionCalendar = ({ onDateSelect, activities }) => {
     
@@ -37,7 +37,7 @@ const ExecutionCalendar = ({ onDateSelect, activities }) => {
                 height="70vh"
                 // Aquí disparamos el modal que mencionaste
                 dateClick={(info) => onDateSelect(info.dateStr)}
-                eventClick={(info) => console.log("Detalle de actividad:", info.event.extendedProps)}
+                eventClick={(info) => onActivitySelect(info.event.extendedProps)}
             />
         </div>
     );

@@ -8,6 +8,7 @@ export const OfficialDashboard = () => {
     const [activities, setActivities] = useState([]);
     const [context, setContext] = useState(null);
     const [selectedDate, setSelectedDate] = useState(null);
+    const [selectedActivity, setSelectedActivity] = useState(null);
     const [showModal, setShowModal] = useState(false);
 
     const handleContextChange = (newSelection) => {
@@ -34,7 +35,15 @@ export const OfficialDashboard = () => {
             toast.warning("Por favor, selecciona primero un proyecto en el selector superior.");
             return;
         }
+        setSelectedActivity(null);
         setSelectedDate(dateStr);
+        setShowModal(true);
+    };
+
+
+    const handleActivitySelect = (activity) => {
+        setSelectedActivity(activity);
+        setSelectedDate(activity.period.start); // Usamos la fecha de inicio de la actividad
         setShowModal(true);
     };
 
@@ -61,6 +70,7 @@ export const OfficialDashboard = () => {
                         <div className="mt-4">
                             <ExecutionCalendar
                                 onDateSelect={handleDateSelect}
+                                onActivitySelect={handleActivitySelect}
                                 activities={activities}
                             />
                         </div>
@@ -71,8 +81,10 @@ export const OfficialDashboard = () => {
                                     <ActivityWizard
                                         selectedDate={selectedDate}
                                         proyectoId={context.proyectoId}
+                                        initialData={selectedActivity}
                                         onClose={() => {
                                             setShowModal(false);
+                                            setSelectedActivity(null);
                                             loadActivities(); 
                                         }}
                                     />
