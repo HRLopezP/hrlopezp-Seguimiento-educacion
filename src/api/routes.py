@@ -2065,3 +2065,45 @@ def get_audit_logs():
         })
 
     return jsonify(results), 200
+
+
+@api.route('/official/competences', methods=['GET'])
+@jwt_required()
+def get_oficial_competencias():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    
+    if not user:
+        return jsonify({"msg": "Usuario no encontrado"}), 404
+
+    # Ajustado a id_competence y name según tu modelo Competence
+    competencias = [
+        {"id": comp.id_competence, "name": comp.name} 
+        for comp in user.competences
+    ]
+    
+    return jsonify(competencias), 200
+
+@api.route('/official/projects', methods=['GET']) # Cambiado de /proyectos a /projects para ser consistentes
+@jwt_required()
+def get_proyectos_por_competencia():
+    competencia_id = request.args.get('competencia_id')
+    
+    if not competencia_id:
+        return jsonify({"msg": "Falta el ID de la competencia"}), 400
+
+    # Usamos ProjectCompetence para filtrar
+    proyectos_ids = ProjectCompetence.query.filter_by(competence_id=competencia_id).all()
+    
+    proyectos_data = []
+    for rel in proyectos_ids:
+        # p es el objeto Project relacionado
+        p = rel.project # Asumiendo que ProjectCompetence tiene la relación 'project'
+        if p:
+            proyectos_data.append({
+                "id": p.id_project, # Ojo aquí, verifica si es id o id_project en tu modelo Project
+                "project_name": p.project_name,
+                "code": p.code
+            })
+            
+    return jsonify(proyectos_data), 200
