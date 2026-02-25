@@ -1,0 +1,197 @@
+import React, { useEffect, useState } from "react";
+import { toast, Toaster } from "sonner";
+import Swal from 'sweetalert2';
+import { apiFetch } from "../../utils/api";
+import "../styles/auth.css";
+import "../styles/roleManagement.css"; 
+
+const ActivityCatalogManagement = () => {
+    const [activities, setActivities] = useState([]);
+    const [competences, setCompetences] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            // Cargamos actividades y competencias en paralelo para el selector del modal
+            const [resAct, resComp] = await Promise.all([
+                apiFetch("/activity-catalog"),
+                apiFetch("/competences")
+            ]);
+
+            if (resAct?.ok) setActivities(await resAct.json());
+            if (resComp?.ok) setCompetences(await resComp.json());
+            
+        } catch (error) {
+            toast.error("Error al conectar con el servidor de catálogo");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const handleOpenModal = async (activity = null) => {
+        const isEditing = !!activity;
+        
+        // Creamos las opciones para el select de competencias
+        const competenceOptions = competences.map(c => 
+            `<option value="${c.id}" ${activity?.competence_id === c.id ? 'selected' : ''}>${c.name}</option>`
+        ).join('');
+
+        const { value: formValues } = await Swal.fire({
+            title: isEditing ? 'Editar Actividad Sugerida' : 'Nueva Actividad Sugerida',
+            html: `
+                <div class="role-icon-container ${isEditing ? 'edit-mode' : 'create-mode'}" style="background-color: #334155; color: white;">
+                    <i class="fas fa-tasks"></i>
+                </div>
+                <div style="margin-top: 15px; text-align: left;">
+                    <label class="swal2-input-label">Descripción de la Actividad</label>
+                    <input id="swal-description" class="swal2-input" placeholder="Ej. Entrega de kits escolares" value="${isEditing ? activity.description : ''}">
+                    
+                    <label class="swal2-input-label">Asociar a Competencia (Opcional)</label>
+                    <select id="swal-competence" class="swal2-select" style="display: flex; width: 80%; margin: 10px auto;">
+                        <option value="">General (Sin competencia específica)</option>
+                        ${competenceOptions}
+                    </select>
+                </div>
+            `,
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonText: isEditing ? 'Actualizar' : 'Registrar',
+            confirmButtonColor: '#10b981',
+            cancelButtonColor: '#1B263B',
+            preConfirm: () => {
+                const description = document.getElementById('swal-description').value;
+                const competence_id = document.getElementById('swal-competence').value;
+                if (!description) {
+                    Swal.showValidationMessage('La descripción es obligatoria');
+                    return false;
+                }
+                return { description, competence_id: competence_id || null };
+            }
+        });
+
+        if (formValues) {
+            const method = isEditing ? "PUT" : "POST";
+            const endpoint = isEditing ? `/activity-catalog/${activity.id}` : "/activity-catalog";
+
+            try {
+                const res = await apiFetch(endpoint, {
+                    method: method,
+                    body: JSON.stringify(formValues)
+                });
+
+                if (res?.ok) {
+                    toast.success(`Catálogo actualizado con éxito`);
+                    fetchData();
+                } else {
+                    const errorData = await res.json();
+                    toast.error(errorData.msg || "Error en la operación");
+                }
+            } catch (err) {
+                toast.error("Error de conexión");
+            }
+        }
+    };
+
+    const handleDelete = async (activity) => {
+        const result = await Swal.fire({
+            title: '¿Retirar del Catálogo?',
+            text: `La actividad "${activity.description}" ya no aparecerá como opción para los oficiales.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#1B263B',
+            confirmButtonText: 'Sí, eliminar',
+        });
+
+        if (result.isConfirmed) {
+            try {
+                const res = await apiFetch(`/activity-catalog/${activity.id}`, { method: "DELETE" });
+                if (res?.ok) {
+                    toast.success("Actividad eliminada del catálogo");
+                    fetchData();
+                } else {
+                    const error = await res.json();
+                    toast.error(error.msg);
+                }
+            } catch (error) {
+                toast.error("Error al eliminar");
+            }
+        }
+    };
+
+    if (loading) return (
+        <div className="d-flex justify-content-center align-items-center" style={{ height: '80vh' }}>
+            <div className="spinner-border text-emerald" role="status"></div>
+        </div>
+    );
+
+    return (
+        <div className="management-page-container">
+            <Toaster richColors position="top-right" />
+            <div className="container mt-4">
+                <div className="card management-card-unified shadow-lg">
+                    <div className="management-card-header d-flex justify-content-between align-items-center" style={{ backgroundColor: '#1B263B' }}>
+                        <div>
+                            <h2 className="management-title text-white">Catálogo de Actividades</h2>
+                            <p className="management-subtitle text-light">Define las actividades estándar para que los oficiales seleccionen al planificar</p>
+                        </div>
+                        <button className="btn-action btn-activate" onClick={() => handleOpenModal()} style={{ backgroundColor: '#10b981', border: 'none' }}>
+                            <i className="fas fa-plus-circle me-2"></i>Nueva Actividad Sugerida
+                        </button>
+                    </div>
+                    <div className="card-body p-0">
+                        <div className="table-responsive">
+                            <table className="table align-middle table-sigssep mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style={{ width: '80px' }}>Código</th>
+                                        <th>Actividad Sugerida</th>
+                                        <th>Competencia Relacionada</th>
+                                        <th className="text-center" style={{ width: '250px' }}>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {activities.length > 0 ? activities.map((act) => (
+                                        <tr key={act.id}>
+                                            <td className="text-muted small font-monospace">ACT-{act.id}</td>
+                                            <td>
+                                                <div className="fw-bold text-oxford">{act.description}</div>
+                                            </td>
+                                            <td>
+                                                <span className={`badge ${act.competence_id ? 'bg-emerald' : 'bg-secondary'}`}>
+                                                    {act.competence_name}
+                                                </span>
+                                            </td>
+                                            <td className="text-end" style={{ paddingRight: '20px' }}>
+                                                <button className="btn-toggle-status activate me-2" onClick={() => handleOpenModal(act)}>
+                                                    <i className="fas fa-edit"></i> Editar
+                                                </button>
+                                                <button className="btn-toggle-status deactivate" onClick={() => handleDelete(act)}>
+                                                    <i className="fas fa-trash-alt"></i> Eliminar
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    )) : (
+                                        <tr>
+                                            <td colSpan="4" className="text-center p-5 text-muted">
+                                                <i className="fas fa-clipboard-list fa-3x mb-3 d-block opacity-25"></i>
+                                                No hay actividades sugeridas en el catálogo.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default ActivityCatalogManagement;

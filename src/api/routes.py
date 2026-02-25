@@ -2,7 +2,7 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 from flask import Flask, request, jsonify, url_for, Blueprint, json
-from api.models import db, User, Rol, Competence, ProjectStatus, SystemChangeLog, AchievementRecord, ActivityStatus, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish, ProjectProvinceGoal, ProjectTheory, ProjectResult, MasterVerificationMean
+from api.models import db, User, Rol, Competence, ProjectStatus, ActivityCatalog, SystemChangeLog, AchievementRecord, ActivityStatus, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish, ProjectProvinceGoal, ProjectTheory, ProjectResult, MasterVerificationMean
 from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -2245,3 +2245,72 @@ def get_project_indicators(project_id):
     # Buscamos todos los indicadores que pertenecen a este proyecto
     indicators = Indicator.query.filter_by(project_id=project_id).all()
     return jsonify([i.serialize() for i in indicators]), 200
+
+
+# --- ENDPOINTS PARA EL CATÁLOGO DE ACTIVIDADES ---
+
+@api.route('/activity-catalog', methods=['GET'])
+@jwt_required()
+def get_activity_catalog():
+    """Cualquier oficial puede ver la lista para su Wizard"""
+    activities = ActivityCatalog.query.all()
+    return jsonify([a.serialize() for a in activities]), 200
+
+@api.route('/activity-catalog', methods=['POST'])
+@jwt_required()
+@manager_required
+def create_catalog_activity():
+    """Solo el Gerente crea nuevas opciones de actividades"""
+    data = request.json
+    description = data.get("description")
+    comp_id = data.get("competence_id")
+
+    if not description:
+        return jsonify({"msg": "La descripción es obligatoria"}), 400
+
+    if ActivityCatalog.query.filter_by(description=description).first():
+        return jsonify({"msg": "Esta actividad ya existe en el catálogo"}), 400
+
+    new_item = ActivityCatalog(description=description, competence_id=comp_id)
+    db.session.add(new_item)
+    db.session.commit()
+    return jsonify(new_item.serialize()), 201
+
+@api.route('/activity-catalog/<int:id>', methods=['PUT'])
+@jwt_required()
+@manager_required
+def update_catalog_activity(id):
+    item = ActivityCatalog.query.get(id)
+    if not item:
+        return jsonify({"msg": "Actividad no encontrada"}), 404
+
+    data = request.json
+    item.description = data.get("description", item.description)
+    item.competence_id = data.get("competence_id", item.competence_id)
+
+    db.session.commit()
+    return jsonify(item.serialize()), 200
+
+
+@api.route('/activity-catalog/<int:id>', methods=['DELETE'])
+@jwt_required()
+@manager_required
+def delete_catalog_activity(id):
+    item = ActivityCatalog.query.get(id)
+    
+    if not item:
+        return jsonify({"msg": "La actividad no existe en el catálogo"}), 404
+    
+    try:
+        db.session.delete(item)
+        db.session.commit()
+        return jsonify({"msg": "Actividad eliminada con éxito"}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        # Si el error es de base de datos (como una llave foránea activa)
+        # devolvemos un mensaje amigable al usuario
+        return jsonify({
+            "msg": "No se puede eliminar: Esta actividad está siendo utilizada en proyectos actuales.",
+            "error": str(e) # Opcional: solo para depuración
+        }), 400

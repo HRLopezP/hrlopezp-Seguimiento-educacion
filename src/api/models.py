@@ -751,3 +751,24 @@ class SystemChangeLog(db.Model):
             "user": f"{self.user.name} {self.user.lastname}" if self.user else "Desconocido"
         }
 
+
+class ActivityCatalog(db.Model):
+    __tablename__ = 'activity_catalog'
+    id_ac: Mapped[int] = mapped_column(primary_key=True)
+    description: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Podemos asociarlo a una competencia si queremos que sea específico
+    competence_id: Mapped[Optional[int]] = mapped_column(ForeignKey('competence.id_competence'))
+    
+    competence = relationship("Competence")
+
+    def serialize(self):
+        comp_name = "General"
+        if self.competence:
+            comp_name = getattr(self.competence, 'name', "General")
+            
+        return {
+            "id": self.id_ac,
+            "description": self.description,
+            "competence_id": self.competence_id,
+            "competence_name": comp_name
+            }

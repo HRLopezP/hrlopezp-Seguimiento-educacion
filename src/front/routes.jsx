@@ -26,6 +26,7 @@ import LocationManagement from "./pages/LocationManagement";
 import ProjectList from "./pages/ProjectList";
 import ProjectDetail from "./pages/ProjectDetail";
 import ProjectTechnicalSetup from "./pages/ProjectTechnicalSetup";
+import ActivityCatalogManagement from "./pages/ActivityCatalogManagement";
 import VerificationMeansManagement from "./pages/VerificationMeansManagement";
 import { OfficialDashboard } from "./pages/OfficialDashboard";
 import Profile from "./pages/Profile";
@@ -155,6 +156,15 @@ export const router = createBrowserRouter(
         element={
           <ProtectedRoute>
             <VerificationMeansManagement />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/manager/catalogs/activities"
+        element={
+          <ProtectedRoute>
+            <ActivityCatalogManagement />
           </ProtectedRoute>
         }
       />
