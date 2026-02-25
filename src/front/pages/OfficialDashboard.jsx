@@ -39,6 +39,7 @@ export const OfficialDashboard = () => {
     };
 
     const abrirEdicion = (actividad) => {
+        console.log("Padre recibe para editar:", actividad);
         setSelectedActivity(actividad);
         setSelectedDate(actividad.period?.start);
         setShowModal(true);

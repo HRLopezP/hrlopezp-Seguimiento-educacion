@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: 46ec1ecb4975
+Revision ID: b1f4d73d46a7
 Revises: 
-Create Date: 2026-02-23 23:51:12.615506
+Create Date: 2026-02-25 19:22:13.445391
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '46ec1ecb4975'
+revision = 'b1f4d73d46a7'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -60,6 +60,13 @@ def upgrade():
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint('id_rol'),
     sa.UniqueConstraint('name_rol')
+    )
+    op.create_table('activity_catalog',
+    sa.Column('id_ac', sa.Integer(), nullable=False),
+    sa.Column('description', sa.String(length=255), nullable=False),
+    sa.Column('competence_id', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['competence_id'], ['competence.id_competence'], ),
+    sa.PrimaryKeyConstraint('id_ac')
     )
     op.create_table('municipality',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -207,6 +214,8 @@ def upgrade():
     sa.Column('start_date', sa.DateTime(), nullable=False),
     sa.Column('end_date', sa.DateTime(), nullable=False),
     sa.Column('planned_target', sa.Float(), nullable=False),
+    sa.Column('planned_men', sa.Float(), nullable=False),
+    sa.Column('planned_women', sa.Float(), nullable=False),
     sa.Column('status', sa.Enum('PLANIFICADA', 'EN_PROGRESO', 'COMPLETADA', 'VENCIDA', 'CANCELADA', name='activitystatus'), nullable=False),
     sa.Column('indicator_id', sa.Integer(), nullable=False),
     sa.Column('project_id', sa.Integer(), nullable=False),
@@ -290,6 +299,7 @@ def downgrade():
     op.drop_table('theory_template')
     op.drop_table('project_province_goal')
     op.drop_table('municipality')
+    op.drop_table('activity_catalog')
     op.drop_table('rol')
     op.drop_table('province')
     op.drop_table('project')

@@ -2108,48 +2108,57 @@ def get_proyectos_por_competencia():
             
     return jsonify(proyectos_data), 200
 
-
+# Oficial crea actividad planificar
 @api.route('/official/activities', methods=['POST'])
 @jwt_required()
 def create_activitys():
     user_id = get_jwt_identity()
     data = request.json
 
-    required_fields = ['description', 'indicator_id', 'location_id', 'project_id', 'start_date', 'end_date', 'planned_target', 'project_competence_id']
+    # Campos que el Wizard de React está enviando ahora
+    # Nota: Aceptamos 'planned_target' o 'planned_total' para mayor flexibilidad
+    required_fields = ['description', 'indicator_id', 'location_id', 'project_id', 'start_date', 'end_date']
     if not all(field in data for field in required_fields):
-        return jsonify({"msg": "Faltan campos obligatorios"}), 400
+        return jsonify({"msg": "Faltan campos obligatorios para la planificación"}), 400
 
     try:
+        # Extraemos la meta total (intentando ambos nombres)
+        total_meta = data.get('planned_target') or data.get('planned_total') or 0
 
         new_activity = Activity(
             description=data.get('description', ''),
+            # El .split('T')[0] es excelente para limpiar fechas de calendarios JS
             start_date=datetime.strptime(data['start_date'].split('T')[0], '%Y-%m-%d'),
             end_date=datetime.strptime(data['end_date'].split('T')[0], '%Y-%m-%d'),
-            planned_target=float(data.get('planned_target', 0)),
+            
+            # Nuevos campos de metas desagregadas
+            planned_target=float(total_meta),
+            planned_men=float(data.get('planned_men', 0)),
+            planned_women=float(data.get('planned_women', 0)),
+            
             status=ActivityStatus.PLANIFICADA,
             indicator_id=int(data['indicator_id']),
             project_id=int(data['project_id']),
             location_id=int(data['location_id']),
-            project_competence_id=int(data['project_competence_id']),
+            # Manejamos el ID de competencia (puede ser nulo si no se seleccionó)
+            project_competence_id=int(data['project_competence_id']) if data.get('project_competence_id') else None,
             created_by_id=user_id
         )
 
         db.session.add(new_activity)
         db.session.commit()
 
-        # TIP: Si el serialize() falla, el commit ya se hizo. 
-        # Es más seguro devolver los datos básicos si no confías en el serialize()
         return jsonify({
             "msg": "Actividad planificada exitosamente", 
             "activity": new_activity.serialize() 
         }), 201
 
     except ValueError as ve:
-        return jsonify({"msg": "Formato de fecha inválido. Use YYYY-MM-DD", "error": str(ve)}), 400
+        return jsonify({"msg": "Error en formato de datos (fecha o números)", "error": str(ve)}), 400
     except Exception as e:
         db.session.rollback()
         print(f"Error en create_activity: {str(e)}") 
-        return jsonify({"msg": "Error interno del servidor", "error": str(e)}), 500
+        return jsonify({"msg": "Error interno al guardar planificación", "error": str(e)}), 500
 
 
 @api.route('/official/activities/<int:activity_id>', methods=['PATCH'])
@@ -2162,30 +2171,40 @@ def update_activity(activity_id):
     if not activity:
         return jsonify({"msg": "Actividad no encontrada"}), 404
 
-    # Cambiamos la validación: Si el usuario es el creador O es un oficial activo, permitimos.
-    # (En un futuro podrías verificar si el user_id está asignado a ese proyecto)
+    # Mantenemos tu lógica de aviso para oficiales
     if activity.created_by_id != user_id:
-        # Por ahora, si eres oficial, te dejamos editar para no bloquear el flujo
-        print(f"Aviso: Usuario {user_id} editando actividad de {activity.created_by_id}")
+        print(f"Aviso: Usuario {user_id} editando actividad ajena")
 
     try:
-        # Actualización segura
-        activity.description = data.get('description', activity.description)
-        activity.planned_target = float(data.get('planned_target', activity.planned_target))
+        # Actualización de campos básicos
+        if 'description' in data: activity.description = data['description']
         
+        # Soportamos ambos nombres para la meta total
+        if 'planned_target' in data: activity.planned_target = float(data['planned_target'])
+        elif 'planned_total' in data: activity.planned_target = float(data['planned_total'])
+        
+        # Actualización de metas por género
+        if 'planned_men' in data: activity.planned_men = float(data['planned_men'])
+        if 'planned_women' in data: activity.planned_women = float(data['planned_women'])
+        
+        # Fechas
         if 'start_date' in data:
             activity.start_date = datetime.strptime(data['start_date'].split('T')[0], '%Y-%m-%d')
         if 'end_date' in data:
             activity.end_date = datetime.strptime(data['end_date'].split('T')[0], '%Y-%m-%d')
         
-        activity.indicator_id = int(data.get('indicator_id', activity.indicator_id))
-        activity.location_id = int(data.get('location_id', activity.location_id))
+        # Relaciones
+        if 'indicator_id' in data: activity.indicator_id = int(data['indicator_id'])
+        if 'location_id' in data: activity.location_id = int(data['location_id'])
+        if 'project_competence_id' in data: 
+            activity.project_competence_id = int(data['project_competence_id']) if data['project_competence_id'] else None
 
         db.session.commit()
-        return jsonify({"msg": "Actualizado", "activity": activity.serialize()}), 200
+        return jsonify({"msg": "Planificación actualizada", "activity": activity.serialize()}), 200
+        
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Error", "error": str(e)}), 500
+        return jsonify({"msg": "Error al actualizar", "error": str(e)}), 500
 
 
 @api.route('/official/indicators/<int:indicator_id>/locations', methods=['GET'])
@@ -2255,6 +2274,7 @@ def get_activity_catalog():
     """Cualquier oficial puede ver la lista para su Wizard"""
     activities = ActivityCatalog.query.all()
     return jsonify([a.serialize() for a in activities]), 200
+
 
 @api.route('/activity-catalog', methods=['POST'])
 @jwt_required()

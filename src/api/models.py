@@ -514,6 +514,8 @@ class Activity(db.Model):
     start_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     end_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     planned_target: Mapped[float] = mapped_column(Float, default=0.0)
+    planned_men: Mapped[float] = mapped_column(Float, default=0.0) 
+    planned_women: Mapped[float] = mapped_column(Float, default=0.0)
     status: Mapped[ActivityStatus] = mapped_column(db.Enum(ActivityStatus), default=ActivityStatus.PLANIFICADA)
 
     indicator_id: Mapped[int] = mapped_column(ForeignKey('indicator.id_indicator'), nullable=False)
@@ -539,8 +541,8 @@ class Activity(db.Model):
     )
     
     def serialize(self):
-        total_men = sum((rec.men_reached or 0) for rec in self.achievements)
-        total_women = sum((rec.women_reached or 0) for rec in self.achievements)
+        total_men_reached = sum((rec.men_reached or 0) for rec in self.achievements)
+        total_women_reached = sum((rec.women_reached or 0) for rec in self.achievements)
         
         return {
             "id": self.id_activity,
@@ -548,14 +550,22 @@ class Activity(db.Model):
             "indicator_id": self.indicator_id,
             "location_id": self.location_id,
             "project_id": self.project_id,
-            "project_competence_id": self.project_competence_id, # Quitamos el + que estaba aquí
+            "project_competence_id": self.project_competence_id,
             "period": {
                 "start": self.start_date.strftime("%Y-%m-%d") if self.start_date else None,
                 "end": self.end_date.strftime("%Y-%m-%d") if self.end_date else None
             },
             "status": self.status.value if self.status else "Planificada",
-            "planned_target": self.planned_target,
-            "real_progress": { "men": total_men, "women": total_women, "total": total_men + total_women },
+            "planned": {
+                "total": self.planned_target,
+                "men": self.planned_men,
+                "women": self.planned_women
+            },
+            "real_progress": { 
+                "men": total_men_reached, 
+                "women": total_women_reached, 
+                "total": total_men_reached + total_women_reached 
+            },
             "audit": {
                 "created_at": self.created_at.strftime("%Y-%m-%d %H:%M") if self.created_at else None,
             # Usamos getattr para evitar errores si la relación no cargó a tiempo
