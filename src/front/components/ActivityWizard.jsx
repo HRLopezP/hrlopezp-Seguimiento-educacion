@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from "../../utils/api";
-import Swal from 'sweetalert2'; // Importamos para la confirmación
+import Swal from 'sweetalert2';
 
 const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
     const [indicadores, setIndicadores] = useState([]);
@@ -15,27 +15,49 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
         start_date: selectedDate,
         end_date: selectedDate,
         project_id: proyectoId,
-        project_competence_id: '' // AGREGADO: Requerido por el modelo
+        project_competence_id: ''
     });
 
+    // Función para cargar lugares (definida fuera para reusarla)
+    const cargarLugares = async (indicatorId) => {
+        try {
+            const res = await apiFetch(`/official/indicators/${indicatorId}/locations`);
+            if (res && res.ok) {
+                const data = await res.json();
+                setLugares(data);
+            }
+        } catch (error) {
+            console.error("Error cargando lugares:", error);
+        }
+    };
 
+    // EFECTO 1: Carga de datos iniciales (Modo Edición)
     useEffect(() => {
-        // Solo ejecutamos si initialData existe (modo edición)
         if (initialData) {
+            console.log("Datos recibidos en el Wizard:", initialData); // Esto te dirá qué nombres de campos llegan realmente
+
             setForm({
                 description: initialData.description || '',
-                indicator_id: initialData.indicator_id || '',
-                location_id: initialData.location_id || '',
+                // Ajustamos para capturar el ID sin importar si viene como objeto o número
+                indicator_id: initialData.indicator_id || initialData.indicator?.id || '',
+                location_id: initialData.location_id || initialData.location?.id || '',
                 planned_target: initialData.planned_target || 0,
-                start_date: initialData.period?.start || selectedDate,
-                end_date: initialData.period?.end || selectedDate,
+                start_date: initialData.start_date || initialData.period?.start || selectedDate,
+                end_date: initialData.end_date || initialData.period?.end || selectedDate,
                 project_id: initialData.project_id || proyectoId,
                 project_competence_id: initialData.project_competence_id || ''
             });
-        }
-    }, [initialData]);
 
-    // 1. Cargar indicadores del proyecto
+            // Disparamos la carga de lugares para que el select de ubicación se llene
+            const indicatorId = initialData.indicator_id || initialData.indicator?.id;
+            if (indicatorId) {
+                cargarLugares(indicatorId);
+            }
+        }
+    }, [initialData, selectedDate, proyectoId]);
+    
+
+    // EFECTO 2: Cargar indicadores al inicio
     useEffect(() => {
         const loadIndicadores = async () => {
             try {
@@ -49,48 +71,38 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
         if (proyectoId) loadIndicadores();
     }, [proyectoId]);
 
-    // 2. Cargar lugares cuando se selecciona un indicador
+    // Manejador de cambio de indicador (Modo Creación)
     const handleIndicatorChange = async (e) => {
         const id = e.target.value;
-        const selectedInd = indicadores.find(i => i.id === parseInt(id));
-
-        // Limpiamos el lugar seleccionado previamente y ponemos el nuevo indicator_id
-        setForm({ ...form, indicator_id: id, location_id: '', project_competence_id: selectedInd ? selectedInd.project_competence_id : '' });
-
         if (!id) {
+            setForm({ ...form, indicator_id: '', project_competence_id: '', location_id: '' });
             setLugares([]);
             return;
         }
 
-        try {
-            // Llamamos al nuevo endpoint que creamos en el Paso 1
-            const res = await apiFetch(`/official/indicators/${id}/locations`);
+        const selectedInd = indicadores.find(i => String(i.id) === String(id));
+        const competenciaId = selectedInd?.project_competence_id || selectedInd?.template_id;
 
-            if (res && res.ok) {
-                const data = await res.json();
-                setLugares(data); // Ahora 'lugares' solo tendrá lo que el indicador permite
-            } else {
-                setLugares([]);
-                toast.error("Este indicador no tiene lugares asignados");
-            }
-        } catch (error) {
-            console.error("Error cargando lugares:", error);
-        }
+        setForm({
+            ...form,
+            indicator_id: id,
+            location_id: '', // Reseteamos lugar al cambiar indicador
+            project_competence_id: competenciaId
+        });
+
+        // Cargamos los lugares para este nuevo indicador
+        cargarLugares(id);
     };
 
     const handleSave = async () => {
+        if (!form.indicator_id || !form.location_id || !form.project_competence_id) {
+            Swal.fire('Atención', 'Por favor selecciona un Indicador y un Lugar antes de guardar.', 'warning');
+            return;
+        }
+
         setLoading(true);
-
-        // 1. Verificación de seguridad
-        console.log("Datos que se enviarán:", form);
-        console.log("¿Estamos editando?:", !!initialData);
-
         try {
-            // Determinamos URL y Método
-            const url = initialData
-                ? `/official/activities/${initialData.id}`
-                : "/official/activities";
-
+            const url = initialData ? `/official/activities/${initialData.id}` : "/official/activities";
             const method = initialData ? "PATCH" : "POST";
 
             const res = await apiFetch(url, {
@@ -98,7 +110,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
                 body: JSON.stringify(form)
             });
 
-            // 2. Manejo de respuesta detallado
             if (res && res.ok) {
                 await Swal.fire({
                     title: '¡Éxito!',
@@ -106,15 +117,12 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
                     icon: 'success',
                     timer: 2000
                 });
-                onClose(); // Cerramos el modal y refrescamos el dashboard
+                onClose();
             } else {
-                // Si el res no es ok, intentamos leer el mensaje de error del backend
                 const errorData = await res.json();
-                throw new Error(errorData.msg || "Error desconocido en el servidor");
+                throw new Error(errorData.msg || "Error en el servidor");
             }
-
         } catch (error) {
-            console.error("Error detallado en handleSave:", error);
             Swal.fire('Error', `No se pudo guardar: ${error.message}`, 'error');
         } finally {
             setLoading(false);
@@ -123,11 +131,10 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
 
     return (
         <div className="modal-content border-0 shadow-lg">
-            {/* El encabezado Oxford Grey que te gusta */}
             <div className="modal-header bg-oxford text-white py-3" style={{ backgroundColor: '#334155' }}>
                 <h5 className="modal-title font-weight-bold">
                     <i className="fas fa-calendar-plus me-2"></i>
-                    Planificar: {selectedDate}
+                    {initialData ? 'Editar Planificación' : `Planificar: ${selectedDate}`}
                 </h5>
                 <button type="button" className="btn-close btn-close-white" onClick={onClose}></button>
             </div>
@@ -139,7 +146,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
                         <select className="form-select border-emerald" value={form.indicator_id} onChange={handleIndicatorChange}>
                             <option value="">Selecciona un indicador...</option>
                             {indicadores.map(ind => (
-                                // AJUSTADO: Usamos ind.indicator_code e ind.indicator_name del serialize
                                 <option key={ind.id} value={ind.id}>
                                     {ind.indicator_code} - {ind.indicator_name}
                                 </option>
@@ -157,9 +163,8 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
                         >
                             <option value="">Selecciona ubicación...</option>
                             {lugares.map(loc => (
-                                // AJUSTADO: Usamos loc.province_name y loc.municipality_name del nuevo endpoint
                                 <option key={loc.id_location} value={loc.id_location}>
-                                    {loc.province_name} - {loc.municipality_name} ({loc.community})
+                                    {loc.province_name} - {loc.municipality_name}
                                 </option>
                             ))}
                         </select>
@@ -170,7 +175,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
                         <textarea
                             className="form-control"
                             rows="2"
-                            placeholder="Ej: Taller de capacitación en..."
                             value={form.description}
                             onChange={(e) => setForm({ ...form, description: e.target.value })}
                         ></textarea>
@@ -192,11 +196,11 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
                 <button className="btn btn-outline-secondary px-4" onClick={onClose}>Cancelar</button>
                 <button
                     className="btn text-white px-4"
-                    style={{ backgroundColor: '#10b981' }} // Emerald Green
+                    style={{ backgroundColor: '#10b981' }}
                     onClick={handleSave}
                     disabled={loading || !form.location_id}
                 >
-                    {loading ? "Guardando..." : "Confirmar Planificación"}
+                    {loading ? "Guardando..." : "Confirmar"}
                 </button>
             </div>
         </div>

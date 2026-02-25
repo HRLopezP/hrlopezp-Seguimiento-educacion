@@ -324,17 +324,26 @@ class Indicator(db.Model):
     def serialize(self):
         res_temp = self.project_result.result_template if self.project_result else None
         theo_temp = res_temp.theory if res_temp else None
-        comp_temp = theo_temp.competence if theo_temp else None
 
-
+        if not theo_temp and self.template and self.template.result:
+            theo_temp = self.template.result.theory
+        
+        comp_id = theo_temp.competence_id if theo_temp else None
         pc_id = None
-        if theo_temp:
+
+        if comp_id:
             pc = ProjectCompetence.query.filter_by(
                 project_id=self.project_id, 
-                competence_id=theo_temp.competence_id
-                ).first()
+                competence_id=comp_id
+            ).first()
             if pc:
                 pc_id = pc.id_pc
+        
+        if pc_id is None:
+            first_pc = ProjectCompetence.query.filter_by(project_id=self.project_id).first()
+            pc_id = first_pc.id_pc if first_pc else None
+
+        comp_temp = theo_temp.competence if theo_temp else None
 
         final_type = "output"
         if res_temp:

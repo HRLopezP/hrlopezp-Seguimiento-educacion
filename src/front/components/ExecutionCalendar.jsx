@@ -5,7 +5,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import bootstrap5Plugin from '@fullcalendar/bootstrap5';
 import 'bootstrap-icons/font/bootstrap-icons.css'; 
 
-const ExecutionCalendar = ({ onDateSelect, activities }) => {
+const ExecutionCalendar = ({ onDateSelect, activities, onActivityClick }) => {
     
     // Mapeamos tus actividades al formato de FullCalendar
     const events = activities.map(act => ({
@@ -37,7 +37,7 @@ const ExecutionCalendar = ({ onDateSelect, activities }) => {
                 height="70vh"
                 // Aquí disparamos el modal que mencionaste
                 dateClick={(info) => onDateSelect(info.dateStr)}
-                eventClick={(info) => onActivitySelect(info.event.extendedProps)}
+                eventClick={(info) => onActivityClick(info.event.extendedProps)}
             />
         </div>
     );
