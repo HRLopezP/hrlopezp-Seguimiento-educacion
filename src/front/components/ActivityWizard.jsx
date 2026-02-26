@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { apiFetch } from "../../utils/api";
 import Swal from 'sweetalert2';
 
@@ -7,10 +7,11 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
     const [lugares, setLugares] = useState([]);
     const [catalogo, setCatalogo] = useState([]);
     const [loading, setLoading] = useState(false);
-
     const [selectedActivities, setSelectedActivities] = useState([]);
     const [customActivity, setCustomActivity] = useState("");
     const [showCustomInput, setShowCustomInput] = useState(false);
+    const [activeResult, setActiveResult] = useState(null);
+    const [searchTerm, setSearchTerm] = useState("");
 
     const [form, setForm] = useState({
         indicator_id: '',
@@ -24,7 +25,29 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
         project_competence_id: ''
     });
 
-    // --- MEJORA: Autocompletado de Total ---
+    const filteredIndicators = useMemo(() => {
+        return indicadores.filter(ind =>
+            ind.indicator_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            ind.indicator_name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [indicadores, searchTerm]);
+
+    const groupedIndicators = useMemo(() => {
+        return filteredIndicators.reduce((acc, curr) => {
+            const theory = curr.theory_name || "Sin Teoría";
+            const type = curr.result_type || "output";
+            const result = curr.result_name || "General";
+
+            if (!acc[theory]) acc[theory] = {};
+            if (!acc[theory][type]) acc[theory][type] = {};
+            if (!acc[theory][type][result]) acc[theory][type][result] = [];
+
+            acc[theory][type][result].push(curr);
+            return acc;
+        }, {});
+    }, [filteredIndicators]);
+
+
     useEffect(() => {
         const total = (parseInt(form.planned_men) || 0) + (parseInt(form.planned_women) || 0);
         setForm(prev => ({ ...prev, planned_total: total }));
@@ -33,10 +56,12 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
     useEffect(() => {
         const loadInitialData = async () => {
             try {
-                const resCat = await apiFetch("/activity-catalog");
-                if (resCat?.ok) setCatalogo(await resCat.json());
+                const [resCat, resInd] = await Promise.all([
+                    apiFetch("/activity-catalog"),
+                    apiFetch(`/official/projects/${proyectoId}/indicators`)
+                ]);
 
-                const resInd = await apiFetch(`/official/projects/${proyectoId}/indicators`);
+                if (resCat?.ok) setCatalogo(await resCat.json());
                 if (resInd?.ok) setIndicadores(await resInd.json());
 
                 if (initialData) {
@@ -69,6 +94,16 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
             if (res?.ok) setLugares(await res.json());
         } catch (error) { console.error("Error lugares:", error); }
     };
+
+    const selectIndicator = (ind) => {
+        setForm({
+            ...form,
+            indicator_id: ind.id,
+            project_competence_id: ind.project_competence_id || ''
+        });
+        cargarLugares(ind.id);
+    };
+
 
     const handleIndicatorChange = (e) => {
         const id = e.target.value;
@@ -115,22 +150,85 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
 
             <div className="modal-body p-4 bg-light text-start">
                 <div className="row g-3">
-                    {/* Indicador */}
-                    <div className="col-md-6">
-                        <label className="form-label fw-bold small text-oxford">INDICADOR</label>
-                        <select className="form-select border-emerald" value={form.indicator_id} onChange={handleIndicatorChange}>
-                            <option value="">Seleccione indicador...</option>
-                            {indicadores.map(ind => (
-                                <option key={ind.id} value={ind.id}>{ind.indicator_code} - {ind.indicator_name}</option>
-                            ))}
-                        </select>
+                    <div className="mb-3">
+                        <div className="input-group">
+                            <span className="input-group-text bg-white border-emerald"><i className="fas fa-search text-emerald"></i></span>
+                            <input
+                                type="text"
+                                className="form-control border-emerald"
+                                placeholder="Buscar por código o nombre de indicador..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
                     </div>
+                    {/* SECCIÓN DE ACORDEONES PARA INDICADORES */}
+                    <div className="col-12">
+                        <label className="form-label fw-bold small text-oxford">SELECCIONE EL INDICADOR</label>
+                        <div className="accordion accordion-flush shadow-sm" id="wizardIndicatorsAccordion">
+                            {Object.keys(groupedIndicators).map((theoryName) => (
+                                <React.Fragment key={theoryName}>
+                                    {/* Iteramos por tipos (output/outcome) para mantener el orden de tus imágenes */}
+                                    {['output', 'outcome'].map(type => (
+                                        groupedIndicators[theoryName][type] && Object.keys(groupedIndicators[theoryName][type]).map((resultName) => {
+                                            const indicatorsInGroup = groupedIndicators[theoryName][type][resultName];
+                                            const collapseId = `collapse-${resultName.replace(/\s+/g, '-')}-${type}`;
+                                            const isSelected = indicatorsInGroup.some(ind => String(ind.id) === String(form.indicator_id));
 
-                    {/* Ubicación con Parroquia */}
-                    <div className="col-md-6">
+                                            return (
+                                                <div className="accordion-item border-bottom" key={`${resultName}-${type}`}>
+                                                    <h2 className="accordion-header">
+                                                        <button
+                                                            className={`accordion-button ${isSelected ? '' : 'collapsed'} py-2 px-3 fw-bold`}
+                                                            type="button"
+                                                            data-bs-toggle="collapse"
+                                                            data-bs-target={`#${collapseId}`}
+                                                            style={{ fontSize: '0.9rem' }}
+                                                        >
+                                                            <span className={`badge me-3 ${type === 'outcome' ? 'bg-info' : 'bg-emerald text-white'}`} style={{ width: '80px' }}>
+                                                                {type.toUpperCase()}
+                                                            </span>
+                                                            <span className="text-dark">{resultName}</span>
+                                                            <span className="badge bg-secondary ms-auto small rounded-pill">
+                                                                {indicatorsInGroup.length}
+                                                            </span>
+                                                        </button>
+                                                    </h2>
+                                                    <div id={collapseId} className={`accordion-collapse collapse ${isSelected ? 'show' : ''}`} data-bs-parent="#wizardIndicatorsAccordion">
+                                                        <div className="accordion-body p-2 bg-light">
+                                                            <div className="list-group list-group-flush shadow-sm rounded">
+                                                                {indicatorsInGroup.map((ind) => (
+                                                                    <button
+                                                                        key={ind.id}
+                                                                        type="button"
+                                                                        className={`list-group-item list-group-item-action d-flex align-items-start border-0 ${String(form.indicator_id) === String(ind.id) ? 'bg-white border-start border-4 border-emerald' : ''}`}
+                                                                        onClick={() => selectIndicator(ind)}
+                                                                    >
+                                                                        <div className="me-2">
+                                                                            <i className={`fas ${String(form.indicator_id) === String(ind.id) ? 'fa-check-circle text-emerald' : 'fa-circle text-muted opacity-25'}`}></i>
+                                                                        </div>
+                                                                        <div>
+                                                                            <span className="fw-bold text-emerald" style={{ fontSize: '0.8rem' }}>{ind.indicator_code}:</span>
+                                                                            <p className="mb-0 text-muted" style={{ fontSize: '0.75rem', lineHeight: '1.2' }}>{ind.indicator_name}</p>
+                                                                        </div>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    ))}
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    </div>
+                    {/* Ubicación*/}
+                    <div className="col-md-12">
                         <label className="form-label fw-bold small text-oxford">UBICACIÓN (Prov-Mun-Parroquia)</label>
                         <select className="form-select border-emerald" value={form.location_id} onChange={(e) => setForm({ ...form, location_id: e.target.value })} disabled={!form.indicator_id}>
-                            <option value="">Seleccione ubicación...</option>
+                            <option value="">{form.indicator_id ? "Seleccione ubicación..." : "Seleccione primero un indicador"}</option>
                             {lugares.map(loc => (
                                 <option key={loc.id_location} value={loc.id_location}>
                                     {loc.province_name} - {loc.municipality_name} - {loc.parish_name}
@@ -138,7 +236,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
                             ))}
                         </select>
                     </div>
-
                     {/* Actividades Multi-selección */}
                     <div className="col-12">
                         <label className="form-label fw-bold small text-oxford">ACTIVIDADES</label>

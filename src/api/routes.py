@@ -961,26 +961,25 @@ def get_manager_projects():
         for indicator in project.indicators:
             activities = Activity.query.filter_by(
                 indicator_id=indicator.id_indicator, 
-                status=ActivityStatus.COMPLETADA # Usamos Enum de Actividad
+                status=ActivityStatus.COMPLETADA 
             ).all()
-            total_achieved += sum((act.achievement_men +
-                                  act.achievement_women) for act in activities)
+            total_achieved += sum(
+                (rec.men_reached or 0) + (rec.women_reached or 0) 
+                for act in activities 
+                for rec in act.achievements
+            )
 
         progress_percentage = round((total_achieved / total_goal) * 100, 2)
 
-        # Actualizamos el status si es necesario
         if progress_percentage >= 100 and project.status != ProjectStatus.COMPLETADO:
             project.status = ProjectStatus.COMPLETADO
-            # No hagas return aquí, deja que el bucle siga
 
-        # Preparamos la data
         project_data = project.serialize()
         project_data["progress"] = min(progress_percentage, 100)
         project_data["total_achieved"] = total_achieved
 
         results.append(project_data)
 
-    # 🚨 IMPORTANTE: El commit y el return van FUERA del for
     db.session.commit()
     return jsonify(results), 200
 

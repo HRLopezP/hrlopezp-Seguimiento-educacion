@@ -356,6 +356,18 @@ class Indicator(db.Model):
             theo_temp = res_temp.theory
             comp_temp = theo_temp.competence
         
+        nombre_resultado = "General"
+        tipo_resultado = "output"
+
+        if self.project_result:
+            # Aquí es donde vive el nombre real ("Output 1 de Estrategia...", etc.)
+            nombre_resultado = self.project_result.name
+            tipo_resultado = self.project_result.type or "output"
+        elif self.template and self.template.result:
+            # Si no hay nodo de proyecto, miramos la plantilla
+            nombre_resultado = self.template.result.name
+            tipo_resultado = self.template.result.type or "output"
+        
         return {
             "id": self.id_indicator,
             "template_id": self.template_id,
@@ -374,9 +386,8 @@ class Indicator(db.Model):
             "goals_by_province": [goal.serialize() for goal in self.location_goals],
             "comp_name": comp_temp.name if comp_temp else "Otras Competencias",
             "theory_name": theo_temp.name if theo_temp else "Sin Teoría",
-            "result_name": res_temp.name if res_temp else "General",
-            "result_type": final_type.lower() if final_type else "output",
-            # NUEVO: Para que el oficial sepa si el indicador es dependiente o independiente
+            "result_name": nombre_resultado, 
+            "result_type": tipo_resultado.lower(),
             "depends_on_ids": [i.id_indicator for i in self.depends_on]
         }
 
