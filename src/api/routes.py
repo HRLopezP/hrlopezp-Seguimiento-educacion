@@ -124,7 +124,8 @@ def login():
 
     # Extraemos solo los nombres (o IDs) de las competencias asignadas
     # Esto crea una lista simple: ["Educación", "Salud"]
-    user_competences = [{"id": c.id_competence, "name": c.name} for c in user.competences]
+    user_competences = [{"id": c.id_competence, "name": c.name}
+                        for c in user.competences]
 
     additional_claims = {
         "is_administrator": is_admin,
@@ -605,7 +606,7 @@ def delete_competence(id):
 
 
 @api.route("/user/<int:user_id>/competences", methods=["PUT"])
-@jwt_required() 
+@jwt_required()
 def assign_user_competences(user_id):
     data = request.get_json(silent=True)
 
@@ -856,7 +857,7 @@ def create_project():
         )
 
         db.session.add(new_project)
-        db.session.flush() 
+        db.session.flush()
 
         # --- PASO 2: UBICACIONES (GEOGRAFÍA DEL PROYECTO) ---
         if data.get("locations"):
@@ -902,7 +903,7 @@ def create_project():
                     target_women=float(ind_data.get('women', 0))
                 )
                 db.session.add(new_indicator)
-                db.session.flush() 
+                db.session.flush()
 
                 # Metas de este indicador desglosadas por estado
                 loc_targets = ind_data.get("location_targets", [])
@@ -960,12 +961,12 @@ def get_manager_projects():
 
         for indicator in project.indicators:
             activities = Activity.query.filter_by(
-                indicator_id=indicator.id_indicator, 
-                status=ActivityStatus.COMPLETADA 
+                indicator_id=indicator.id_indicator,
+                status=ActivityStatus.COMPLETADA
             ).all()
             total_achieved += sum(
-                (rec.men_reached or 0) + (rec.women_reached or 0) 
-                for act in activities 
+                (rec.men_reached or 0) + (rec.women_reached or 0)
+                for act in activities
                 for rec in act.achievements
             )
 
@@ -1035,12 +1036,12 @@ def update_project(id):
     data = request.json
 
     try:
-        fields = ['project_name', 'donor_name', 'main_objective', 
-                  'results_summary', 'code'] 
+        fields = ['project_name', 'donor_name', 'main_objective',
+                  'results_summary', 'code']
         for field in fields:
             if field in data:
                 setattr(project, field, data[field])
-        
+
         if 'status' in data:
             try:
                 project.status = ProjectStatus(data['status'])
@@ -1051,26 +1052,32 @@ def update_project(id):
         # Tu frontend envía esto dentro de 'unique_targets'
         if 'unique_targets' in data:
             targets = data['unique_targets']
-            project.target_total = float(targets.get('total', project.target_total))
+            project.target_total = float(
+                targets.get('total', project.target_total))
             project.target_men = float(targets.get('men', project.target_men))
-            project.target_women = float(targets.get('women', project.target_women))
-            project.target_disability = float(targets.get('disability', project.target_disability))
+            project.target_women = float(
+                targets.get('women', project.target_women))
+            project.target_disability = float(targets.get(
+                'disability', project.target_disability))
 
         # 3. Fechas
         if data.get('start_date'):
-            project.start_date = datetime.strptime(data['start_date'], '%Y-%m-%d')
+            project.start_date = datetime.strptime(
+                data['start_date'], '%Y-%m-%d')
         if data.get('end_date'):
             project.end_date = datetime.strptime(data['end_date'], '%Y-%m-%d')
 
         # 4. Localizaciones (Limpieza y Carga)
         if 'locations' in data:
-            Location.query.filter_by(project_id=id).delete(synchronize_session=False)
+            Location.query.filter_by(project_id=id).delete(
+                synchronize_session=False)
             for loc in data['locations']:
                 new_loc = Location(
                     project_id=id,
                     province_id=int(loc['province_id']),
                     municipality_id=int(loc['municipality_id']),
-                    parish_id=int(loc['parish_id']) if loc.get('parish_id') else None,
+                    parish_id=int(loc['parish_id']) if loc.get(
+                        'parish_id') else None,
                     community_institution=loc.get('community_institution')
                 )
                 db.session.add(new_loc)
@@ -1125,17 +1132,19 @@ def bulk_indicators():
 
     try:
         # --- PASO 1: ELIMINACIÓN DE INDICADORES OMITIDOS ---
-        received_template_ids = [item['template_id'] for item in indicators_list]
+        received_template_ids = [item['template_id']
+                                 for item in indicators_list]
         to_delete = Indicator.query.filter(
             Indicator.project_id == project_id,
             ~Indicator.template_id.in_(received_template_ids)
         ).all()
 
         for ind in to_delete:
-            IndicatorLocationGoal.query.filter_by(indicator_id=ind.id_indicator).delete()
-            ind.selected_means_list = [] 
+            IndicatorLocationGoal.query.filter_by(
+                indicator_id=ind.id_indicator).delete()
+            ind.selected_means_list = []
             db.session.delete(ind)
-        
+
         # --- PASO 2: PROCESAR CADA INDICADOR (UPSERT) ---
         for item in indicators_list:
             from api.models import IndicatorTemplate, ProjectResult, ProjectTheory
@@ -1143,20 +1152,21 @@ def bulk_indicators():
             # A. Buscamos la "llave maestra": el ProjectResult real para este proyecto
             template_info = IndicatorTemplate.query.get(item['template_id'])
             is_outcome = template_info.result.type == 'outcome' if template_info and template_info.result else False
-            
+
             # Buscamos el ID real uniendo ProjectResult con ProjectTheory para filtrar por este proyecto
             real_project_result = ProjectResult.query.join(ProjectTheory).filter(
                 ProjectTheory.project_id == project_id,
                 ProjectResult.result_template_id == template_info.result_id
-                ).first()
-            
+            ).first()
+
             project_res_id = real_project_result.id if real_project_result else None
             if not project_res_id:
-                print(f"⚠️ Alerta SIGSSEP: No se encontró ProjectResult para template_id {item['template_id']}")
+                print(
+                    f"⚠️ Alerta SIGSSEP: No se encontró ProjectResult para template_id {item['template_id']}")
 
             # B. Buscamos si el indicador ya existe en la base de datos
             indicator = Indicator.query.filter_by(
-                project_id=project_id, 
+                project_id=project_id,
                 template_id=item['template_id']
             ).first()
 
@@ -1168,8 +1178,10 @@ def bulk_indicators():
                 indicator.target_total = t_total
                 indicator.target_men = t_men
                 indicator.target_women = t_women
-                indicator.verification_means = item.get('verification_means', indicator.verification_means)
-                indicator.observations = item.get('observations', indicator.observations)
+                indicator.verification_means = item.get(
+                    'verification_means', indicator.verification_means)
+                indicator.observations = item.get(
+                    'observations', indicator.observations)
                 indicator.project_result_id = project_res_id
             else:
                 indicator = Indicator(
@@ -1180,7 +1192,7 @@ def bulk_indicators():
                     target_women=t_women,
                     verification_means=item.get('verification_means', ""),
                     observations=item.get('observations', ""),
-                    project_result_id = project_res_id,
+                    project_result_id=project_res_id,
                 )
                 db.session.add(indicator)
 
@@ -1190,20 +1202,23 @@ def bulk_indicators():
                 selected_means = MasterVerificationMean.query.filter(
                     MasterVerificationMean.id.in_(item['means_ids'])
                 ).all()
-                indicator.selected_means_list = selected_means 
+                indicator.selected_means_list = selected_means
 
-            db.session.flush() 
+            db.session.flush()
 
             # D. METAS POR PROVINCIA
             if 'goals_by_province' in item:
-                IndicatorLocationGoal.query.filter_by(indicator_id=indicator.id_indicator).delete()
+                IndicatorLocationGoal.query.filter_by(
+                    indicator_id=indicator.id_indicator).delete()
                 for goal in item['goals_by_province']:
                     new_goal = IndicatorLocationGoal(
                         indicator_id=indicator.id_indicator,
                         province_id=goal['province_id'],
                         total_target=goal.get('target', 0),
-                        men=goal.get('target_men', 0) if not is_outcome else None, 
-                        women=goal.get('target_women', 0) if not is_outcome else None
+                        men=goal.get(
+                            'target_men', 0) if not is_outcome else None,
+                        women=goal.get(
+                            'target_women', 0) if not is_outcome else None
                     )
                     db.session.add(new_goal)
 
@@ -1213,9 +1228,10 @@ def bulk_indicators():
 
     except Exception as e:
         db.session.rollback()
-        print(f"Error en SIGSSEP: {str(e)}") # Esto ayuda a ver el error en la terminal
+        # Esto ayuda a ver el error en la terminal
+        print(f"Error en SIGSSEP: {str(e)}")
         return jsonify({"msg": f"Error en la base de datos: {str(e)}"}), 500
-    
+
 
 @api.route('/projects/<int:id>/summary', methods=['GET'])
 @jwt_required()
@@ -1248,24 +1264,25 @@ def delete_project(id):
         Location.query.filter_by(project_id=id).delete()
         ProjectProvinceGoal.query.filter_by(project_id=id).delete()
         ProjectCompetence.query.filter_by(project_id=id).delete()
-        
+
         # Para los indicadores, hay que borrar primero sus metas
         indicators = Indicator.query.filter_by(project_id=id).all()
         for ind in indicators:
-            IndicatorLocationGoal.query.filter_by(indicator_id=ind.id_indicator).delete()
+            IndicatorLocationGoal.query.filter_by(
+                indicator_id=ind.id_indicator).delete()
             db.session.delete(ind)
 
         # 2. Finalmente borramos el proyecto
         db.session.delete(project)
         db.session.commit()
-        
+
         return jsonify({"msg": "Proyecto eliminado permanentemente"}), 200
 
     except Exception as e:
         db.session.rollback()
         print(f"ERROR AL ELIMINAR PROYECTO: {str(e)}")
         return jsonify({"error": "No se pudo eliminar el proyecto", "details": str(e)}), 500
-    
+
 
 @api.route('/competence-templates', methods=['GET'])
 @jwt_required()
@@ -1489,15 +1506,15 @@ def get_managers():
 def assign_technical_data(proj_id):
     data = request.json
     current_user_id = get_jwt_identity()
-    
+
     comp_id = data.get("competence_id")
     theory_temp_id = data.get("theory_id")
-    selected_ind_ids = data.get("indicator_ids", []) 
+    selected_ind_ids = data.get("indicator_ids", [])
 
     # 1. Validación de permiso
     pc = ProjectCompetence.query.filter_by(
-        project_id=proj_id, 
-        competence_id=comp_id, 
+        project_id=proj_id,
+        competence_id=comp_id,
         manager_id=current_user_id
     ).first()
 
@@ -1507,10 +1524,10 @@ def assign_technical_data(proj_id):
     try:
         # 2. Manejo de ProjectTheory
         proj_theory = ProjectTheory.query.filter_by(
-            project_id=proj_id, 
+            project_id=proj_id,
             theory_template_id=theory_temp_id
         ).first()
-        
+
         if not proj_theory:
             proj_theory = ProjectTheory(
                 project_id=proj_id,
@@ -1518,11 +1535,12 @@ def assign_technical_data(proj_id):
                 theory_template_id=theory_temp_id
             )
             db.session.add(proj_theory)
-            db.session.flush() # Para obtener el ID de proj_theory
+            db.session.flush()  # Para obtener el ID de proj_theory
 
         # 3. Traer moldes de indicadores
-        ind_templates = IndicatorTemplate.query.filter(IndicatorTemplate.id.in_(selected_ind_ids)).all()
-        
+        ind_templates = IndicatorTemplate.query.filter(
+            IndicatorTemplate.id.in_(selected_ind_ids)).all()
+
         # Obtenemos los IDs únicos de los resultados (moldes)
         result_template_ids = set([it.result_id for it in ind_templates])
 
@@ -1530,9 +1548,9 @@ def assign_technical_data(proj_id):
             # !! CAMBIO AQUÍ: Buscar por result_template_id (según tu modelo)
             p_res = ProjectResult.query.filter_by(
                 project_theory_id=proj_theory.id,
-                result_template_id=r_temp_id # Nombre correcto según tu clase ProjectResult
+                result_template_id=r_temp_id  # Nombre correcto según tu clase ProjectResult
             ).first()
-            
+
             if not p_res:
                 p_res = ProjectResult(
                     project_theory_id=proj_theory.id,
@@ -1545,16 +1563,16 @@ def assign_technical_data(proj_id):
             for it in ind_templates:
                 if it.result_id == r_temp_id:
                     exists = Indicator.query.filter_by(
-                        project_id=proj_id, 
+                        project_id=proj_id,
                         template_id=it.id
                     ).first()
-                    
+
                     if not exists:
                         new_ind = Indicator(
                             project_id=proj_id,
                             template_id=it.id,
                             # !! REVISIÓN: Tu modelo Indicator tiene project_result_id como ForeignKey
-                            project_result_id=p_res.id, 
+                            project_result_id=p_res.id,
                             target_total=0.0
                         )
                         db.session.add(new_ind)
@@ -1574,25 +1592,26 @@ def assign_technical_data(proj_id):
 def get_competence_theories(comp_id):
     # Buscamos la competencia en la base de datos
     competence = Competence.query.get(comp_id)
-    
+
     if not competence:
         return jsonify({"message": "Competencia no encontrada"}), 404
-    
+
     # Esto devuelve la lista de teorías asociadas a esa competencia
     # Cada teoría ya trae sus resultados e indicadores gracias al .serialize() que definiste
     return jsonify([theory.serialize() for theory in competence.theories]), 200
 
 
-#proyectos por gerente
+# proyectos por gerente
 @api.route('/my-assigned-projects', methods=['GET'])
 @jwt_required()
 @manager_required
 def get_my_assignments():
     current_user_id = get_jwt_identity()
-    
+
     # Buscamos en ProjectCompetence todas las asignaciones de este usuario
-    assignments = ProjectCompetence.query.filter_by(manager_id=current_user_id).all()
-    
+    assignments = ProjectCompetence.query.filter_by(
+        manager_id=current_user_id).all()
+
     # Devolvemos los proyectos únicos asociados a esas asignaciones
     results = []
     for asig in assignments:
@@ -1604,18 +1623,18 @@ def get_my_assignments():
             "competence_name": asig.competence.name,
             "status": asig.project.status.value
         })
-    
+
     return jsonify(results), 200
 
 
-#agregar datos técnicos al indicador
+# agregar datos técnicos al indicador
 @api.route('/indicators/<int:ind_id>/complete-data', methods=['PUT'])
 @jwt_required()
 @manager_required
 def complete_indicator_data(ind_id):
     data = request.json
     indicator = Indicator.query.get(ind_id)
-    
+
     if not indicator:
         return jsonify({"message": "Indicador no encontrado"}), 404
 
@@ -1624,19 +1643,21 @@ def complete_indicator_data(ind_id):
     indicator.target_total = data.get("target_total", indicator.target_total)
     indicator.target_men = data.get("target_men", indicator.target_men)
     indicator.target_women = data.get("target_women", indicator.target_women)
-    
+
     # Si añadiste verification_means y observations al modelo:
     if hasattr(indicator, 'verification_means'):
-        indicator.verification_means = data.get("verification_means", indicator.verification_means)
+        indicator.verification_means = data.get(
+            "verification_means", indicator.verification_means)
     if hasattr(indicator, 'observations'):
-        indicator.observations = data.get("observations", indicator.observations)
+        indicator.observations = data.get(
+            "observations", indicator.observations)
 
     # --- MANEJO DE METAS POR ESTADO/PROVINCIA ---
     # Si vienen metas por provincia, las actualizamos
     if 'province_goals' in data:
         # Borramos las anteriores para este indicador y creamos las nuevas (Upsert)
         IndicatorLocationGoal.query.filter_by(indicator_id=ind_id).delete()
-        
+
         for pg in data['province_goals']:
             new_goal = IndicatorLocationGoal(
                 indicator_id=ind_id,
@@ -1653,22 +1674,24 @@ def complete_indicator_data(ind_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
-    
 
-#Obtener progreso de una competencia en un proyecto
+
+# Obtener progreso de una competencia en un proyecto
 @api.route('/project/<int:proj_id>/competence/<int:comp_id>/technical-status', methods=['GET'])
 @jwt_required()
 def get_technical_status(proj_id, comp_id):
     # Buscamos la teoría asignada para este proyecto y esta competencia
     # Primero buscamos la asignación de competencia para obtener el ID de ProjectCompetence
-    pc = ProjectCompetence.query.filter_by(project_id=proj_id, competence_id=comp_id).first()
-    
+    pc = ProjectCompetence.query.filter_by(
+        project_id=proj_id, competence_id=comp_id).first()
+
     if not pc:
         return jsonify({"message": "No hay datos para esta competencia en este proyecto"}), 404
 
     # Buscamos las teorías asignadas a través de esa competencia
-    theories = ProjectTheory.query.filter_by(project_competence_id=pc.id_pc).all()
-    
+    theories = ProjectTheory.query.filter_by(
+        project_competence_id=pc.id_pc).all()
+
     return jsonify([t.serialize() for t in theories]), 200
 
 
@@ -1678,7 +1701,7 @@ def get_technical_status(proj_id, comp_id):
 def get_project_indicatores(project_id):
     # Buscamos todos los indicadores que ya pertenecen a este proyecto
     indicators = Indicator.query.filter_by(project_id=project_id).all()
-    
+
     # Usamos el serialize() que revisamos antes para enviar toda la info técnica
     return jsonify([ind.serialize() for ind in indicators]), 200
 
@@ -1692,6 +1715,8 @@ def get_verification_means():
     return jsonify([m.serialize() for m in means]), 200
 
 # 2. CREAR NUEVO MEDIO (Solo Gerente)
+
+
 @api.route('/verification-means', methods=['POST'])
 @manager_required
 def create_verification_mean():
@@ -1712,6 +1737,8 @@ def create_verification_mean():
     return jsonify(new_mean.serialize()), 201
 
 # 3. ACTUALIZAR UN MEDIO (Solo Gerente)
+
+
 @api.route('/verification-means/<int:id>', methods=['PUT'])
 @manager_required
 def update_verification_mean(id):
@@ -1727,6 +1754,8 @@ def update_verification_mean(id):
     return jsonify(mean.serialize()), 200
 
 # 4. ELIMINAR UN MEDIO (Solo Gerente)
+
+
 @api.route('/verification-means/<int:id>', methods=['DELETE'])
 @manager_required
 def delete_verification_mean(id):
@@ -1745,7 +1774,7 @@ def delete_verification_mean(id):
             "message": "No se puede eliminar: este medio está siendo utilizado en indicadores activos"
         }), 400
 
-    
+
 @api.route('/indicators/<int:id>', methods=['PATCH'])
 @jwt_required()
 def patch_indicator(id):
@@ -1758,7 +1787,7 @@ def patch_indicator(id):
     # 1. Actualización de campos de texto simple (Mantenemos tus originales)
     if "verification_means" in data:
         indicator.verification_means = data.get("verification_means")
-    
+
     if "observations" in data:
         indicator.observations = data.get("observations")
 
@@ -1770,7 +1799,7 @@ def patch_indicator(id):
         selected_means = MasterVerificationMean.query.filter(
             MasterVerificationMean.id.in_(new_means_ids)
         ).all()
-        
+
         # SQLAlchemy hace la magia: vacía la relación vieja y pone la nueva
         indicator.selected_means_list = selected_means
 
@@ -1787,22 +1816,24 @@ def patch_indicator(id):
 def get_my_indicators(project_id):
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-    
+
     if not user:
         return jsonify({"message": "Usuario no encontrado"}), 404
 
     user_comp_ids = [c.id_competence for c in user.competences]
-    
-    all_project_indicators = Indicator.query.filter_by(project_id=project_id).all()
-    
+
+    all_project_indicators = Indicator.query.filter_by(
+        project_id=project_id).all()
+
     filtered_indicators = []
     for ind in all_project_indicators:
-        res = ind.project_result.result_template if ind.project_result else (ind.template.result if ind.template else None)
+        res = ind.project_result.result_template if ind.project_result else (
+            ind.template.result if ind.template else None)
         comp_id = res.theory.competence_id if res and res.theory else None
-        
+
         if comp_id in user_comp_ids:
             filtered_indicators.append(ind.serialize())
-            
+
     return jsonify(filtered_indicators), 200
 
 
@@ -1813,7 +1844,8 @@ def create_activity():
     data = request.json
 
     # Validaciones rápidas de campos obligatorios
-    required = ["description", "start_date", "end_date", "planned_target", "indicator_id", "project_id", "location_id", "project_competence_id"]
+    required = ["description", "start_date", "end_date", "planned_target",
+                "indicator_id", "project_id", "location_id", "project_competence_id"]
     if not all(field in data for field in required):
         return jsonify({"message": "Faltan datos obligatorios para la planificación"}), 400
 
@@ -1840,14 +1872,15 @@ def create_activity():
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": f"Error al crear planificación: {str(e)}"}), 500
-        
+
 
 @api.route('/activities/<int:id>', methods=['PATCH'])
 @jwt_required()
 def patch_activity(id):
     user_id = get_jwt_identity()
     activity = Activity.query.get(id)
-    if not activity: return jsonify({"message": "No encontrada"}), 404
+    if not activity:
+        return jsonify({"message": "No encontrada"}), 404
 
     data = request.json
     # Campos que queremos vigilar
@@ -1855,7 +1888,7 @@ def patch_activity(id):
         if field in data:
             old_val = str(getattr(activity, field))
             new_val = str(data[field])
-            
+
             if old_val != new_val:
                 # GUARDAMOS EL "CHISME" EN EL LOG
                 log = SystemChangeLog(
@@ -1867,10 +1900,11 @@ def patch_activity(id):
                     new_value=new_val
                 )
                 db.session.add(log)
-                
+
                 # Actualizamos el valor real
                 if "date" in field:
-                    setattr(activity, field, datetime.strptime(data[field], '%Y-%m-%d'))
+                    setattr(activity, field, datetime.strptime(
+                        data[field], '%Y-%m-%d'))
                 else:
                     setattr(activity, field, data[field])
 
@@ -1881,7 +1915,7 @@ def patch_activity(id):
 
 @api.route('/activities/<int:id>', methods=['DELETE'])
 @jwt_required()
-@manager_required # <--- Tu guardia de seguridad VIP
+@manager_required  # <--- Tu guardia de seguridad VIP
 def delete_activity(id):
     activity = Activity.query.get(id)
     if not activity:
@@ -1896,7 +1930,7 @@ def delete_activity(id):
         return jsonify({"message": f"Error: {str(e)}"}), 500
 
 
-# Endpoints de logros 
+# Endpoints de logros
 @api.route('/achievements', methods=['POST'])
 @jwt_required()
 def create_achievement():
@@ -1917,15 +1951,18 @@ def create_achievement():
             disability_reached=int(data.get('disability_reached', 0)),
             evidence_url=data.get('evidence_url'),
             observations=data.get('observations'),
-            user_id=user_id 
+            user_id=user_id
         )
 
         # 3. LÓGICA DE TIEMPO REAL:
         # Calculamos si con este nuevo registro ya alcanzamos la meta de la actividad
-        total_previo_hombres = db.session.query(func.sum(AchievementRecord.men_reached)).filter_by(activity_id=activity.id_activity).scalar() or 0
-        total_previo_mujeres = db.session.query(func.sum(AchievementRecord.women_reached)).filter_by(activity_id=activity.id_activity).scalar() or 0
-        
-        nuevo_total = total_previo_hombres + total_previo_mujeres + new_record.men_reached + new_record.women_reached
+        total_previo_hombres = db.session.query(func.sum(AchievementRecord.men_reached)).filter_by(
+            activity_id=activity.id_activity).scalar() or 0
+        total_previo_mujeres = db.session.query(func.sum(AchievementRecord.women_reached)).filter_by(
+            activity_id=activity.id_activity).scalar() or 0
+
+        nuevo_total = total_previo_hombres + total_previo_mujeres + \
+            new_record.men_reached + new_record.women_reached
 
         # Si el total logrado es >= a lo planificado en la actividad, se marca como COMPLETADA
         # Si no, se queda EN_PROGRESO (Emerald Green activo)
@@ -1936,7 +1973,7 @@ def create_achievement():
 
         db.session.add(new_record)
         db.session.commit()
-        
+
         return jsonify({
             "message": "Logro registrado exitosamente",
             "activity_status": activity.status.value,
@@ -1946,38 +1983,39 @@ def create_achievement():
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": f"Error al registrar logro: {str(e)}"}), 500
-    
+
 
 @api.route('/achievements/<int:id>', methods=['PATCH'])
 @jwt_required()
 def patch_achievement(id):
     user_id = get_jwt_identity()
     record = AchievementRecord.query.get(id)
-    if not record: return jsonify({"message": "Logro no encontrado"}), 404
+    if not record:
+        return jsonify({"message": "Logro no encontrado"}), 404
     data = request.json
-    
+
     for field in ["men_reached", "women_reached", "disability_reached", "observations"]:
-         if field in data:
+        if field in data:
             old_val = str(getattr(record, field))
             new_val = str(data[field])
-            
+
             if old_val != new_val:
                 log = SystemChangeLog(
-                     entity_type="AchievementRecord",
-                     entity_id=record.id,
-                     user_id=user_id,
-                     field_changed=field,
-                     old_value=old_val,
-                     new_value=new_val
-                     )
+                    entity_type="AchievementRecord",
+                    entity_id=record.id,
+                    user_id=user_id,
+                    field_changed=field,
+                    old_value=old_val,
+                    new_value=new_val
+                )
                 db.session.add(log)
                 setattr(record, field, data[field])
-                
+
                 record.updated_by_id = user_id
                 db.session.commit()
-                
+
                 return jsonify({"message": "Registro de logro actualizado e historizado"}), 200
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
+
 
 @api.route('/achievements/<int:id>', methods=['DELETE'])
 @jwt_required()
@@ -1986,12 +2024,12 @@ def delete_achievement(id):
     achievement = AchievementRecord.query.get(id)
     if not achievement:
         return jsonify({"message": "Registro de logro no encontrado"}), 404
-    
+
     try:
         db.session.delete(achievement)
         db.session.commit()
         return jsonify({"message": "Logro eliminado permanentemente por el Gerente"}), 200
-    
+
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": f"Error al eliminar el registro: {str(e)}"}), 500
@@ -2000,44 +2038,74 @@ def delete_achievement(id):
 @api.route('/project/<int:project_id>/progress-summary', methods=['GET'])
 @jwt_required()
 def get_project_progress(project_id):
+    location_id = request.args.get('location_id')
+    
     indicators = Indicator.query.filter_by(project_id=project_id).all()
     summary = []
 
     for ind in indicators:
-        # PROFE: Unificamos todo en una sola consulta antes del .first()
-        total_achieved = db.session.query(
+        # 1. Calculamos lo alcanzado (Suma de AchievementRecord)
+        query = db.session.query(
             func.sum(AchievementRecord.men_reached).label("men"),
-            func.sum(AchievementRecord.women_reached).label("women"),
-            func.sum(AchievementRecord.disability_reached).label("disability")
+            func.sum(AchievementRecord.women_reached).label("women")
         ).select_from(Indicator)\
          .outerjoin(Activity, Activity.indicator_id == Indicator.id_indicator)\
          .outerjoin(AchievementRecord, AchievementRecord.activity_id == Activity.id_activity)\
          .filter(Indicator.id_indicator == ind.id_indicator)\
-         .filter(Activity.status == ActivityStatus.COMPLETADA)\
-         .first() # <-- El .first() va AL FINAL de todos los filtros
+         .filter(Activity.status == ActivityStatus.COMPLETADA)
 
-        # Extraemos los valores con seguridad
-        men = total_achieved.men or 0
-        women = total_achieved.women or 0
-        disability = total_achieved.disability or 0
-        reached_total = men + women
+        # Filtramos por parroquia/municipio específico si viene en la URL
+        if location_id and location_id != 'undefined':
+            query = query.filter(Activity.location_id == location_id)
 
+        res_achieved = query.first()
+        men_done = res_achieved.men or 0
+        women_done = res_achieved.women or 0
+        total_done = men_done + women_done
+
+        # 2. Determinamos la meta (Target)
+        # Por defecto: Meta global del indicador
+        target_total = ind.target_total or 0
+        target_men = ind.target_men or 0
+        target_women = ind.target_women or 0
+
+        # Si hay ubicación, buscamos la meta por PROVINCIA para este INDICADOR
+        if location_id and location_id != 'undefined':
+            loc = Location.query.get(location_id)
+            if loc:
+                # Usamos el modelo que nos mostraste: IndicatorLocationGoal
+                goal = IndicatorLocationGoal.query.filter_by(
+                    indicator_id=ind.id_indicator,
+                    province_id=loc.province_id
+                ).first()
+                
+                if goal:
+                    # OJO: Aquí usamos tus nombres: total_target, men, women
+                    target_total = goal.total_target or 0
+                    target_men = goal.men or 0
+                    target_women = goal.women or 0
+                else:
+                    # Si no hay meta asignada a esa provincia, es 0 para ese desglose
+                    target_total = target_men = target_women = 0
+
+        # 3. Calculamos la brecha (Gap) y armamos la respuesta
         summary.append({
             "indicator_id": ind.id_indicator,
-            "code": ind.template.code if ind.template else ind.custom_code,
-            "name": ind.template.name if ind.template else ind.description,
             "target": {
-                "total": ind.target_total,
-                "men": ind.target_men,
-                "women": ind.target_women
+                "total": target_total, 
+                "men": target_men, 
+                "women": target_women
             },
             "achieved": {
-                "men": men,
-                "women": women,
-                "disability": disability,
-                "total": reached_total
+                "men": men_done, 
+                "women": women_done, 
+                "total": total_done
             },
-            "progress_percentage": round((reached_total / ind.target_total * 100), 2) if ind.target_total > 0 else 0
+            "gap": {
+                "men": max(0, target_men - men_done),
+                "women": max(0, target_women - women_done),
+                "total": max(0, target_total - total_done)
+            }
         })
 
     return jsonify(summary), 200
@@ -2045,7 +2113,7 @@ def get_project_progress(project_id):
 
 @api.route('/audit-logs', methods=['GET'])
 @jwt_required()
-@manager_required # Solo el jefe tiene acceso a la bitácora
+@manager_required  # Solo el jefe tiene acceso a la bitácora
 def get_audit_logs():
     # Podemos filtrar por tipo de entidad si el Gerente quiere algo específico
     # Ejemplo: /audit-logs?type=Activity o /audit-logs?user_id=5
@@ -2086,43 +2154,47 @@ def get_audit_logs():
 def get_oficial_competencias():
     current_user_id = get_jwt_identity()
     user = User.query.get(current_user_id)
-    
+
     if not user:
         return jsonify({"msg": "Usuario no encontrado"}), 404
 
     # Ajustado a id_competence y name según tu modelo Competence
     competencias = [
-        {"id": comp.id_competence, "name": comp.name} 
+        {"id": comp.id_competence, "name": comp.name}
         for comp in user.competences
     ]
-    
+
     return jsonify(competencias), 200
+
 
 @api.route('/official/projects', methods=['GET'])
 @jwt_required()
 def get_proyectos_por_competencia():
     competencia_id = request.args.get('competencia_id')
-    
+
     if not competencia_id:
         return jsonify({"msg": "Falta el ID de la competencia"}), 400
 
     # Usamos ProjectCompetence para filtrar
-    proyectos_ids = ProjectCompetence.query.filter_by(competence_id=competencia_id).all()
-    
+    proyectos_ids = ProjectCompetence.query.filter_by(
+        competence_id=competencia_id).all()
+
     proyectos_data = []
     for rel in proyectos_ids:
         # p es el objeto Project relacionado
-        p = rel.project # Asumiendo que ProjectCompetence tiene la relación 'project'
+        p = rel.project  # Asumiendo que ProjectCompetence tiene la relación 'project'
         if p:
             proyectos_data.append({
-                "id": p.id_project, # Ojo aquí, verifica si es id o id_project en tu modelo Project
+                "id": p.id_project,  # Ojo aquí, verifica si es id o id_project en tu modelo Project
                 "project_name": p.project_name,
                 "code": p.code
             })
-            
+
     return jsonify(proyectos_data), 200
 
 # Oficial crea actividad planificar
+
+
 @api.route('/official/activities', methods=['POST'])
 @jwt_required()
 def create_activitys():
@@ -2131,31 +2203,36 @@ def create_activitys():
 
     # Campos que el Wizard de React está enviando ahora
     # Nota: Aceptamos 'planned_target' o 'planned_total' para mayor flexibilidad
-    required_fields = ['description', 'indicator_id', 'location_id', 'project_id', 'start_date', 'end_date']
+    required_fields = ['description', 'indicator_id',
+                       'location_id', 'project_id', 'start_date', 'end_date']
     if not all(field in data for field in required_fields):
         return jsonify({"msg": "Faltan campos obligatorios para la planificación"}), 400
 
     try:
         # Extraemos la meta total (intentando ambos nombres)
-        total_meta = data.get('planned_target') or data.get('planned_total') or 0
+        total_meta = data.get('planned_target') or data.get(
+            'planned_total') or 0
 
         new_activity = Activity(
             description=data.get('description', ''),
             # El .split('T')[0] es excelente para limpiar fechas de calendarios JS
-            start_date=datetime.strptime(data['start_date'].split('T')[0], '%Y-%m-%d'),
-            end_date=datetime.strptime(data['end_date'].split('T')[0], '%Y-%m-%d'),
-            
+            start_date=datetime.strptime(
+                data['start_date'].split('T')[0], '%Y-%m-%d'),
+            end_date=datetime.strptime(
+                data['end_date'].split('T')[0], '%Y-%m-%d'),
+
             # Nuevos campos de metas desagregadas
             planned_target=float(total_meta),
             planned_men=float(data.get('planned_men', 0)),
             planned_women=float(data.get('planned_women', 0)),
-            
+
             status=ActivityStatus.PLANIFICADA,
             indicator_id=int(data['indicator_id']),
             project_id=int(data['project_id']),
             location_id=int(data['location_id']),
             # Manejamos el ID de competencia (puede ser nulo si no se seleccionó)
-            project_competence_id=int(data['project_competence_id']) if data.get('project_competence_id') else None,
+            project_competence_id=int(data['project_competence_id']) if data.get(
+                'project_competence_id') else None,
             created_by_id=user_id
         )
 
@@ -2163,15 +2240,15 @@ def create_activitys():
         db.session.commit()
 
         return jsonify({
-            "msg": "Actividad planificada exitosamente", 
-            "activity": new_activity.serialize() 
+            "msg": "Actividad planificada exitosamente",
+            "activity": new_activity.serialize()
         }), 201
 
     except ValueError as ve:
         return jsonify({"msg": "Error en formato de datos (fecha o números)", "error": str(ve)}), 400
     except Exception as e:
         db.session.rollback()
-        print(f"Error en create_activity: {str(e)}") 
+        print(f"Error en create_activity: {str(e)}")
         return jsonify({"msg": "Error interno al guardar planificación", "error": str(e)}), 500
 
 
@@ -2180,7 +2257,7 @@ def create_activitys():
 def update_activity(activity_id):
     user_id = get_jwt_identity()
     data = request.json
-    
+
     activity = Activity.query.get(activity_id)
     if not activity:
         return jsonify({"msg": "Actividad no encontrada"}), 404
@@ -2191,31 +2268,41 @@ def update_activity(activity_id):
 
     try:
         # Actualización de campos básicos
-        if 'description' in data: activity.description = data['description']
-        
+        if 'description' in data:
+            activity.description = data['description']
+
         # Soportamos ambos nombres para la meta total
-        if 'planned_target' in data: activity.planned_target = float(data['planned_target'])
-        elif 'planned_total' in data: activity.planned_target = float(data['planned_total'])
-        
+        if 'planned_target' in data:
+            activity.planned_target = float(data['planned_target'])
+        elif 'planned_total' in data:
+            activity.planned_target = float(data['planned_total'])
+
         # Actualización de metas por género
-        if 'planned_men' in data: activity.planned_men = float(data['planned_men'])
-        if 'planned_women' in data: activity.planned_women = float(data['planned_women'])
-        
+        if 'planned_men' in data:
+            activity.planned_men = float(data['planned_men'])
+        if 'planned_women' in data:
+            activity.planned_women = float(data['planned_women'])
+
         # Fechas
         if 'start_date' in data:
-            activity.start_date = datetime.strptime(data['start_date'].split('T')[0], '%Y-%m-%d')
+            activity.start_date = datetime.strptime(
+                data['start_date'].split('T')[0], '%Y-%m-%d')
         if 'end_date' in data:
-            activity.end_date = datetime.strptime(data['end_date'].split('T')[0], '%Y-%m-%d')
-        
+            activity.end_date = datetime.strptime(
+                data['end_date'].split('T')[0], '%Y-%m-%d')
+
         # Relaciones
-        if 'indicator_id' in data: activity.indicator_id = int(data['indicator_id'])
-        if 'location_id' in data: activity.location_id = int(data['location_id'])
-        if 'project_competence_id' in data: 
-            activity.project_competence_id = int(data['project_competence_id']) if data['project_competence_id'] else None
+        if 'indicator_id' in data:
+            activity.indicator_id = int(data['indicator_id'])
+        if 'location_id' in data:
+            activity.location_id = int(data['location_id'])
+        if 'project_competence_id' in data:
+            activity.project_competence_id = int(
+                data['project_competence_id']) if data['project_competence_id'] else None
 
         db.session.commit()
         return jsonify({"msg": "Planificación actualizada", "activity": activity.serialize()}), 200
-        
+
     except Exception as e:
         db.session.rollback()
         return jsonify({"msg": "Error al actualizar", "error": str(e)}), 500
@@ -2230,8 +2317,9 @@ def get_indicator_locations(indicator_id):
         return jsonify({"msg": "Indicador no encontrado"}), 404
 
     # 2. Obtenemos las metas por provincia de este indicador
-    goals = IndicatorLocationGoal.query.filter_by(indicator_id=indicator_id).all()
-    
+    goals = IndicatorLocationGoal.query.filter_by(
+        indicator_id=indicator_id).all()
+
     # Creamos una lista de IDs de provincias donde este indicador tiene metas
     allowed_province_ids = [g.province_id for g in goals]
 
@@ -2241,22 +2329,23 @@ def get_indicator_locations(indicator_id):
         Location.project_id == indicador.project_id,
         Location.province_id.in_(allowed_province_ids)
     ).all()
-    
+
     # 4. Cruzamos la info: enviamos la ubicación detallada + la meta de esa provincia
     results = []
     for loc in locations:
         # Buscamos la meta específica de la provincia de esta ubicación
-        goal_info = next((g for g in goals if g.province_id == loc.province_id), None)
-        
+        goal_info = next(
+            (g for g in goals if g.province_id == loc.province_id), None)
+
         results.append({
-            "id_location": loc.id_location, # ID real para el combo/select del form
+            "id_location": loc.id_location,  # ID real para el combo/select del form
             "province_name": loc.province_ref.name,
             "municipality_name": loc.municipality_ref.name,
             "parish_name": loc.parish_ref.name if loc.parish_ref else "N/A",
             "community": loc.community_institution,
             "province_target": goal_info.total_target if goal_info else 0
         })
-    
+
     return jsonify(results), 200
 
 
@@ -2266,7 +2355,7 @@ def get_activities():
     user_id = get_jwt_identity()
     # Traemos las actividades creadas por este oficial
     activities = Activity.query.filter_by(created_by_id=user_id).all()
-    
+
     # Usamos el método serialize() que ya tienes en tu modelo
     return jsonify([act.serialize() for act in activities]), 200
 
@@ -2310,6 +2399,7 @@ def create_catalog_activity():
     db.session.commit()
     return jsonify(new_item.serialize()), 201
 
+
 @api.route('/activity-catalog/<int:id>', methods=['PUT'])
 @jwt_required()
 @manager_required
@@ -2331,20 +2421,20 @@ def update_catalog_activity(id):
 @manager_required
 def delete_catalog_activity(id):
     item = ActivityCatalog.query.get(id)
-    
+
     if not item:
         return jsonify({"msg": "La actividad no existe en el catálogo"}), 404
-    
+
     try:
         db.session.delete(item)
         db.session.commit()
         return jsonify({"msg": "Actividad eliminada con éxito"}), 200
-        
+
     except Exception as e:
         db.session.rollback()
         # Si el error es de base de datos (como una llave foránea activa)
         # devolvemos un mensaje amigable al usuario
         return jsonify({
             "msg": "No se puede eliminar: Esta actividad está siendo utilizada en proyectos actuales.",
-            "error": str(e) # Opcional: solo para depuración
+            "error": str(e)  # Opcional: solo para depuración
         }), 400

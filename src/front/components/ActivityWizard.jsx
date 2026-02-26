@@ -13,6 +13,8 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
     const [activeResult, setActiveResult] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [loadingLugares, setLoadingLugares] = useState(false);
+    const [gapData, setGapData] = useState(null);
+    const [loadingGap, setLoadingGap] = useState(false);
 
     const [form, setForm] = useState({
         indicator_id: '',
@@ -173,6 +175,32 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
         } finally { setLoading(false); }
     };
 
+    useEffect(() => {
+        const fetchGap = async () => {
+            if (form.indicator_id && form.location_id) {
+                setLoadingGap(true);
+                try {
+                    // Usamos el nuevo parámetro que creamos en el backend
+                    const res = await apiFetch(`/project/${proyectoId}/progress-summary?location_id=${form.location_id}`);
+                    if (res?.ok) {
+                        const data = await res.json();
+                        // Buscamos la info específica de este indicador en el array que devuelve el summary
+                        const currentGap = data.find(d => String(d.indicator_id) === String(form.indicator_id));
+                        setGapData(currentGap);
+                    }
+                } catch (err) {
+                    console.error("Error cargando brecha:", err);
+                } finally {
+                    setLoadingGap(false);
+                }
+            } else {
+                setGapData(null);
+            }
+        };
+        fetchGap();
+    }, [form.indicator_id, form.location_id, proyectoId]);
+
+
     return (
         <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '15px' }}>
             {/* Header con Oxford Grey */}
@@ -332,7 +360,57 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
                         <label className="form-label fw-bold small text-oxford">FECHA FIN</label>
                         <input type="date" className="form-control" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} />
                     </div>
-
+                    {/* PANEL DE BRECHA PROFESIONAL */}
+                    {gapData && (
+                        <div className="mt-3 animate__animated animate__fadeIn">
+                            <div className="card border-0 shadow-sm overflow-hidden" style={{ borderRadius: '12px' }}>
+                                <div className="bg-emerald-light p-2 border-start border-4 border-emerald">
+                                    <div className="d-flex justify-content-between align-items-center">
+                                        <span className="small fw-bold text-oxford">
+                                            <i className="fas fa-chart-line me-2 text-emerald"></i>
+                                            ESTADO ACTUAL EN ESTA PROVINCIA
+                                        </span>
+                                        <span className="badge bg-white text-emerald border border-emerald">Pendiente</span>
+                                    </div>
+                                </div>
+                                <div className="card-body py-3 bg-white">
+                                    <div className="row text-center g-0">
+                                        <div className="col-4 border-end">
+                                            <p className="text-muted mb-0" style={{ fontSize: '0.65rem' }}>HOMBRES</p>
+                                            <h5 className={`fw-bold mb-0 ${gapData.gap.men > 0 ? 'text-primary' : 'text-success'}`}>
+                                                {gapData.gap.men}
+                                            </h5>
+                                        </div>
+                                        <div className="col-4 border-end">
+                                            <p className="text-muted mb-0" style={{ fontSize: '0.65rem' }}>MUJERES</p>
+                                            <h5 className={`fw-bold mb-0 ${gapData.gap.women > 0 ? 'text-primary' : 'text-success'}`}>
+                                                {gapData.gap.women}
+                                            </h5>
+                                        </div>
+                                        <div className="col-4">
+                                            <p className="text-muted mb-0" style={{ fontSize: '0.65rem' }}>TOTAL PENDIENTE</p>
+                                            <h5 className={`fw-bold mb-0 ${gapData.gap.total > 0 ? 'text-danger' : 'text-success'}`}>
+                                                {gapData.gap.total}
+                                            </h5>
+                                        </div>
+                                    </div>
+                                    {/* Barra de progreso visual */}
+                                    <div className="mt-3">
+                                        <div className="d-flex justify-content-between small mb-1" style={{ fontSize: '0.7rem' }}>
+                                            <span className="text-muted">Meta: {gapData.target.total}</span>
+                                            <span className="fw-bold text-emerald">Logrado: {gapData.achieved.total}</span>
+                                        </div>
+                                        <div className="progress" style={{ height: '6px' }}>
+                                            <div
+                                                className="progress-bar bg-emerald"
+                                                style={{ width: `${Math.min(100, (gapData.achieved.total / gapData.target.total) * 100)}%` }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     {/* Metas con Autocompletado */}
                     <div className="col-12 mt-3">
                         <div className="p-3 rounded border-start border-4 border-emerald bg-white shadow-sm">
