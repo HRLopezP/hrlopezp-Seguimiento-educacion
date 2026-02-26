@@ -1897,35 +1897,53 @@ def delete_activity(id):
         return jsonify({"message": f"Error: {str(e)}"}), 500
 
 
+# Endpoints de logros 
 @api.route('/achievements', methods=['POST'])
 @jwt_required()
 def create_achievement():
     user_id = get_jwt_identity()
     data = request.json
 
-    # Validamos que la actividad exista
+    # 1. Validamos que la actividad exista
     activity = Activity.query.get(data.get('activity_id'))
     if not activity:
         return jsonify({"message": "La actividad vinculada no existe"}), 404
 
     try:
+        # 2. Creamos el registro del logro (el "hecho")
         new_record = AchievementRecord(
             activity_id=data['activity_id'],
-            men_reached=data.get('men_reached', 0),
-            women_reached=data.get('women_reached', 0),
-            disability_reached=data.get('disability_reached', 0),
+            men_reached=int(data.get('men_reached', 0)),
+            women_reached=int(data.get('women_reached', 0)),
+            disability_reached=int(data.get('disability_reached', 0)),
             evidence_url=data.get('evidence_url'),
             observations=data.get('observations'),
-            user_id=user_id # Auditoría: Quién lo creó
+            user_id=user_id 
         )
 
-        # Si el oficial sube el primer logro, pasamos la actividad a "Completada" 
-        # o la mantenemos "En Progreso" según tu regla de negocio.
-        activity.status = ActivityStatus.COMPLETADA 
+        # 3. LÓGICA DE TIEMPO REAL:
+        # Calculamos si con este nuevo registro ya alcanzamos la meta de la actividad
+        total_previo_hombres = db.session.query(func.sum(AchievementRecord.men_reached)).filter_by(activity_id=activity.id_activity).scalar() or 0
+        total_previo_mujeres = db.session.query(func.sum(AchievementRecord.women_reached)).filter_by(activity_id=activity.id_activity).scalar() or 0
+        
+        nuevo_total = total_previo_hombres + total_previo_mujeres + new_record.men_reached + new_record.women_reached
+
+        # Si el total logrado es >= a lo planificado en la actividad, se marca como COMPLETADA
+        # Si no, se queda EN_PROGRESO (Emerald Green activo)
+        if nuevo_total >= activity.planned_target:
+            activity.status = ActivityStatus.COMPLETADA
+        else:
+            activity.status = ActivityStatus.EN_PROGRESO
 
         db.session.add(new_record)
         db.session.commit()
-        return jsonify(new_record.serialize()), 201
+        
+        return jsonify({
+            "message": "Logro registrado exitosamente",
+            "activity_status": activity.status.value,
+            "record": new_record.serialize()
+        }), 201
+
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": f"Error al registrar logro: {str(e)}"}), 500
@@ -1937,48 +1955,44 @@ def patch_achievement(id):
     user_id = get_jwt_identity()
     record = AchievementRecord.query.get(id)
     if not record: return jsonify({"message": "Logro no encontrado"}), 404
-
     data = request.json
-    # Vigilamos los números y la evidencia
+    
     for field in ["men_reached", "women_reached", "disability_reached", "observations"]:
-        if field in data:
+         if field in data:
             old_val = str(getattr(record, field))
             new_val = str(data[field])
-
+            
             if old_val != new_val:
                 log = SystemChangeLog(
-                    entity_type="AchievementRecord",
-                    entity_id=record.id,
-                    user_id=user_id,
-                    field_changed=field,
-                    old_value=old_val,
-                    new_value=new_val
-                )
+                     entity_type="AchievementRecord",
+                     entity_id=record.id,
+                     user_id=user_id,
+                     field_changed=field,
+                     old_value=old_val,
+                     new_value=new_val
+                     )
                 db.session.add(log)
                 setattr(record, field, data[field])
-
-    record.updated_by_id = user_id
-    db.session.commit()
-    return jsonify({"message": "Registro de logro actualizado e historizado"}), 200
-    
+                
+                record.updated_by_id = user_id
+                db.session.commit()
+                
+                return jsonify({"message": "Registro de logro actualizado e historizado"}), 200
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
 
 @api.route('/achievements/<int:id>', methods=['DELETE'])
 @jwt_required()
-@manager_required # <--- El candado de seguridad para el Gerente
+@manager_required
 def delete_achievement(id):
     achievement = AchievementRecord.query.get(id)
-    
     if not achievement:
         return jsonify({"message": "Registro de logro no encontrado"}), 404
-
+    
     try:
-        # Antes de borrar, podríamos querer guardar una referencia de qué se borró
-        # Pero por ahora, cumplimos con la orden de eliminación total por el Gerente.
         db.session.delete(achievement)
         db.session.commit()
-        
         return jsonify({"message": "Logro eliminado permanentemente por el Gerente"}), 200
-        
+    
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": f"Error al eliminar el registro: {str(e)}"}), 500
