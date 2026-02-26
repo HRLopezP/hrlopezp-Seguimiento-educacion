@@ -2005,7 +2005,7 @@ def get_project_progress(project_id):
     summary = []
 
     for ind in indicators:
-        # Usamos outerjoin para que si no hay actividades, el indicador no desaparezca
+        # PROFE: Unificamos todo en una sola consulta antes del .first()
         total_achieved = db.session.query(
             func.sum(AchievementRecord.men_reached).label("men"),
             func.sum(AchievementRecord.women_reached).label("women"),
@@ -2013,9 +2013,11 @@ def get_project_progress(project_id):
         ).select_from(Indicator)\
          .outerjoin(Activity, Activity.indicator_id == Indicator.id_indicator)\
          .outerjoin(AchievementRecord, AchievementRecord.activity_id == Activity.id_activity)\
-         .filter(Indicator.id_indicator == ind.id_indicator).first()\
-         .filter(Activity.status == ActivityStatus.COMPLETADA).first()
+         .filter(Indicator.id_indicator == ind.id_indicator)\
+         .filter(Activity.status == ActivityStatus.COMPLETADA)\
+         .first() # <-- El .first() va AL FINAL de todos los filtros
 
+        # Extraemos los valores con seguridad
         men = total_achieved.men or 0
         women = total_achieved.women or 0
         disability = total_achieved.disability or 0
@@ -2036,7 +2038,6 @@ def get_project_progress(project_id):
                 "disability": disability,
                 "total": reached_total
             },
-            # Emerald Green Progress
             "progress_percentage": round((reached_total / ind.target_total * 100), 2) if ind.target_total > 0 else 0
         })
 

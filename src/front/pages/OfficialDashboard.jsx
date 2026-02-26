@@ -5,9 +5,14 @@ import ExecutionCalendar from "../components/ExecutionCalendar";
 import ActivityWizard from "../components/ActivityWizard";
 import DayManagerModal from "../components/DayManagerModal";
 import AchievementTracker from "../components/AchievementTracker";
-import { toast } from "sonner"; // <--- Corregido a Sonner
+import ProgressSummary from "../components/ProgressSummary";
+import { toast } from "sonner";
 
 export const OfficialDashboard = () => {
+    const [activeTab, setActiveTab] = useState('planning'); // 'planning' o 'summary'
+    const [summaryData, setSummaryData] = useState([]);
+    const [loadingSummary, setLoadingSummary] = useState(false);
+
     const [activities, setActivities] = useState([]);
     const [context, setContext] = useState(null);
     const [selectedDate, setSelectedDate] = useState(null);
@@ -69,22 +74,71 @@ export const OfficialDashboard = () => {
         setShowTracker(true);      // Abrimos el tracker de logros
     };
 
+    const loadProgressSummary = async () => {
+        if (!context?.proyectoId) return;
+        setLoadingSummary(true);
+        const res = await apiFetch(`/project/${context.proyectoId}/progress-summary`);
+        if (res && res.ok) {
+            const data = await res.json();
+            setSummaryData(data);
+        }
+        setLoadingSummary(false);
+    };
+
+    // Efecto para recargar el resumen si cambiamos a esa pestaña
+    useEffect(() => {
+        if (activeTab === 'summary') {
+            loadProgressSummary();
+        }
+    }, [activeTab, context]);
+
     return (
         <div className="project-detail-main-container fade-in">
             <div className="container py-4">
                 <header className="mb-4">
                     <h2 className="text-oxford-dynamic fw-bold">Panel de Planificación</h2>
+                    {/* Switch de Navegación Elegante */}
+                    <div className="btn-group shadow-sm" style={{ borderRadius: '10px', overflow: 'hidden' }}>
+                        <button
+                            className={`btn ${activeTab === 'planning' ? 'btn-oxford' : 'btn-light'}`}
+                            onClick={() => setActiveTab('planning')}
+                            style={activeTab === 'planning' ? { backgroundColor: '#1B263B', color: 'white' } : {}}
+                        >
+                            <i className="fas fa-calendar-alt me-2"></i>Planificación
+                        </button>
+                        <button
+                            className={`btn ${activeTab === 'summary' ? 'btn-oxford' : 'btn-light'}`}
+                            onClick={() => setActiveTab('summary')}
+                            style={activeTab === 'summary' ? { backgroundColor: '#1B263B', color: 'white' } : {}}
+                        >
+                            <i className="fas fa-chart-pie me-2"></i>Seguimiento
+                        </button>
+                    </div>
                 </header>
 
                 <ContextSelector onContextChange={handleContextChange} />
 
                 {context ? (
                     <div className="mt-4">
-                        <ExecutionCalendar
-                            onDateSelect={handleDateSelect}
-                            onActivityClick={(act) => handleDateSelect(act.period?.start)} // <--- PROFE: Unificamos a handleDateSelect
-                            activities={activities}
-                        />
+                        {activeTab === 'planning' ? (
+                            <ExecutionCalendar
+                                onDateSelect={handleDateSelect}
+                                onActivityClick={(act) => handleDateSelect(act.period?.start)}
+                                activities={activities}
+                            />
+                        ) : (
+                            /* AQUÍ ENTRA TU NUEVO COMPONENTE */
+                            <div className="fade-in">
+                                {loadingSummary ? (
+                                    <div className="text-center py-5">
+                                        <div className="spinner-border text-emerald" role="status"></div>
+                                        <p className="mt-2 text-muted">Calculando avances en tiempo real...</p>
+                                    </div>
+                                ) : (
+                                    <ProgressSummary data={summaryData} />
+                                )}
+                            </div>
+                        )}
 
                         {/* MODAL 1: GESTOR DEL DÍA (DayManagerModal) */}
                         {showDayManager && (
