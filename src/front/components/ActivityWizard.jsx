@@ -12,6 +12,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
     const [showCustomInput, setShowCustomInput] = useState(false);
     const [activeResult, setActiveResult] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
+    const [loadingLugares, setLoadingLugares] = useState(false);
 
     const [form, setForm] = useState({
         indicator_id: '',
@@ -88,27 +89,62 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
         if (proyectoId) loadInitialData();
     }, [proyectoId, initialData, selectedDate]);
 
-    const cargarLugares = async (indicatorId) => {
+    const cargarLugares = async (indicatorId, indicadorDirecto = null) => {
         try {
+            setLoadingLugares(true);
+            setLugares([]);
+
+            // 1. Obtenemos el indicador
+            const ind = indicadorDirecto || indicadores.find(i => String(i.id) === String(indicatorId));
+
+            // 2. IMPORTANTE: Extraemos los NOMBRES de las provincias que tienen meta > 0
+            // (Filtramos los que tienen target 0 para no mostrar provincias sin planificación real)
+            const provinciasPermitidasNombres = ind?.goals_by_province
+                ?.filter(g => g.target > 0)
+                ?.map(g => g.province_name.trim().toLowerCase()) || [];
+
             const res = await apiFetch(`/official/indicators/${indicatorId}/locations`);
-            if (res?.ok) setLugares(await res.json());
-        } catch (error) { console.error("Error lugares:", error); }
+            if (res?.ok) {
+                const todasLasUbicaciones = await res.json();
+
+                // 3. El Filtro Corregido:
+                // Comparamos el nombre de la provincia de la ubicación con nuestra lista de permitidas
+                const ubicacionesFiltradas = todasLasUbicaciones.filter(loc => {
+                    const nombreLugar = loc.province_name?.trim().toLowerCase();
+                    return provinciasPermitidasNombres.includes(nombreLugar);
+                });
+
+                setLugares(ubicacionesFiltradas);
+            }
+        } catch (error) {
+            console.error("Error en cargarLugares:", error);
+        } finally {
+            setLoadingLugares(false);
+        }
     };
 
     const selectIndicator = (ind) => {
-        setForm({
-            ...form,
+        setForm(prev => ({
+            ...prev,
             indicator_id: ind.id,
+            location_id: '',
             project_competence_id: ind.project_competence_id || ''
-        });
-        cargarLugares(ind.id);
+        }));
+        // Llamamos a la función pasándole el indicador que ya tenemos
+        cargarLugares(ind.id, ind);
     };
 
 
     const handleIndicatorChange = (e) => {
         const id = e.target.value;
         const sel = indicadores.find(i => String(i.id) === String(id));
-        setForm({ ...form, indicator_id: id, project_competence_id: sel?.project_competence_id || '' });
+        setLugares([]);
+        setForm({
+            ...form,
+            indicator_id: id,
+            location_id: '', // Reset
+            project_competence_id: sel?.project_competence_id || ''
+        });
         if (id) cargarLugares(id);
     };
 
@@ -226,15 +262,34 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
                     </div>
                     {/* Ubicación*/}
                     <div className="col-md-12">
-                        <label className="form-label fw-bold small text-oxford">UBICACIÓN (Prov-Mun-Parroquia)</label>
-                        <select className="form-select border-emerald" value={form.location_id} onChange={(e) => setForm({ ...form, location_id: e.target.value })} disabled={!form.indicator_id}>
-                            <option value="">{form.indicator_id ? "Seleccione ubicación..." : "Seleccione primero un indicador"}</option>
+                        <label className="form-label fw-bold small text-oxford">
+                            UBICACIÓN (Solo provincias asignadas al indicador)
+                        </label>
+                        <select
+                            className="form-select border-emerald"
+                            value={form.location_id}
+                            onChange={(e) => setForm({ ...form, location_id: e.target.value })}
+                            disabled={!form.indicator_id || loadingLugares || lugares.length === 0}
+                        >
+                            <option value="">
+                                {!form.indicator_id
+                                    ? "Seleccione primero un indicador"
+                                    : loadingLugares
+                                        ? "Cargando ubicaciones válidas..." // Mensaje mientras la API responde
+                                        : "Seleccione ubicación..."}
+                            </option>
                             {lugares.map(loc => (
                                 <option key={loc.id_location} value={loc.id_location}>
                                     {loc.province_name} - {loc.municipality_name} - {loc.parish_name}
                                 </option>
                             ))}
                         </select>
+                        {form.indicator_id && !loadingLugares && lugares.length === 0 && (
+                            <div className="form-text text-danger small animate__animated animate__fadeIn">
+                                <i className="fas fa-exclamation-triangle me-1"></i>
+                                Este indicador no tiene metas geográficas asignadas en su planificación.
+                            </div>
+                        )}
                     </div>
                     {/* Actividades Multi-selección */}
                     <div className="col-12">
