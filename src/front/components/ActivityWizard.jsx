@@ -10,7 +10,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
     const [selectedActivities, setSelectedActivities] = useState([]);
     const [customActivity, setCustomActivity] = useState("");
     const [showCustomInput, setShowCustomInput] = useState(false);
-    const [activeResult, setActiveResult] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [loadingLugares, setLoadingLugares] = useState(false);
     const [gapData, setGapData] = useState(null);
@@ -59,7 +58,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
     useEffect(() => {
         const loadInitialData = async () => {
             try {
-                // 1. Cargar indicadores primero
                 const resInd = await apiFetch(`/official/projects/${proyectoId}/indicators`);
                 let listaIndicadores = [];
                 if (resInd?.ok) {
@@ -68,8 +66,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                 }
 
                 if (initialData) {
-                    // 2. Si estamos editando, primero disparamos la carga de lugares
-                    // y pasamos el indicador directamente de la lista que acabamos de bajar
                     const indSeleccionado = listaIndicadores.find(i => String(i.id) === String(initialData.indicator_id));
 
                     if (initialData.indicator_id) {
@@ -80,8 +76,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                         setSelectedActivities(initialData.description.split(", "));
                     }
 
-                    // 3. AHORA SÍ seteamos el form. Como cargarLugares ya terminó (por el await),
-                    // el select ya tendrá las opciones listas para marcar la ubicación correcta.
                     setForm({
                         indicator_id: initialData.indicator_id || '',
                         location_id: initialData.location_id || '', // <--- Ahora sí encontrará el ID en la lista
@@ -99,13 +93,12 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
             }
         };
         if (proyectoId) loadInitialData();
-    }, [proyectoId, initialData]); // Quitamos selectedDate de aquí para evitar recargas infinitas
-    
+    }, [proyectoId, initialData]);
+
 
     const cargarLugares = async (indicatorId, indicadorDirecto = null) => {
         try {
             setLoadingLugares(true);
-            // 1. Obtenemos el indicador (buscamos en la lista que ya tenemos)
             const ind = indicadorDirecto || indicadores.find(i => String(i.id) === String(indicatorId));
 
             const provinciasPermitidasNombres = ind?.goals_by_province
@@ -121,7 +114,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                 });
 
                 setLugares(ubicacionesFiltradas);
-                return ubicacionesFiltradas; // <--- AGREGAMOS ESTO: retornamos la lista
+                return ubicacionesFiltradas;
             }
         } catch (error) {
             console.error("Error en cargarLugares:", error);
@@ -139,31 +132,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
             project_competence_id: ind.project_competence_id || ''
         }));
         cargarLugares(ind.id, ind);
-    };
-
-    const cargarCatalogoFiltrado = async (competenceId) => {
-        try {
-            const queryParam = competenceId ? `?competence_id=${competenceId}` : "";
-            const res = await apiFetch(`/activity-catalog${queryParam}`);
-            if (res?.ok) {
-                const data = await res.json();
-                setCatalogo(data);
-            }
-        } catch (error) {
-            console.error("Error al refrescar el catálogo:", error);
-        }
-    };
-
-    const handleIndicatorChange = (e) => {
-        const id = e.target.value;
-        const sel = indicadores.find(i => String(i.id) === String(id));
-        setForm(prev => ({
-            ...prev,
-            indicator_id: id,
-            location_id: '',
-            project_competence_id: sel?.project_competence_id || ''
-        }));
-        if (id) cargarLugares(id);
     };
 
     const handleSave = async () => {
@@ -201,11 +169,9 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
             if (form.indicator_id && form.location_id) {
                 setLoadingGap(true);
                 try {
-                    // Usamos el nuevo parámetro que creamos en el backend
                     const res = await apiFetch(`/project/${proyectoId}/progress-summary?location_id=${form.location_id}`);
                     if (res?.ok) {
                         const data = await res.json();
-                        // Buscamos la info específica de este indicador en el array que devuelve el summary
                         const currentGap = data.find(d => String(d.indicator_id) === String(form.indicator_id));
                         setGapData(currentGap);
                     }
@@ -223,27 +189,24 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
 
 
     useEffect(() => {
-        if (form.indicator_id) {
-            // Buscamos el objeto indicador completo para obtener su competencia
-            const indicadorSeleccionado = indicadores.find(i => String(i.id) === String(form.indicator_id));
-
-            if (indicadorSeleccionado) {
-                // Llamamos a la carga del catálogo con el ID que añadimos en el serialize
-                cargarCatalogoFiltrado(indicadorSeleccionado.competence_id);
+        const fetchCatalogo = async () => {
+            let competenceId = null;
+            if (form.indicator_id) {
+                const ind = indicadores.find(i => String(i.id) === String(form.indicator_id));
+                competenceId = ind?.competence_id;
             }
-        } else {
-            // Si no hay indicador seleccionado, cargamos solo las generales
-            cargarCatalogoFiltrado(null);
-        }
-    }, [form.indicator_id, indicadores]);
-
-    useEffect(() => {
-        // Si hay indicadores cargados...
-        if (indicadores.length > 0) {
-            const indicadorSeleccionado = indicadores.find(i => String(i.id) === String(form.indicator_id));
-            // Si encontramos el indicador, pasamos su competence_id, si no, pasamos null (Generales)
-            cargarCatalogoFiltrado(indicadorSeleccionado?.competence_id || null);
-        }
+            try {
+                const queryParam = competenceId ? `?competence_id=${competenceId}` : "";
+                const res = await apiFetch(`/activity-catalog${queryParam}`);
+                if (res?.ok) {
+                    const data = await res.json();
+                    setCatalogo(data);
+                }
+            } catch (error) {
+                console.error("Error al refrescar el catálogo:", error);
+            }
+        };
+        fetchCatalogo();
     }, [form.indicator_id, indicadores]);
 
 
