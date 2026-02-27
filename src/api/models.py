@@ -551,16 +551,25 @@ class Activity(db.Model):
         foreign_keys=[updated_by_id], 
         back_populates="activities_updated" 
     )
+
+    location: Mapped["Location"] = relationship()
     
     def serialize(self):
         total_men_reached = sum((rec.men_reached or 0) for rec in self.achievements)
         total_women_reached = sum((rec.women_reached or 0) for rec in self.achievements)
+
+        p_name = self.location.province_ref.name if self.location and self.location.province_ref else None
+        m_name = self.location.municipality_ref.name if self.location and self.location.municipality_ref else None
+        pa_name = self.location.parish_ref.name if self.location and self.location.parish_ref else None
         
         return {
             "id": self.id_activity,
             "description": self.description,
             "indicator_id": self.indicator_id,
             "location_id": self.location_id,
+            "province_name": p_name,
+            "municipality_name": m_name,
+            "parish_name": pa_name,
             "project_id": self.project_id,
             "project_competence_id": self.project_competence_id,
             "period": {

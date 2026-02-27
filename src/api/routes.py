@@ -13,6 +13,7 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from api.extensions import mail
 from sqlalchemy import func, or_
+from sqlalchemy.orm import joinedload
 import os
 from .CloudinaryService import CloudinaryService
 
@@ -2345,10 +2346,14 @@ def get_indicator_locations(indicator_id):
 @jwt_required()
 def get_activities():
     user_id = get_jwt_identity()
-    # Traemos las actividades creadas por este oficial
-    activities = Activity.query.filter_by(created_by_id=user_id).all()
+    
+    # Usamos joinedload para traer la ubicación y sus referencias de una vez
+    activities = Activity.query.filter_by(created_by_id=user_id)\
+        .options(
+            joinedload(Activity.location).joinedload(Location.province_ref),
+            joinedload(Activity.location).joinedload(Location.municipality_ref)
+        ).all()
 
-    # Usamos el método serialize() que ya tienes en tu modelo
     return jsonify([act.serialize() for act in activities]), 200
 
 
