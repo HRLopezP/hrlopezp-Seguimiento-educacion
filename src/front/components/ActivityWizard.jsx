@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { apiFetch } from "../../utils/api";
 import Swal from 'sweetalert2';
 
+const gapCache = {};
+
 const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSaveSuccess }) => {
     const [indicadores, setIndicadores] = useState([]);
     const [lugares, setLugares] = useState([]);
@@ -58,7 +60,18 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
     useEffect(() => {
         const loadInitialData = async () => {
             try {
-                const resInd = await apiFetch(`/official/projects/${proyectoId}/indicators`);
+                setLoading(true);
+
+                const promesas = [apiFetch(`/official/projects/${proyectoId}/indicators`)];
+
+                if (initialData?.indicator_id) {
+                    promesas.push(apiFetch(`/official/indicators/${initialData.indicator_id}/locations`));
+                }
+
+                const respuestas = await Promise.all(promesas);
+                const resInd = respuestas[0];
+                const resLoc = respuestas[1];
+
                 let listaIndicadores = [];
                 if (resInd?.ok) {
                     listaIndicadores = await resInd.json();
@@ -66,19 +79,23 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                 }
 
                 if (initialData) {
-                    const indSeleccionado = listaIndicadores.find(i => String(i.id) === String(initialData.indicator_id));
+                    if (resLoc?.ok) {
+                        const todasLasLoc = await resLoc.json();
+                        const indSeleccionado = listaIndicadores.find(i => String(i.id) === String(initialData.indicator_id));
 
-                    if (initialData.indicator_id) {
-                        await cargarLugares(initialData.indicator_id, indSeleccionado);
-                    }
+                        const provinciasPermitidas = indSeleccionado?.goals_by_province
+                            ?.filter(g => g.target > 0)
+                            ?.map(g => g.province_name.trim().toLowerCase()) || [];
 
-                    if (initialData.description) {
-                        setSelectedActivities(initialData.description.split(", "));
+                        const filtradas = todasLasLoc.filter(loc =>
+                            provinciasPermitidas.includes(loc.province_name?.trim().toLowerCase())
+                        );
+                        setLugares(filtradas);
                     }
 
                     setForm({
                         indicator_id: initialData.indicator_id || '',
-                        location_id: initialData.location_id || '', // <--- Ahora sí encontrará el ID en la lista
+                        location_id: initialData.location_id || '',
                         planned_total: initialData.planned?.total || 0,
                         planned_men: initialData.planned?.men || 0,
                         planned_women: initialData.planned?.women || 0,
@@ -87,11 +104,18 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                         project_id: proyectoId,
                         project_competence_id: initialData.project_competence_id || ''
                     });
+
+                    if (initialData.description) {
+                        setSelectedActivities(initialData.description.split(", "));
+                    }
                 }
             } catch (err) {
-                console.error("Error inicializando Wizard:", err);
+                console.error("Error en carga inicial:", err);
+            } finally {
+                setLoading(false);
             }
         };
+
         if (proyectoId) loadInitialData();
     }, [proyectoId, initialData]);
 
@@ -136,6 +160,12 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
 
     const handleSave = async () => {
         const finalDescription = selectedActivities.join(", ");
+
+        if (parseInt(form.planned_total) <= 0) {
+            Swal.fire('Atención', 'Debes asignar al menos un beneficiario (hombre o mujer) para guardar.', 'warning');
+            return;
+        }
+
         if (!form.indicator_id || !form.location_id || selectedActivities.length === 0) {
             Swal.fire('Faltan datos', 'Completa los campos obligatorios.', 'warning');
             return;
@@ -145,70 +175,116 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
         try {
             const url = initialData ? `/official/activities/${initialData.id}` : "/official/activities";
             const method = initialData ? "PATCH" : "POST";
+
             const res = await apiFetch(url, {
                 method,
                 body: JSON.stringify({ ...form, description: finalDescription })
             });
 
             if (res?.ok) {
-                Swal.fire('¡Éxito!', 'Planificación guardada.', 'success');
+                // ✨ LIMPIEZA DE CACHÉ: Obligamos a recalcular brechas en la siguiente consulta
+                delete gapCache[form.location_id];
+
+                // Opcional: Si tienes una caché global de indicadores, también podrías limpiarla aquí
+
+                await Swal.fire('¡Éxito!', 'Planificación guardada correctamente.', 'success');
+
+                // Resetear estados críticos antes de salir
+                setSelectedActivities([]);
+
                 if (typeof onSaveSuccess === 'function') {
                     onSaveSuccess();
                 } else {
                     onClose();
                 }
-                return;
+            } else {
+                // 💡 MEJORA: Intentar capturar el mensaje de error del servidor
+                const errorData = await res.json().catch(() => ({}));
+                Swal.fire('Error', errorData.message || 'No se pudo procesar la solicitud.', 'error');
             }
         } catch (error) {
-            Swal.fire('Error', 'No se pudo guardar.', 'error');
-        } finally { setLoading(false); }
+            console.error("Save Error:", error);
+            Swal.fire('Error', 'Error de conexión con el servidor.', 'error');
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
+        const controller = new AbortController();
+
         const fetchGap = async () => {
+            // Solo actuamos si tenemos indicador y lugar
             if (form.indicator_id && form.location_id) {
+
+                // --- ESTRATEGIA DE CACHÉ ---
+                // ¿Ya consultamos esta ubicación antes?
+                if (gapCache[form.location_id]) {
+                    const data = gapCache[form.location_id];
+                    // Buscamos el indicador específico dentro de los datos guardados
+                    const currentGap = data.find(d => String(d.indicator_id) === String(form.indicator_id));
+                    setGapData(currentGap);
+                    return; // ¡LISTO! Salimos sin ir al servidor.
+                }
+
                 setLoadingGap(true);
                 try {
-                    const res = await apiFetch(`/project/${proyectoId}/progress-summary?location_id=${form.location_id}`);
+                    const res = await apiFetch(
+                        `/project/${proyectoId}/progress-summary?location_id=${form.location_id}`,
+                        { signal: controller.signal }
+                    );
+
                     if (res?.ok) {
                         const data = await res.json();
+
+                        // Guardamos en nuestra "memoria fotográfica"
+                        gapCache[form.location_id] = data;
+
                         const currentGap = data.find(d => String(d.indicator_id) === String(form.indicator_id));
                         setGapData(currentGap);
                     }
                 } catch (err) {
-                    console.error("Error cargando brecha:", err);
+                    if (err.name !== 'AbortError') {
+                        console.error("Error real cargando brecha:", err);
+                    }
                 } finally {
+                    // AJUSTE VITAL: Siempre quitamos el loading para que no se quede pegado
                     setLoadingGap(false);
                 }
             } else {
                 setGapData(null);
             }
         };
+
         fetchGap();
+        return () => controller.abort();
     }, [form.indicator_id, form.location_id, proyectoId]);
 
 
     useEffect(() => {
         const fetchCatalogo = async () => {
-            let competenceId = null;
-            if (form.indicator_id) {
-                const ind = indicadores.find(i => String(i.id) === String(form.indicator_id));
-                competenceId = ind?.competence_id;
-            }
+            if (!form.indicator_id) return;
+
+            const ind = indicadores.find(i => String(i.id) === String(form.indicator_id));
+
+            // Usamos el ID de la competencia maestra para el catálogo
+            const compId = ind?.competence_id;
+
+            if (!compId) return;
+
             try {
-                const queryParam = competenceId ? `?competence_id=${competenceId}` : "";
-                const res = await apiFetch(`/activity-catalog${queryParam}`);
+                const res = await apiFetch(`/activity-catalog?competence_id=${compId}`);
                 if (res?.ok) {
                     const data = await res.json();
                     setCatalogo(data);
                 }
             } catch (error) {
-                console.error("Error al refrescar el catálogo:", error);
+                console.error("Error al cargar catálogo:", error);
             }
         };
-        fetchCatalogo();
-    }, [form.indicator_id, indicadores]);
 
+        fetchCatalogo();
+    }, [form.indicator_id]); // Solo se ejecuta cuando cambias el indicador
 
     return (
         <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '15px' }}>
@@ -369,7 +445,12 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                         <input type="date" className="form-control" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} />
                     </div>
                     {/* PANEL DE BRECHA PROFESIONAL */}
-                    {gapData && (
+                    {loadingGap ? (
+                        <div className="text-center p-3">
+                            <div className="spinner-border spinner-border-sm text-emerald" role="status"></div>
+                            <span className="ms-2 small">Calculando brecha...</span>
+                        </div>
+                    ) : gapData && (
                         <div className="mt-3 animate__animated animate__fadeIn">
                             <div className="card border-0 shadow-sm overflow-hidden" style={{ borderRadius: '12px' }}>
                                 <div className="bg-emerald-light p-2 border-start border-4 border-emerald">
@@ -426,11 +507,37 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                             <div className="row g-2">
                                 <div className="col-md-4">
                                     <label className="small fw-bold">Hombres</label>
-                                    <input type="number" className="form-control" value={form.planned_men} onChange={(e) => setForm({ ...form, planned_men: e.target.value })} />
+                                    <input
+                                        type="number"
+                                        className="form-control"
+                                        value={form.planned_men === 0 ? '' : form.planned_men}
+                                        onChange={(e) => {
+                                            const valRaw = e.target.value;
+                                            const valNum = parseInt(valRaw) || 0;
+                                            setForm({
+                                                ...form,
+                                                planned_men: valRaw === '' ? 0 : valNum,
+                                                planned_total: (valRaw === '' ? 0 : valNum) + (parseInt(form.planned_women) || 0)
+                                            });
+                                        }} />
                                 </div>
                                 <div className="col-md-4">
                                     <label className="small fw-bold">Mujeres</label>
-                                    <input type="number" className="form-control" value={form.planned_women} onChange={(e) => setForm({ ...form, planned_women: e.target.value })} />
+                                    <input
+                                        type="number"
+                                        className="form-control"
+                                        value={form.planned_women === 0 ? '' : form.planned_women}
+                                        onChange={(e) => {
+                                            const valRaw = e.target.value;
+                                            const valNum = parseInt(valRaw) || 0;
+
+                                            setForm({
+                                                ...form,
+                                                planned_women: valRaw === '' ? 0 : valNum,
+                                                planned_total: (valRaw === '' ? 0 : valNum) + (parseInt(form.planned_men) || 0)
+                                            });
+                                        }}
+                                    />
                                 </div>
                                 <div className="col-md-4">
                                     <label className="small fw-bold text-muted">Total (Auto)</label>

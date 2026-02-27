@@ -2040,71 +2040,63 @@ def delete_achievement(id):
 def get_project_progress(project_id):
     location_id = request.args.get('location_id')
     
+    # 1. Obtener la provincia una sola vez
+    target_province_id = None
+    if location_id and location_id != 'undefined':
+        loc = Location.query.get(location_id)
+        if loc: target_province_id = loc.province_id
+
+    # 2. Traer todos los indicadores del proyecto
     indicators = Indicator.query.filter_by(project_id=project_id).all()
+    indicator_ids = [ind.id_indicator for ind in indicators]
+
+    # 3. CONSULTA OPTIMIZADA: Sumamos TODO de una sola vez agrupado por indicador
+    query_achieved = db.session.query(
+        Indicator.id_indicator,
+        func.sum(AchievementRecord.men_reached).label("men"),
+        func.sum(AchievementRecord.women_reached).label("women")
+    ).select_from(Indicator)\
+     .outerjoin(Activity, Activity.indicator_id == Indicator.id_indicator)\
+     .outerjoin(AchievementRecord, AchievementRecord.activity_id == Activity.id_activity)\
+     .filter(Indicator.id_indicator.in_(indicator_ids))\
+     .filter(Activity.status == ActivityStatus.COMPLETADA)
+
+    if target_province_id:
+        query_achieved = query_achieved.join(Location, Activity.location_id == Location.id_location)\
+                                       .filter(Location.province_id == target_province_id)
+    
+    # Agrupamos por ID para que la DB nos de los totales por indicador
+    achieved_totals = {res.id_indicator: res for res in query_achieved.group_by(Indicator.id_indicator).all()}
+
+    # 4. Obtener metas por provincia de una sola vez
+    goals_dict = {}
+    if target_province_id:
+        goals = IndicatorLocationGoal.query.filter(
+            IndicatorLocationGoal.indicator_id.in_(indicator_ids),
+            IndicatorLocationGoal.province_id == target_province_id
+        ).all()
+        goals_dict = {g.indicator_id: g for g in goals}
+
+    # 5. Armar el resumen (ahora solo es procesar datos en memoria, no más DB)
     summary = []
-
     for ind in indicators:
-        # 1. Calculamos lo alcanzado (Suma de AchievementRecord)
-        query = db.session.query(
-            func.sum(AchievementRecord.men_reached).label("men"),
-            func.sum(AchievementRecord.women_reached).label("women")
-        ).select_from(Indicator)\
-         .outerjoin(Activity, Activity.indicator_id == Indicator.id_indicator)\
-         .outerjoin(AchievementRecord, AchievementRecord.activity_id == Activity.id_activity)\
-         .filter(Indicator.id_indicator == ind.id_indicator)\
-         .filter(Activity.status == ActivityStatus.COMPLETADA)
+        res_achieved = achieved_totals.get(ind.id_indicator)
+        men_done = res_achieved.men if res_achieved else 0
+        women_done = res_achieved.women if res_achieved else 0
+        
+        goal = goals_dict.get(ind.id_indicator) if target_province_id else None
+        t_total = goal.total_target if goal else (ind.target_total or 0)
+        t_men = goal.men if goal else (ind.target_men or 0)
+        t_women = goal.women if goal else (ind.target_women or 0)
 
-        # Filtramos por parroquia/municipio específico si viene en la URL
-        if location_id and location_id != 'undefined':
-            query = query.filter(Activity.location_id == location_id)
-
-        res_achieved = query.first()
-        men_done = res_achieved.men or 0
-        women_done = res_achieved.women or 0
-        total_done = men_done + women_done
-
-        # 2. Determinamos la meta (Target)
-        # Por defecto: Meta global del indicador
-        target_total = ind.target_total or 0
-        target_men = ind.target_men or 0
-        target_women = ind.target_women or 0
-
-        # Si hay ubicación, buscamos la meta por PROVINCIA para este INDICADOR
-        if location_id and location_id != 'undefined':
-            loc = Location.query.get(location_id)
-            if loc:
-                # Usamos el modelo que nos mostraste: IndicatorLocationGoal
-                goal = IndicatorLocationGoal.query.filter_by(
-                    indicator_id=ind.id_indicator,
-                    province_id=loc.province_id
-                ).first()
-                
-                if goal:
-                    # OJO: Aquí usamos tus nombres: total_target, men, women
-                    target_total = goal.total_target or 0
-                    target_men = goal.men or 0
-                    target_women = goal.women or 0
-                else:
-                    # Si no hay meta asignada a esa provincia, es 0 para ese desglose
-                    target_total = target_men = target_women = 0
-
-        # 3. Calculamos la brecha (Gap) y armamos la respuesta
         summary.append({
             "indicator_id": ind.id_indicator,
-            "target": {
-                "total": target_total, 
-                "men": target_men, 
-                "women": target_women
-            },
-            "achieved": {
-                "men": men_done, 
-                "women": women_done, 
-                "total": total_done
-            },
+            "target": {"total": t_total, "men": t_men, "women": t_women},
+            "achieved": {"men": men_done, "women": women_done, "total": men_done + women_done},
             "gap": {
-                "men": max(0, target_men - men_done),
-                "women": max(0, target_women - women_done),
-                "total": max(0, target_total - total_done)
+                "men": max(0, t_men - men_done),
+                "women": max(0, t_women - women_done),
+                "total": max(0, t_total - (men_done + women_done))
             }
         })
 
