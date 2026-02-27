@@ -170,9 +170,11 @@ export const OfficialDashboard = () => {
                                         onClose={() => {
                                             setShowWizard(false);
                                             setSelectedActivity(null);
+                                        }}
+                                        onSaveSuccess={() => {
+                                            setShowWizard(false);
+                                            setSelectedActivity(null);
                                             loadActivities();
-                                            // Opcional: Volver al gestor del día para ver los cambios
-                                            handleDateSelect(selectedDate);
                                         }}
                                     />
                                 </div>

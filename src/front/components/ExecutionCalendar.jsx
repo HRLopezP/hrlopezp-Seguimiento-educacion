@@ -3,20 +3,24 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import bootstrap5Plugin from '@fullcalendar/bootstrap5';
-import 'bootstrap-icons/font/bootstrap-icons.css'; 
+import 'bootstrap-icons/font/bootstrap-icons.css';
 
 const ExecutionCalendar = ({ onDateSelect, activities, onActivityClick }) => {
-    
-    // Mapeamos tus actividades al formato de FullCalendar
-    const events = activities.map(act => ({
-        id: act.id,
-        title: act.description,
-        start: act.period.start,
-        end: act.period.end,
-        backgroundColor: act.status === 'Planificada' ? '#334155' : '#10b981', 
-        borderColor: 'transparent',
-        extendedProps: { ...act }
-    }));
+
+    const events = activities.map(act => {
+        const endDate = new Date(act.period.end);
+        endDate.setDate(endDate.getDate() + 1);
+
+        return {
+            id: act.id,
+            title: act.description,
+            start: act.period.start,
+            end: endDate.toISOString().split('T')[0],
+            backgroundColor: act.status === 'Planificada' ? '#334155' : '#10b981',
+            borderColor: 'transparent',
+            extendedProps: { ...act }
+        };
+    });
 
     return (
         <div className="card shadow-sm border-0 p-3 bg-white rounded-4">

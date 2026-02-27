@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { apiFetch } from "../../utils/api";
 import Swal from 'sweetalert2';
 
-const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
+const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSaveSuccess }) => {
     const [indicadores, setIndicadores] = useState([]);
     const [lugares, setLugares] = useState([]);
     const [catalogo, setCatalogo] = useState([]);
@@ -173,7 +173,12 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
 
             if (res?.ok) {
                 Swal.fire('¡Éxito!', 'Planificación guardada.', 'success');
-                onClose();
+                if (typeof onSaveSuccess === 'function') {
+                    onSaveSuccess();
+                } else {
+                    onClose();
+                }
+                return;
             }
         } catch (error) {
             Swal.fire('Error', 'No se pudo guardar.', 'error');
