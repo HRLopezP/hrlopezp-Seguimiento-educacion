@@ -59,12 +59,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
     useEffect(() => {
         const loadInitialData = async () => {
             try {
-                const [resCat, resInd] = await Promise.all([
-                    apiFetch("/activity-catalog"),
-                    apiFetch(`/official/projects/${proyectoId}/indicators`)
-                ]);
-
-                if (resCat?.ok) setCatalogo(await resCat.json());
+                const resInd = await apiFetch(`/official/projects/${proyectoId}/indicators`);
                 if (resInd?.ok) setIndicadores(await resInd.json());
 
                 if (initialData) {
@@ -132,21 +127,31 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
             location_id: '',
             project_competence_id: ind.project_competence_id || ''
         }));
-        // Llamamos a la función pasándole el indicador que ya tenemos
         cargarLugares(ind.id, ind);
     };
 
+    const cargarCatalogoFiltrado = async (competenceId) => {
+        try {
+            const queryParam = competenceId ? `?competence_id=${competenceId}` : "";
+            const res = await apiFetch(`/activity-catalog${queryParam}`);
+            if (res?.ok) {
+                const data = await res.json();
+                setCatalogo(data);
+            }
+        } catch (error) {
+            console.error("Error al refrescar el catálogo:", error);
+        }
+    };
 
     const handleIndicatorChange = (e) => {
         const id = e.target.value;
         const sel = indicadores.find(i => String(i.id) === String(id));
-        setLugares([]);
-        setForm({
-            ...form,
+        setForm(prev => ({
+            ...prev,
             indicator_id: id,
-            location_id: '', // Reset
+            location_id: '',
             project_competence_id: sel?.project_competence_id || ''
-        });
+        }));
         if (id) cargarLugares(id);
     };
 
@@ -199,6 +204,31 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
         };
         fetchGap();
     }, [form.indicator_id, form.location_id, proyectoId]);
+
+
+    useEffect(() => {
+        if (form.indicator_id) {
+            // Buscamos el objeto indicador completo para obtener su competencia
+            const indicadorSeleccionado = indicadores.find(i => String(i.id) === String(form.indicator_id));
+
+            if (indicadorSeleccionado) {
+                // Llamamos a la carga del catálogo con el ID que añadimos en el serialize
+                cargarCatalogoFiltrado(indicadorSeleccionado.competence_id);
+            }
+        } else {
+            // Si no hay indicador seleccionado, cargamos solo las generales
+            cargarCatalogoFiltrado(null);
+        }
+    }, [form.indicator_id, indicadores]);
+
+    useEffect(() => {
+        // Si hay indicadores cargados...
+        if (indicadores.length > 0) {
+            const indicadorSeleccionado = indicadores.find(i => String(i.id) === String(form.indicator_id));
+            // Si encontramos el indicador, pasamos su competence_id, si no, pasamos null (Generales)
+            cargarCatalogoFiltrado(indicadorSeleccionado?.competence_id || null);
+        }
+    }, [form.indicator_id, indicadores]);
 
 
     return (
@@ -350,7 +380,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose }) => {
                             ))}
                         </div>
                     </div>
-
                     {/* SECCIÓN 3: FECHAS (RESTABLECIDAS) */}
                     <div className="col-md-6">
                         <label className="form-label fw-bold small text-oxford">FECHA INICIO</label>

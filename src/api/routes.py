@@ -12,7 +12,7 @@ from flask_mail import Message
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from api.extensions import mail
-from sqlalchemy import func
+from sqlalchemy import func, or_
 import os
 from .CloudinaryService import CloudinaryService
 
@@ -2374,8 +2374,21 @@ def get_project_indicators(project_id):
 @api.route('/activity-catalog', methods=['GET'])
 @jwt_required()
 def get_activity_catalog():
-    """Cualquier oficial puede ver la lista para su Wizard"""
-    activities = ActivityCatalog.query.all()
+    # Leemos el ID de la competencia desde la URL, ej: /activity-catalog?competence_id=1
+    competence_id = request.args.get('competence_id')
+    
+    query = ActivityCatalog.query
+    
+    if competence_id:
+        # Filtramos: (Es de mi competencia) O (Es General/None)
+        query = query.filter(
+            or_(
+                ActivityCatalog.competence_id == competence_id,
+                ActivityCatalog.competence_id == None
+            )
+        )
+    
+    activities = query.all()
     return jsonify([a.serialize() for a in activities]), 200
 
 

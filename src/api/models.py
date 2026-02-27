@@ -370,6 +370,7 @@ class Indicator(db.Model):
         
         return {
             "id": self.id_indicator,
+            "competence_id": comp_temp.id_competence if comp_temp else None,
             "template_id": self.template_id,
             "indicator_code": self.template.code,
             "indicator_name": self.template.name,
