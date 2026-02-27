@@ -59,16 +59,32 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
     useEffect(() => {
         const loadInitialData = async () => {
             try {
+                // 1. Cargar indicadores primero
                 const resInd = await apiFetch(`/official/projects/${proyectoId}/indicators`);
-                if (resInd?.ok) setIndicadores(await resInd.json());
+                let listaIndicadores = [];
+                if (resInd?.ok) {
+                    listaIndicadores = await resInd.json();
+                    setIndicadores(listaIndicadores);
+                }
 
                 if (initialData) {
+                    // 2. Si estamos editando, primero disparamos la carga de lugares
+                    // y pasamos el indicador directamente de la lista que acabamos de bajar
+                    const indSeleccionado = listaIndicadores.find(i => String(i.id) === String(initialData.indicator_id));
+
+                    if (initialData.indicator_id) {
+                        await cargarLugares(initialData.indicator_id, indSeleccionado);
+                    }
+
                     if (initialData.description) {
                         setSelectedActivities(initialData.description.split(", "));
                     }
+
+                    // 3. AHORA SÍ seteamos el form. Como cargarLugares ya terminó (por el await),
+                    // el select ya tendrá las opciones listas para marcar la ubicación correcta.
                     setForm({
                         indicator_id: initialData.indicator_id || '',
-                        location_id: initialData.location_id || '',
+                        location_id: initialData.location_id || '', // <--- Ahora sí encontrará el ID en la lista
                         planned_total: initialData.planned?.total || 0,
                         planned_men: initialData.planned?.men || 0,
                         planned_women: initialData.planned?.women || 0,
@@ -77,25 +93,21 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                         project_id: proyectoId,
                         project_competence_id: initialData.project_competence_id || ''
                     });
-                    if (initialData.indicator_id) cargarLugares(initialData.indicator_id);
                 }
             } catch (err) {
                 console.error("Error inicializando Wizard:", err);
             }
         };
         if (proyectoId) loadInitialData();
-    }, [proyectoId, initialData, selectedDate]);
+    }, [proyectoId, initialData]); // Quitamos selectedDate de aquí para evitar recargas infinitas
+    
 
     const cargarLugares = async (indicatorId, indicadorDirecto = null) => {
         try {
             setLoadingLugares(true);
-            setLugares([]);
-
-            // 1. Obtenemos el indicador
+            // 1. Obtenemos el indicador (buscamos en la lista que ya tenemos)
             const ind = indicadorDirecto || indicadores.find(i => String(i.id) === String(indicatorId));
 
-            // 2. IMPORTANTE: Extraemos los NOMBRES de las provincias que tienen meta > 0
-            // (Filtramos los que tienen target 0 para no mostrar provincias sin planificación real)
             const provinciasPermitidasNombres = ind?.goals_by_province
                 ?.filter(g => g.target > 0)
                 ?.map(g => g.province_name.trim().toLowerCase()) || [];
@@ -103,21 +115,20 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
             const res = await apiFetch(`/official/indicators/${indicatorId}/locations`);
             if (res?.ok) {
                 const todasLasUbicaciones = await res.json();
-
-                // 3. El Filtro Corregido:
-                // Comparamos el nombre de la provincia de la ubicación con nuestra lista de permitidas
                 const ubicacionesFiltradas = todasLasUbicaciones.filter(loc => {
                     const nombreLugar = loc.province_name?.trim().toLowerCase();
                     return provinciasPermitidasNombres.includes(nombreLugar);
                 });
 
                 setLugares(ubicacionesFiltradas);
+                return ubicacionesFiltradas; // <--- AGREGAMOS ESTO: retornamos la lista
             }
         } catch (error) {
             console.error("Error en cargarLugares:", error);
         } finally {
             setLoadingLugares(false);
         }
+        return [];
     };
 
     const selectIndicator = (ind) => {
