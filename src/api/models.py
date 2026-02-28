@@ -553,6 +553,7 @@ class Activity(db.Model):
     )
 
     location: Mapped["Location"] = relationship()
+    indicator: Mapped["Indicator"] = relationship()
     
     def serialize(self):
         total_men_reached = sum((rec.men_reached or 0) for rec in self.achievements)
@@ -561,11 +562,17 @@ class Activity(db.Model):
         p_name = self.location.province_ref.name if self.location and self.location.province_ref else None
         m_name = self.location.municipality_ref.name if self.location and self.location.municipality_ref else None
         pa_name = self.location.parish_ref.name if self.location and self.location.parish_ref else None
+
+        template = self.indicator.template if self.indicator else None
+        ind_code = template.code if template else "IND"
+        ind_name = template.name if template else "Sin nombre"
         
         return {
             "id": self.id_activity,
             "description": self.description,
             "indicator_id": self.indicator_id,
+            "indicator_code": ind_code,
+            "indicator_name": ind_name,
             "location_id": self.location_id,
             "province_name": p_name,
             "municipality_name": m_name,

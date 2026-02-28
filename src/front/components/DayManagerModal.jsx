@@ -53,7 +53,7 @@ const DayManagerModal = ({ selectedDate, activities, onEditActivity, onAddActivi
                                     <div className="card-body p-3">
                                         <div className="d-flex justify-content-between align-items-start mb-2">
                                             <div>
-                                                <span className="badge mb-1 bg-oxford-light text-oxford border">
+                                                <span className="badge mb-1 bg-oxford text-oxford border">
                                                     {act.indicator_code || 'IND'}
                                                 </span>
                                                 <h6 className="fw-bold text-oxford mb-1">{act.description}</h6>

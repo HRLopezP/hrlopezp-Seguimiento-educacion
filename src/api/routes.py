@@ -2351,7 +2351,8 @@ def get_activities():
     activities = Activity.query.filter_by(created_by_id=user_id)\
         .options(
             joinedload(Activity.location).joinedload(Location.province_ref),
-            joinedload(Activity.location).joinedload(Location.municipality_ref)
+            joinedload(Activity.location).joinedload(Location.municipality_ref),
+            joinedload(Activity.indicator).joinedload(Indicator.template)
         ).all()
 
     return jsonify([act.serialize() for act in activities]), 200
