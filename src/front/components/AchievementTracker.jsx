@@ -8,11 +8,12 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
     const [achievedWomen, setAchievedWomen] = useState(0);
     const [totalAchieved, setTotalAchieved] = useState(0);
 
-    // Cálculos de progreso (Visual)
+    const [observations, setObservations] = useState("");
+    const [file, setFile] = useState(null);
+
     const plannedTotal = activity.planned?.total || 0;
     const progressPercent = plannedTotal > 0 ? Math.min((totalAchieved / plannedTotal) * 100, 100) : 0;
 
-    // Auto-calcular total
     useEffect(() => {
         setTotalAchieved(Number(achievedMen) + Number(achievedWomen));
     }, [achievedMen, achievedWomen]);
@@ -23,26 +24,45 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
             return;
         }
 
+        if (!file) {
+            Swal.fire('Atención', 'Es obligatorio subir el respaldo de Kobo.', 'warning');
+            return;
+        }
+
         setLoading(true);
         try {
-            // PROFE: Alineamos las llaves exactamente como las pide tu AchievementRecord
+            // 1. Subir archivo primero (Usando FormData)
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // PROFE: Este endpoint lo crearemos en el backend para que use tu CloudinaryService
+            const uploadRes = await fetch(`${process.env.REACT_APP_API_URL}/upload-evidence`, {
+                method: 'POST',
+                body: formData,
+                // Nota: No enviamos Content-Type manual, el navegador lo hace con el boundary
+            });
+
+            const uploadData = await uploadRes.json();
+
+            if (!uploadRes.ok) throw new Error("Error al subir el archivo a la nube");
+
+            // 2. Enviar datos finales con la URL recibida
             const payload = {
-                activity_id: activity.id_activity || activity.id, // Enviamos el ID aquí
+                activity_id: activity.id_activity || activity.id,
                 men_reached: Number(achievedMen),
                 women_reached: Number(achievedWomen),
-                disability_reached: 0, // Podemos añadirlo luego si lo necesitas
-                observations: "Registro desde el panel de oficial"
+                disability_reached: 0,
+                observations: observations || "Sin descripción adicional",
+                evidence_url: uploadData.url // La URL que nos devuelve Cloudinary
             };
 
-            // PROFE: Cambiamos la URL a la ruta POST que tienes en el Backend
-            // Y usamos POST en lugar de PATCH
             const res = await apiFetch("/achievements", {
                 method: "POST",
                 body: JSON.stringify(payload)
             });
 
             if (res && res.ok) {
-                Swal.fire('¡Logro Registrado!', 'El avance se ha descontado de la meta global.', 'success');
+                Swal.fire('¡Logro Registrado!', 'Datos y evidencia guardados correctamente.', 'success');
                 onRefresh();
                 onClose();
             } else {
@@ -51,7 +71,7 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
             }
         } catch (error) {
             console.error("Error en el tracker:", error);
-            Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error');
+            Swal.fire('Error', 'No se pudo procesar el registro.', 'error');
         } finally {
             setLoading(false);
         }
@@ -61,8 +81,7 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
         <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '15px' }}>
             <div className="modal-header text-white" style={{ backgroundColor: '#10b981' }}>
                 <h5 className="modal-title fw-bold">
-                    <i className="fas fa-chart-line me-2"></i>
-                    Registrar Avance Real
+                    <i className="fas fa-chart-line me-2"></i> Registrar Avance Real
                 </h5>
                 <button type="button" className="btn-close btn-close-white" onClick={onClose}></button>
             </div>
@@ -88,7 +107,6 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                         </div>
                     </div>
                 </div>
-
                 {/* Barra de Progreso Dinámica */}
                 <div className="mb-4">
                     <div className="d-flex justify-content-between mb-1">
@@ -117,21 +135,53 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                             value={achievedWomen} onChange={(e) => setAchievedWomen(e.target.value)} />
                     </div>
                     <div className="col-12">
-                        <div className="p-3 bg-white border rounded text-center">
+                        <div className="p-3 bg-white border rounded text-center shadow-sm">
                             <span className="text-muted small">TOTAL LOGRADO EN CAMPO:</span>
                             <h2 className="fw-bold text-emerald mb-0">{totalAchieved}</h2>
                         </div>
                     </div>
+                    {/* --- Observación  --- */}
+                    <div className="col-12">
+                        <label className="form-label fw-bold small text-oxford">OBSERVACIONES DE CAMPO</label>
+                        <textarea
+                            className="form-control border-emerald"
+                            rows="2"
+                            placeholder="Describe brevemente cómo se desarrolló la actividad..."
+                            value={observations}
+                            onChange={(e) => setObservations(e.target.value)}
+                        ></textarea>
+                    </div>
+                    {/* --- NUEVO: SUBIDA DE ARCHIVO --- */}
+                    <div className="col-12">
+                        <label className="form-label fw-bold small text-oxford">ARCHIVO DE RESPALDO (KOBO)</label>
+                        <div className="input-group">
+                            <input
+                                type="file"
+                                className="form-control border-emerald"
+                                accept=".csv, .xlsx, .pdf, .jpg, .png"
+                                onChange={(e) => setFile(e.target.files[0])}
+                            />
+                            <span className="input-group-text bg-white text-emerald">
+                                <i className="fas fa-upload"></i>
+                            </span>
+                        </div>
+                        <small className="text-muted">Formatos permitidos: Excel, CSV, PDF o Imagen.</small>
+                    </div>
                 </div>
             </div>
-
             <div className="modal-footer border-0 bg-light">
                 <button className="btn btn-outline-secondary px-4" onClick={onClose}>Cancelar</button>
-                <button className="btn text-white px-5 shadow"
-                    style={{ backgroundColor: '#10b981' }}
-                    onClick={handleSave} disabled={loading}
+                <button
+                    className="btn text-white px-5 shadow"
+                    style={{ backgroundColor: file && totalAchieved > 0 ? '#10b981' : '#9ca3af' }} // Color verde si está listo, gris si no
+                    onClick={handleSave}
+                    disabled={loading || !file || totalAchieved <= 0} // <--- BLOQUEO AQUÍ
                 >
-                    {loading ? 'Procesando...' : 'Confirmar y Descontar'}
+                    {loading ? (
+                        <span><i className="fas fa-spinner fa-spin me-2"></i>Subiendo...</span>
+                    ) : (
+                        !file ? 'Falta Evidencia' : 'Confirmar y Descontar'
+                    )}
                 </button>
             </div>
         </div>

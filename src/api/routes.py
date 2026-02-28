@@ -2185,8 +2185,7 @@ def get_proyectos_por_competencia():
 
     return jsonify(proyectos_data), 200
 
-# Oficial crea actividad planificar
-
+# Oficial crea, edita y ve actividades/planificar
 
 @api.route('/official/activities', methods=['POST'])
 @jwt_required()
@@ -2347,7 +2346,6 @@ def get_indicator_locations(indicator_id):
 def get_activities():
     user_id = get_jwt_identity()
     
-    # Usamos joinedload para traer la ubicación y sus referencias de una vez
     activities = Activity.query.filter_by(created_by_id=user_id)\
         .options(
             joinedload(Activity.location).joinedload(Location.province_ref),
@@ -2358,17 +2356,16 @@ def get_activities():
     return jsonify([act.serialize() for act in activities]), 200
 
 
-# Agrega esto a tu archivo de rutas en Flask
+# Buscar todos los indicadores que pertenecen a este proyecto
 @api.route('/official/projects/<int:project_id>/indicators', methods=['GET'])
 @jwt_required()
 def get_project_indicators(project_id):
-    # Buscamos todos los indicadores que pertenecen a este proyecto
+    
     indicators = Indicator.query.filter_by(project_id=project_id).all()
     return jsonify([i.serialize() for i in indicators]), 200
 
 
 # --- ENDPOINTS PARA EL CATÁLOGO DE ACTIVIDADES ---
-
 @api.route('/activity-catalog', methods=['GET'])
 @jwt_required()
 def get_activity_catalog():
