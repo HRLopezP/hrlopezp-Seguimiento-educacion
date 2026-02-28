@@ -16,6 +16,8 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import joinedload
 import os
 from .CloudinaryService import CloudinaryService
+import cloudinary
+import cloudinary.uploader
 
 api = Blueprint('api', __name__)
 
@@ -1462,37 +1464,6 @@ def delete_parish(id):
     db.session.commit()
     return jsonify({"msg": "Parroquia eliminada correctamente"}), 200
 
-
-# @api.route('/activities', methods=['POST'])
-# @jwt_required()
-# def record_activity():
-#     data = request.get_json()
-#     user_id = get_jwt_identity()
-
-#     try:
-#         new_activity = Activity(
-#             description=data.get("description"),
-#             implementation_date=datetime.strptime(
-#                 data.get("date"), "%Y-%m-%d"),
-#             achievement_men=data.get("men", 0.0),
-#             achievement_women=data.get("women", 0.0),
-#             achievement_disability=data.get("disability", 0.0),
-#             indicator_id=data.get("indicator_id"),
-#             location_id=data.get("location_id"),
-#             project_id=data.get("project_id"),
-#             user_id=user_id,
-#             status="Completada"
-#         )
-#         db.session.add(new_activity)
-#         db.session.commit()
-
-#         # Aquí es donde tu lógica de get_manager_projects detectará el nuevo progreso
-#         return jsonify({"message": "Logro registrado y descontado en tiempo real"}), 201
-#     except Exception as e:
-#         db.session.rollback()
-#         return jsonify({"error": str(e)}), 500
-
-
 @api.route('/users/managers', methods=['GET'])
 @jwt_required()
 def get_managers():
@@ -2034,6 +2005,38 @@ def delete_achievement(id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": f"Error al eliminar el registro: {str(e)}"}), 500
+
+
+# subir evidencias a Cloudinary
+@api.route('/upload-evidence', methods=['POST'])
+@jwt_required()
+def upload_evidence():
+    # 1. Verificar si el archivo viene en la petición
+    if 'file' not in request.files:
+        return jsonify({"message": "No se encontró ningún archivo"}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({"message": "Nombre de archivo no válido"}), 400
+
+    try:
+        # 2. Subir directamente a Cloudinary usando el SDK
+        # Podemos usar una carpeta específica para organizar: 'sigssep_evidences'
+        upload_result = cloudinary.uploader.upload(
+            file,
+            folder="sigssep_evidences",
+            resource_type="auto" # Esto permite PDF, Excel, Imagen, etc.
+        )
+        
+        # 3. Retornar la URL segura que nos da Cloudinary
+        return jsonify({
+            "message": "Archivo subido con éxito",
+            "url": upload_result.get("secure_url")
+        }), 200
+
+    except Exception as e:
+        return jsonify({"message": f"Error al subir a la nube: {str(e)}"}), 500
 
 
 @api.route('/project/<int:project_id>/progress-summary', methods=['GET'])

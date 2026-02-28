@@ -19,41 +19,42 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
     }, [achievedMen, achievedWomen]);
 
     const handleSave = async () => {
-        if (totalAchieved <= 0) {
-            Swal.fire('Atención', 'Debes registrar al menos un logro.', 'warning');
-            return;
-        }
-
-        if (!file) {
-            Swal.fire('Atención', 'Es obligatorio subir el respaldo de Kobo.', 'warning');
-            return;
-        }
+        // 1. Validaciones
+        if (totalAchieved <= 0) return Swal.fire('Atención', 'Registra al menos un logro.', 'warning');
+        if (!file) return Swal.fire('Atención', 'Sube el respaldo de Kobo.', 'warning');
 
         setLoading(true);
         try {
-            // 1. Subir archivo primero (Usando FormData)
             const formData = new FormData();
             formData.append('file', file);
 
-            // PROFE: Este endpoint lo crearemos en el backend para que use tu CloudinaryService
-            const uploadRes = await fetch(`${process.env.REACT_APP_API_URL}/upload-evidence`, {
+            // --- PASO 1: SUBIR EVIDENCIA ---
+            const uploadRes = await apiFetch("/upload-evidence", {
                 method: 'POST',
                 body: formData,
-                // Nota: No enviamos Content-Type manual, el navegador lo hace con el boundary
             });
 
+            if (!uploadRes?.ok) {
+                const errorData = await uploadRes.json();
+                throw new Error(errorData.message || "Error al subir archivo");
+            }
+
             const uploadData = await uploadRes.json();
+            if (!uploadRes.ok) {
+                throw new Error(uploadData.message || "Error al subir archivo");
+            }
 
-            if (!uploadRes.ok) throw new Error("Error al subir el archivo a la nube");
+            // Ahora usas uploadData.url con seguridad
+            console.log("URL recibida:", uploadData.url);
 
-            // 2. Enviar datos finales con la URL recibida
+            // --- PASO 2: GUARDAR LOGRO ---
             const payload = {
                 activity_id: activity.id_activity || activity.id,
                 men_reached: Number(achievedMen),
                 women_reached: Number(achievedWomen),
                 disability_reached: 0,
                 observations: observations || "Sin descripción adicional",
-                evidence_url: uploadData.url // La URL que nos devuelve Cloudinary
+                evidence_url: uploadData.url // La URL que nos devolvió el Paso 1
             };
 
             const res = await apiFetch("/achievements", {
@@ -61,17 +62,17 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                 body: JSON.stringify(payload)
             });
 
-            if (res && res.ok) {
-                Swal.fire('¡Logro Registrado!', 'Datos y evidencia guardados correctamente.', 'success');
+            if (res?.ok) {
+                Swal.fire('¡Éxito!', 'Logro y evidencia guardados.', 'success');
                 onRefresh();
                 onClose();
             } else {
-                const errorData = await res.json();
-                Swal.fire('Error', errorData.message || 'Error al guardar', 'error');
+                throw new Error("Error al guardar el registro del logro");
             }
+
         } catch (error) {
             console.error("Error en el tracker:", error);
-            Swal.fire('Error', 'No se pudo procesar el registro.', 'error');
+            Swal.fire('Error', error.message || 'No se pudo completar el registro.', 'error');
         } finally {
             setLoading(false);
         }
