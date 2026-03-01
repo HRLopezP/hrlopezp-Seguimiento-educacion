@@ -16,8 +16,6 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import joinedload
 import os
 from .CloudinaryService import CloudinaryService
-import cloudinary
-import cloudinary.uploader
 
 api = Blueprint('api', __name__)
 
@@ -2011,33 +2009,28 @@ def delete_achievement(id):
 @api.route('/upload-evidence', methods=['POST'])
 @jwt_required()
 def upload_evidence():
-    # 1. Verificar si el archivo viene en la petición
+    # 1. ¿Viene un archivo?
     if 'file' not in request.files:
         return jsonify({"message": "No se encontró ningún archivo"}), 400
     
     file = request.files['file']
-    
     if file.filename == '':
         return jsonify({"message": "Nombre de archivo no válido"}), 400
 
     try:
-        # 2. Subir directamente a Cloudinary usando el SDK
-        # Podemos usar una carpeta específica para organizar: 'sigssep_evidences'
-        upload_result = cloudinary.uploader.upload(
-            file,
-            folder="sigssep_evidences",
-            resource_type="auto" # Esto permite PDF, Excel, Imagen, etc.
-        )
+        # 2. Le decimos al CloudinaryService que haga el trabajo sucio
+        # Ya no necesitamos llamar a cloudinary.uploader aquí directamente
+        secure_url = CloudinaryService.upload_file(file, folder="sigssep_evidences")
         
-        # 3. Retornar la URL segura que nos da Cloudinary
+        # 3. Respondemos con la URL que el Servicio nos entregó
         return jsonify({
             "message": "Archivo subido con éxito",
-            "url": upload_result.get("secure_url")
+            "url": secure_url
         }), 200
 
     except Exception as e:
-        return jsonify({"message": f"Error al subir a la nube: {str(e)}"}), 500
-
+        return jsonify({"message": f"Error al procesar el archivo: {str(e)}"}), 500
+    
 
 @api.route('/project/<int:project_id>/progress-summary', methods=['GET'])
 @jwt_required()
@@ -2063,7 +2056,7 @@ def get_project_progress(project_id):
      .outerjoin(Activity, Activity.indicator_id == Indicator.id_indicator)\
      .outerjoin(AchievementRecord, AchievementRecord.activity_id == Activity.id_activity)\
      .filter(Indicator.id_indicator.in_(indicator_ids))\
-     .filter(Activity.status == ActivityStatus.COMPLETADA)
+     .filter(Activity.status.in_([ActivityStatus.COMPLETADA, ActivityStatus.EN_PROGRESO]))
 
     if target_province_id:
         query_achieved = query_achieved.join(Location, Activity.location_id == Location.id_location)\

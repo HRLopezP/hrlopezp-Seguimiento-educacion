@@ -2,18 +2,19 @@ export const apiFetch = async (endpoint, options = {}) => {
   const urlBase = import.meta.env.VITE_BACKEND_URL;
   const token = localStorage.getItem("access_token");
 
-  const defaultHeaders = {
-    // EL CAMBIO ESTÁ AQUÍ: Solo agregamos JSON si no es un archivo
-    ...(!(options.body instanceof FormData) && { "Content-Type": "application/json" }),
+  const headers = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...options.headers, 
   };
+
+
+  if (!(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
 
   const config = {
     ...options,
-    headers: {
-      ...defaultHeaders,
-      ...options.headers, // Esto permite que si mandas headers manuales, se respeten
-    },
+    headers,
   };
 
   try {
@@ -28,7 +29,8 @@ export const apiFetch = async (endpoint, options = {}) => {
     return response;
   } catch (error) {
     if (error.name === "AbortError") return null;
-    console.error("Error en la petición:", error);
+
+    console.error("Error en la comunicación con la API:", error);
     throw error;
   }
 };

@@ -19,33 +19,26 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
     }, [achievedMen, achievedWomen]);
 
     const handleSave = async () => {
-        // 1. Validaciones
-        if (totalAchieved <= 0) return Swal.fire('Atención', 'Registra al menos un logro.', 'warning');
-        if (!file) return Swal.fire('Atención', 'Sube el respaldo de Kobo.', 'warning');
+        if (totalAchieved <= 0 || !file) {
+            return Swal.fire('Atención', 'Asegúrate de registrar logros y subir el archivo.', 'warning');
+        }
 
         setLoading(true);
         try {
+            // --- PASO 1: SUBIR EVIDENCIA ---
             const formData = new FormData();
             formData.append('file', file);
 
-            // --- PASO 1: SUBIR EVIDENCIA ---
             const uploadRes = await apiFetch("/upload-evidence", {
                 method: 'POST',
                 body: formData,
             });
 
-            if (!uploadRes?.ok) {
-                const errorData = await uploadRes.json();
-                throw new Error(errorData.message || "Error al subir archivo");
-            }
-
             const uploadData = await uploadRes.json();
-            if (!uploadRes.ok) {
-                throw new Error(uploadData.message || "Error al subir archivo");
-            }
 
-            // Ahora usas uploadData.url con seguridad
-            console.log("URL recibida:", uploadData.url);
+            if (!uploadRes.ok) {
+                throw new Error(uploadData.message || "Error al subir la evidencia");
+            }
 
             // --- PASO 2: GUARDAR LOGRO ---
             const payload = {
@@ -53,8 +46,8 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                 men_reached: Number(achievedMen),
                 women_reached: Number(achievedWomen),
                 disability_reached: 0,
-                observations: observations || "Sin descripción adicional",
-                evidence_url: uploadData.url // La URL que nos devolvió el Paso 1
+                observations: observations.trim() || "Sin descripción adicional",
+                evidence_url: uploadData.url
             };
 
             const res = await apiFetch("/achievements", {
@@ -63,17 +56,24 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
             });
 
             if (res?.ok) {
-                Swal.fire('¡Éxito!', 'Logro y evidencia guardados.', 'success');
+                // quitamos el 'await' de aquí para que no bloquee el cierre
+                Swal.fire('¡Éxito!', 'El logro se ha registrado correctamente.', 'success');
+
+                // Ejecutamos el cierre y refresh de inmediato
                 onRefresh();
                 onClose();
             } else {
-                throw new Error("Error al guardar el registro del logro");
+                // Si el backend responde error (ej. 400 o 500), intentamos leer el mensaje
+                const errorSave = await res.json();
+                throw new Error(errorSave.message || "No se pudo guardar el logro.");
             }
 
         } catch (error) {
-            console.error("Error en el tracker:", error);
-            Swal.fire('Error', error.message || 'No se pudo completar el registro.', 'error');
+            console.error("Error en el proceso de guardado:", error);
+            Swal.fire('Error', error.message || 'Ocurrió un fallo inesperado.', 'error');
         } finally {
+            // IMPORTANTE: Solo ponemos loading en false si el componente sigue montado
+            // Pero como onClose() lo desmonta, esto es preventivo por si hubo error
             setLoading(false);
         }
     };
