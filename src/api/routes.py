@@ -2352,6 +2352,29 @@ def get_activities():
     return jsonify([act.serialize() for act in activities]), 200
 
 
+@api.route('/official/activities/<int:activity_id>/cancel', methods=['PATCH'])
+@jwt_required()
+def cancel_activity(activity_id):
+    user_id = get_jwt_identity()
+    data = request.json
+    
+    activity = Activity.query.get(activity_id)
+    if not activity:
+        return jsonify({"msg": "Actividad no encontrada"}), 404
+
+    # Validación: Si cancelas, debes decir por qué
+    reason = data.get('cancellation_reason')
+    if not reason or len(reason) < 5:
+        return jsonify({"msg": "Es obligatorio incluir una observación válida para cancelar"}), 400
+
+    activity.status = ActivityStatus.CANCELADA
+    activity.cancellation_reason = reason
+    activity.updated_by_id = user_id
+
+    db.session.commit()
+    return jsonify({"msg": "Actividad cancelada correctamente", "activity": activity.serialize()}), 200
+
+
 # Buscar todos los indicadores que pertenecen a este proyecto
 @api.route('/official/projects/<int:project_id>/indicators', methods=['GET'])
 @jwt_required()

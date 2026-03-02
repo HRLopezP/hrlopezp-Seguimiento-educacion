@@ -529,6 +529,7 @@ class Activity(db.Model):
     planned_men: Mapped[float] = mapped_column(Float, default=0.0) 
     planned_women: Mapped[float] = mapped_column(Float, default=0.0)
     status: Mapped[ActivityStatus] = mapped_column(db.Enum(ActivityStatus), default=ActivityStatus.PLANIFICADA)
+    cancellation_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     indicator_id: Mapped[int] = mapped_column(ForeignKey('indicator.id_indicator'), nullable=False)
     project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
@@ -578,6 +579,7 @@ class Activity(db.Model):
             "municipality_name": m_name,
             "parish_name": pa_name,
             "project_id": self.project_id,
+            "cancellation_reason": self.cancellation_reason,
             "project_competence_id": self.project_competence_id,
             "period": {
                 "start": self.start_date.strftime("%Y-%m-%d") if self.start_date else None,

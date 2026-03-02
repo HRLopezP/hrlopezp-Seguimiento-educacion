@@ -85,6 +85,38 @@ export const OfficialDashboard = () => {
         setLoadingSummary(false);
     };
 
+    const handleCancelActivity = async (actId, reason) => {
+        try {
+            const res = await apiFetch(`/official/activities/${actId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    status: 'Cancelada',
+                    cancellation_reason: reason
+                })
+            });
+
+            if (res && res.ok) {
+                toast.success("Actividad cancelada correctamente");
+
+                // 1. Recargamos la lista global de actividades
+                await loadActivities();
+
+                // 2. Actualizamos la lista local del modal para que el cambio se vea de inmediato
+                setActivitiesInSelectedDate(prev =>
+                    prev.map(act => act.id === actId
+                        ? { ...act, status: 'Cancelada', cancellation_reason: reason }
+                        : act
+                    )
+                );
+            } else {
+                toast.error("No se pudo cancelar la actividad");
+            }
+        } catch (error) {
+            console.error("Error cancelando:", error);
+            toast.error("Error de conexión al cancelar");
+        }
+    };
+
     // Efecto para recargar el resumen si cambiamos a esa pestaña
     useEffect(() => {
         if (activeTab === 'summary') {
@@ -149,6 +181,7 @@ export const OfficialDashboard = () => {
                                         activities={activitiesInSelectedDate}
                                         onClose={() => setShowDayManager(false)}
                                         onEditActivity={abrirEdicionDesdeGestor}
+                                        onCancelActivity={handleCancelActivity}
                                         onAddActivity={() => {
                                             setSelectedActivity(null);
                                             setShowDayManager(false);
