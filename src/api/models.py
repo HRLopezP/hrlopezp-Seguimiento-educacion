@@ -1,7 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Integer, func, String, Column, Table, Boolean, DateTime, Text, Enum, ForeignKey, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from typing import Optional, List
 from sqlalchemy.ext.hybrid import hybrid_property
 import enum
@@ -556,6 +556,25 @@ class Activity(db.Model):
     location: Mapped["Location"] = relationship()
     indicator: Mapped["Indicator"] = relationship()
     
+    def get_real_status(self):
+        if self.status == ActivityStatus.CANCELADA:
+            return ActivityStatus.CANCELADA.value
+
+        total_logrado = sum((rec.men_reached or 0) + (rec.women_reached or 0) for rec in self.achievements)
+        if total_logrado > 0:
+            return ActivityStatus.COMPLETADA.value
+
+        hoy = date.today() 
+        inicio = self.start_date.date()
+        fin = self.end_date.date()
+        
+        if hoy < inicio:
+            return ActivityStatus.PLANIFICADA.value
+        elif inicio <= hoy <= fin: # Ahora "hoy" sí entrará en este rango
+            return ActivityStatus.EN_PROGRESO.value
+        else:
+            return ActivityStatus.VENCIDA.value
+    
     def serialize(self):
         total_men_reached = sum((rec.men_reached or 0) for rec in self.achievements)
         total_women_reached = sum((rec.women_reached or 0) for rec in self.achievements)
@@ -585,7 +604,7 @@ class Activity(db.Model):
                 "start": self.start_date.strftime("%Y-%m-%d") if self.start_date else None,
                 "end": self.end_date.strftime("%Y-%m-%d") if self.end_date else None
             },
-            "status": self.status.value if self.status else "Planificada",
+            "status": self.get_real_status(),
             "planned": {
                 "total": self.planned_target,
                 "men": self.planned_men,

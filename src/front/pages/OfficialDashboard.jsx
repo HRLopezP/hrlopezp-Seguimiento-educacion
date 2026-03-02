@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiFetch } from "../../utils/api";
 import ContextSelector from '../components/ContextSelector';
 import ExecutionCalendar from "../components/ExecutionCalendar";
@@ -9,148 +9,135 @@ import ProgressSummary from "../components/ProgressSummary";
 import { toast } from "sonner";
 
 export const OfficialDashboard = () => {
-    const [activeTab, setActiveTab] = useState('planning'); // 'planning' o 'summary'
-    const [summaryData, setSummaryData] = useState([]);
-    const [loadingSummary, setLoadingSummary] = useState(false);
-
-    const [activities, setActivities] = useState([]);
+    // --- ESTADOS ---
+    const [activeTab, setActiveTab] = useState('planning');
     const [context, setContext] = useState(null);
+    const [activities, setActivities] = useState([]);
+    const [summaryData, setSummaryData] = useState([]);
+
+    // UI States
+    const [loading, setLoading] = useState({ activities: false, summary: false });
     const [selectedDate, setSelectedDate] = useState(null);
     const [selectedActivity, setSelectedActivity] = useState(null);
+    const [modals, setModals] = useState({ manager: false, wizard: false, tracker: false });
 
-    const [showDayManager, setShowDayManager] = useState(false);
-    const [showWizard, setShowWizard] = useState(false);
-    const [activitiesInSelectedDate, setActivitiesInSelectedDate] = useState([]);
-    const [showTracker, setShowTracker] = useState(false);
-
-    const loadActivities = async () => {
-        const res = await apiFetch("/official/activities");
-        if (res && res.ok) {
-            const data = await res.json();
-            // DEBUG: Miremos qué nos trae el servidor exactamente
-            console.log("Datos cargados del servidor:", data);
-            setActivities(data);
+    // --- CARGA DE DATOS ---
+    const loadActivities = useCallback(async () => {
+        setLoading(prev => ({ ...prev, activities: true }));
+        try {
+            const res = await apiFetch("/official/activities");
+            if (res?.ok) {
+                const data = await res.json();
+                setActivities(data);
+            }
+        } catch (error) {
+            toast.error("Error al cargar actividades");
+        } finally {
+            setLoading(prev => ({ ...prev, activities: false }));
         }
-    };
-
-    useEffect(() => {
-        loadActivities();
     }, []);
-
-    const handleContextChange = (newSelection) => {
-        setContext(newSelection);
-    };
-
-    const handleDateSelect = (dateStr) => {
-        if (!context?.proyectoId) {
-            toast.warning("Por favor, selecciona primero un proyecto.");
-            return;
-        }
-
-        // Filtramos las actividades que ya existen en esa fecha
-        const existents = activities.filter(act => act.period?.start === dateStr);
-
-        setSelectedDate(dateStr);
-
-        if (existents.length > 0) {
-            // Si hay actividades, abrimos el Gestor del Día
-            setActivitiesInSelectedDate(existents);
-            setShowDayManager(true);
-        } else {
-            // Si está vacío, abrimos el Wizard directo para crear la primera
-            setSelectedActivity(null);
-            setShowWizard(true);
-        }
-    };
-
-
-    const abrirEdicionDesdeGestor = (actividad) => {
-        setSelectedActivity(actividad);
-        setShowDayManager(false); // Cerramos gestor
-        setShowWizard(true);      // Abrimos wizard
-    };
-
-    const abrirTrackerDesdeGestor = (actividad) => {
-        setSelectedActivity(actividad);
-        setShowDayManager(false); // Cerramos el gestor para que no se amontone
-        setShowTracker(true);      // Abrimos el tracker de logros
-    };
 
     const loadProgressSummary = async () => {
         if (!context?.proyectoId) return;
-        setLoadingSummary(true);
+        setLoading(prev => ({ ...prev, summary: true }));
         const res = await apiFetch(`/project/${context.proyectoId}/progress-summary`);
-        if (res && res.ok) {
+        if (res?.ok) {
             const data = await res.json();
             setSummaryData(data);
         }
-        setLoadingSummary(false);
+        setLoading(prev => ({ ...prev, summary: false }));
+    };
+
+    useEffect(() => { loadActivities(); }, [loadActivities]);
+
+    useEffect(() => {
+        if (activeTab === 'summary') loadProgressSummary();
+    }, [activeTab, context]);
+
+    // --- LÓGICA DE NEGOCIO (MEMOIZADA) ---
+    // Filtramos actividades por fecha seleccionada para el Gestor del Día
+    const activitiesInSelectedDate = useMemo(() => {
+        return activities.filter(act => act.period?.start === selectedDate);
+    }, [activities, selectedDate]);
+
+    // --- HANDLERS ---
+    const handleDateSelect = (dateStr) => {
+        if (!context?.proyectoId) return toast.warning("Selecciona primero un proyecto.");
+
+        setSelectedDate(dateStr);
+        const existents = activities.filter(act => act.period?.start === dateStr);
+
+        if (existents.length > 0) {
+            setModals(prev => ({ ...prev, manager: true }));
+        } else {
+            setSelectedActivity(null);
+            setModals(prev => ({ ...prev, wizard: true }));
+        }
     };
 
     const handleCancelActivity = async (actId, reason) => {
         try {
-            // APUNTAMOS A LA RUTA CORRECTA: /cancel
             const res = await apiFetch(`/official/activities/${actId}/cancel`, {
                 method: 'PATCH',
-                body: JSON.stringify({
-                    cancellation_reason: reason
-                })
+                body: JSON.stringify({ cancellation_reason: reason })
             });
 
-            const result = await res.json();
-
-            if (res.ok) {
+            if (res && res.ok) {
+                // 1. FEEDBACK VISUAL INMEDIATO
                 toast.success("Actividad cancelada correctamente");
 
-                // 1. Recargamos la lista global
-                await loadActivities();
+                // 2. ACTUALIZACIÓN "QUIRÚRGICA" DEL ESTADO (Sin recargar todo)
+                // Buscamos la actividad en nuestra lista local y le cambiamos el estatus
+                setActivities(prev => prev.map(act =>
+                    act.id === actId
+                        ? { ...act, status: 'Cancelada', cancellation_reason: reason }
+                        : act
+                ));
 
-                // 2. Actualizamos el modal local inmediatamente usando el objeto que devolvió el servidor
-                setActivitiesInSelectedDate(prev =>
-                    prev.map(act => act.id === actId ? result.activity : act)
-                );
+                // 3. CIERRE TOTAL DE MODALES (Limpiamos el ruido)
+                closeModals();
+
+                // 4. RECARGA SILENCIOSA (Opcional, para asegurar que todo esté sincro)
+                // loadActivities(); 
             } else {
-                // Si el backend devuelve error (ej: razón muy corta), lo mostramos
-                toast.error(result.msg || "No se pudo cancelar");
+                const errorData = await res.json();
+                toast.error(errorData.msg || "Error al cancelar");
             }
         } catch (error) {
-            console.error("Error al cancelar:", error);
+            console.error("Error:", error);
             toast.error("Error de conexión");
         }
     };
 
-    // Efecto para recargar el resumen si cambiamos a esa pestaña
-    useEffect(() => {
-        if (activeTab === 'summary') {
-            loadProgressSummary();
-        }
-    }, [activeTab, context]);
+    // Auxiliar para cerrar todos los modales
+    const closeModals = () => {
+        setModals({ manager: false, wizard: false, tracker: false });
+        setSelectedActivity(null);
+    };
 
     return (
         <div className="project-detail-main-container fade-in">
             <div className="container py-4">
-                <header className="mb-4">
-                    <h2 className="text-oxford-dynamic fw-bold">Panel de Planificación</h2>
-                    {/* Switch de Navegación Elegante */}
+                <header className="mb-4 d-flex justify-content-between align-items-center">
+                    <h2 className="text-oxford-dynamic fw-bold m-0">Panel de Planificación</h2>
+
                     <div className="btn-group shadow-sm" style={{ borderRadius: '10px', overflow: 'hidden' }}>
                         <button
-                            className={`btn ${activeTab === 'planning' ? 'btn-oxford' : 'btn-light'}`}
+                            className={`btn ${activeTab === 'planning' ? 'btn-dark' : 'btn-light'}`}
                             onClick={() => setActiveTab('planning')}
-                            style={activeTab === 'planning' ? { backgroundColor: '#1B263B', color: 'white' } : {}}
                         >
                             <i className="fas fa-calendar-alt me-2"></i>Planificación
                         </button>
                         <button
-                            className={`btn ${activeTab === 'summary' ? 'btn-oxford' : 'btn-light'}`}
+                            className={`btn ${activeTab === 'summary' ? 'btn-dark' : 'btn-light'}`}
                             onClick={() => setActiveTab('summary')}
-                            style={activeTab === 'summary' ? { backgroundColor: '#1B263B', color: 'white' } : {}}
                         >
                             <i className="fas fa-chart-pie me-2"></i>Seguimiento
                         </button>
                     </div>
                 </header>
 
-                <ContextSelector onContextChange={handleContextChange} />
+                <ContextSelector onContextChange={setContext} />
 
                 {context ? (
                     <div className="mt-4">
@@ -161,12 +148,11 @@ export const OfficialDashboard = () => {
                                 activities={activities}
                             />
                         ) : (
-                            /* AQUÍ ENTRA TU NUEVO COMPONENTE */
                             <div className="fade-in">
-                                {loadingSummary ? (
+                                {loading.summary ? (
                                     <div className="text-center py-5">
-                                        <div className="spinner-border text-emerald" role="status"></div>
-                                        <p className="mt-2 text-muted">Calculando avances en tiempo real...</p>
+                                        <div className="spinner-border text-success" role="status"></div>
+                                        <p className="mt-2 text-muted">Calculando avances...</p>
                                     </div>
                                 ) : (
                                     <ProgressSummary data={summaryData} />
@@ -174,68 +160,55 @@ export const OfficialDashboard = () => {
                             </div>
                         )}
 
-                        {/* MODAL 1: GESTOR DEL DÍA (DayManagerModal) */}
-                        {showDayManager && (
-                            <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1050 }}>
-                                <div className="modal-dialog modal-md modal-dialog-centered">
-                                    <DayManagerModal
-                                        selectedDate={selectedDate}
-                                        activities={activitiesInSelectedDate}
-                                        onClose={() => setShowDayManager(false)}
-                                        onEditActivity={abrirEdicionDesdeGestor}
-                                        onCancelActivity={handleCancelActivity}
-                                        onAddActivity={() => {
-                                            setSelectedActivity(null);
-                                            setShowDayManager(false);
-                                            setShowWizard(true);
-                                        }}
-                                        onRegisterAchievement={abrirTrackerDesdeGestor}
-                                    />
-                                </div>
-                            </div>
+                        {/* RENDERIZADO DE MODALES CENTRALIZADO */}
+                        {modals.manager && (
+                            <ModalWrapper onClose={closeModals}>
+                                <DayManagerModal
+                                    selectedDate={selectedDate}
+                                    activities={activitiesInSelectedDate}
+                                    onClose={closeModals}
+                                    onEditActivity={(act) => {
+                                        setSelectedActivity(act);
+                                        setModals({ manager: false, wizard: true });
+                                    }}
+                                    onCancelActivity={handleCancelActivity}
+                                    onAddActivity={() => {
+                                        setSelectedActivity(null);
+                                        setModals({ manager: false, wizard: true });
+                                    }}
+                                    onRegisterAchievement={(act) => {
+                                        setSelectedActivity(act);
+                                        setModals({ manager: false, tracker: true });
+                                    }}
+                                />
+                            </ModalWrapper>
                         )}
-                        {/* MODAL 2: CREACIÓN/EDICIÓN (ActivityWizard) */}
-                        {showWizard && (
-                            <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1060 }}>
-                                <div className="modal-dialog modal-lg modal-dialog-centered">
-                                    <ActivityWizard
-                                        selectedDate={selectedDate}
-                                        proyectoId={context.proyectoId}
-                                        initialData={selectedActivity}
-                                        onClose={() => {
-                                            setShowWizard(false);
-                                            setSelectedActivity(null);
-                                        }}
-                                        onSaveSuccess={() => {
-                                            setShowWizard(false);
-                                            setSelectedActivity(null);
-                                            loadActivities();
-                                        }}
-                                    />
-                                </div>
-                            </div>
+
+                        {modals.wizard && (
+                            <ModalWrapper size="lg" onClose={closeModals}>
+                                <ActivityWizard
+                                    selectedDate={selectedDate}
+                                    proyectoId={context.proyectoId}
+                                    initialData={selectedActivity}
+                                    onClose={closeModals}
+                                    onSaveSuccess={() => { closeModals(); loadActivities(); }}
+                                />
+                            </ModalWrapper>
                         )}
-                        {/* MODAL 3: TRACKER DE LOGROS (Paso 3) */}
-                        {showTracker && (
-                            <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1070 }}>
-                                <div className="modal-dialog modal-md modal-dialog-centered">
-                                    <AchievementTracker
-                                        activity={selectedActivity}
-                                        onClose={() => {
-                                            setShowTracker(false);
-                                            setSelectedActivity(null);
-                                        }}
-                                        onRefresh={() => {
-                                            loadActivities(); // Recarga para ver el cambio de status o barras
-                                            handleDateSelect(selectedDate); // Refresca la lista del gestor
-                                        }}
-                                    />
-                                </div>
-                            </div>
+
+                        {modals.tracker && (
+                            <ModalWrapper onClose={closeModals}>
+                                <AchievementTracker
+                                    activity={selectedActivity}
+                                    onClose={closeModals}
+                                    onRefresh={() => { loadActivities(); }}
+                                />
+                            </ModalWrapper>
                         )}
                     </div>
                 ) : (
                     <div className="text-center py-5 opacity-50">
+                        <i className="fas fa-project-diagram fa-3x mb-3"></i>
                         <p>Selecciona una competencia y proyecto para comenzar.</p>
                     </div>
                 )}
@@ -243,3 +216,12 @@ export const OfficialDashboard = () => {
         </div>
     );
 };
+
+// Componente auxiliar para no repetir código de modales
+const ModalWrapper = ({ children, size = "md", onClose }) => (
+    <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1050 }} onClick={onClose}>
+        <div className={`modal-dialog modal-${size} modal-dialog-centered`} onClick={e => e.stopPropagation()}>
+            {children}
+        </div>
+    </div>
+);

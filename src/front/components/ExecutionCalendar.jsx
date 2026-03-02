@@ -4,20 +4,24 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import bootstrap5Plugin from '@fullcalendar/bootstrap5';
 import 'bootstrap-icons/font/bootstrap-icons.css';
+import { getStatusData } from "../../utils/statusHelper";
 
-const ExecutionCalendar = ({ onDateSelect, activities, onActivityClick }) => {
+const ExecutionCalendar = ({ onDateSelect, activities = [], onActivityClick }) => {
 
-    const events = activities.map(act => {
+    const events = (activities || []).map(act => {
         const endDate = new Date(act.period.end);
         endDate.setDate(endDate.getDate() + 1);
+
+        const statusStyle = getStatusData(act.status);
 
         return {
             id: act.id,
             title: act.description,
             start: act.period.start,
             end: endDate.toISOString().split('T')[0],
-            backgroundColor: act.status === 'Planificada' ? '#334155' : '#10b981',
-            borderColor: 'transparent',
+            backgroundColor: statusStyle.calendarColor,
+            textColor: statusStyle.textColor,
+            borderColor: statusStyle.textColor.startsWith('#') ? `${statusStyle.textColor}40` : 'transparent',
             extendedProps: { ...act }
         };
     });
@@ -39,9 +43,13 @@ const ExecutionCalendar = ({ onDateSelect, activities, onActivityClick }) => {
                 selectMirror={true}
                 dayMaxEvents={true}
                 height="70vh"
-                // Aquí disparamos el modal que mencionaste
                 dateClick={(info) => onDateSelect(info.dateStr)}
-                eventClick={(info) => onActivityClick(info.event.extendedProps)}
+                eventClick={(info) => {
+                    if (onActivityClick) {
+                        onActivityClick(info.event.extendedProps);
+                    }
+                }}
+                eventDisplay="block"
             />
         </div>
     );
