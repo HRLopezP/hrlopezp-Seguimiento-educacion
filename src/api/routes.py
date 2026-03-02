@@ -2352,6 +2352,7 @@ def get_activities():
     return jsonify([act.serialize() for act in activities]), 200
 
 
+# En tu archivo de rutas de Flask
 @api.route('/official/activities/<int:activity_id>/cancel', methods=['PATCH'])
 @jwt_required()
 def cancel_activity(activity_id):
@@ -2362,17 +2363,20 @@ def cancel_activity(activity_id):
     if not activity:
         return jsonify({"msg": "Actividad no encontrada"}), 404
 
-    # Validación: Si cancelas, debes decir por qué
+    # VALIDACIÓN CLAVE
     reason = data.get('cancellation_reason')
-    if not reason or len(reason) < 5:
-        return jsonify({"msg": "Es obligatorio incluir una observación válida para cancelar"}), 400
+    if not reason or len(reason.strip()) < 5:
+        return jsonify({"msg": "Es obligatorio incluir una observación válida (mín. 5 caracteres)"}), 400
 
     activity.status = ActivityStatus.CANCELADA
     activity.cancellation_reason = reason
-    activity.updated_by_id = user_id
+    activity.updated_by_id = user_id # Guardamos quién lo hizo
 
     db.session.commit()
-    return jsonify({"msg": "Actividad cancelada correctamente", "activity": activity.serialize()}), 200
+    return jsonify({
+        "msg": "Actividad cancelada correctamente", 
+        "activity": activity.serialize()
+    }), 200
 
 
 # Buscar todos los indicadores que pertenecen a este proyecto

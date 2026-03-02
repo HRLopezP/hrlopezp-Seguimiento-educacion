@@ -9,14 +9,15 @@ const DayManagerModal = ({ selectedDate, activities, onEditActivity, onAddActivi
     });
 
     const getStatusBadge = (act) => {
+        if (act.status === 'Cancelada') return <span className="badge bg-secondary">Cancelada</span>;
         const today = new Date().toISOString().split('T')[0];
         const startDate = act.period?.start;
         const endDate = act.period?.end;
         const hasAchieved = act.real_progress?.total > 0;
 
-        if (act.status === 'Cancelada') return <span className="badge bg-secondary">Cancelada</span>;
         if (act.status === 'Completada' || hasAchieved) return <span className="badge bg-emerald">Completada</span>;
-        if (endDate && endDate < today && !hasAchieved) return <span className="badge bg-danger">Vencida</span>;
+        if (endDate && endDate < today) return <span className="badge bg-danger">Vencida</span>;
+
         if (startDate && endDate && today >= startDate && today <= endDate) {
             return <span className="badge bg-info text-dark">En Progreso</span>;
         }
@@ -54,9 +55,10 @@ const DayManagerModal = ({ selectedDate, activities, onEditActivity, onAddActivi
                             const start = act.period?.start;
                             const end = act.period?.end;
                             const isSameDay = start === end;
+                            const isCancelled = act.status === 'Cancelada';
 
                             return (
-                                <div key={act.id} className="card border-0 shadow-sm transition-hover" style={{ borderRadius: '12px' }}>
+                                <div key={act.id} className={`card border-0 shadow-sm ${isCancelled ? 'opacity-75' : 'transition-hover'}`} style={{ borderRadius: '12px' }}>
                                     <div className="card-body p-3">
                                         <div className="d-flex justify-content-between align-items-start mb-2">
                                             <div>
@@ -64,7 +66,7 @@ const DayManagerModal = ({ selectedDate, activities, onEditActivity, onAddActivi
                                                     {act.indicator_code || 'IND'}
                                                 </span>
                                                 <h6 className="fw-bold text-oxford mb-1">{act.description}</h6>
-                                                
+
                                                 {/* Fechas */}
                                                 {!isSameDay ? (
                                                     <div className="badge bg-light text-primary border mb-1" style={{ fontSize: '0.7rem' }}>
@@ -133,17 +135,35 @@ const DayManagerModal = ({ selectedDate, activities, onEditActivity, onAddActivi
 
                                                     {/* Acciones */}
                                                     <div className="btn-group">
-                                                        {act.status !== 'Cancelada' && (
-                                                            <button className="btn btn-sm btn-outline-danger border-0" onClick={() => setCancellingId(act.id)} title="Cancelar">
-                                                                <i className="fas fa-ban"></i>
-                                                            </button>
+                                                        {act.status !== 'Cancelada' ? (
+                                                            <>
+                                                                <button
+                                                                    className="btn btn-sm btn-outline-danger border-0"
+                                                                    onClick={() => setCancellingId(act.id)}
+                                                                    title="Cancelar"
+                                                                >
+                                                                    <i className="fas fa-ban"></i>
+                                                                </button>
+
+                                                                <button
+                                                                    className="btn btn-sm btn-outline-secondary border-0"
+                                                                    onClick={() => onEditActivity(act)}
+                                                                    title="Editar"
+                                                                >
+                                                                    <i className="fas fa-edit"></i>
+                                                                </button>
+
+                                                                <button
+                                                                    className="btn btn-sm text-white ms-2 shadow-sm"
+                                                                    style={{ backgroundColor: '#10b981', borderRadius: '8px' }}
+                                                                    onClick={() => onRegisterAchievement(act)}
+                                                                >
+                                                                    <i className="fas fa-check-circle me-1"></i> Logros
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <span className="text-muted small fst-italic">Sin acciones disponibles</span>
                                                         )}
-                                                        <button className="btn btn-sm btn-outline-secondary border-0" onClick={() => onEditActivity(act)} title="Editar">
-                                                            <i className="fas fa-edit"></i>
-                                                        </button>
-                                                        <button className="btn btn-sm text-white ms-2 shadow-sm" style={{ backgroundColor: '#10b981', borderRadius: '8px' }} onClick={() => onRegisterAchievement(act)}>
-                                                            <i className="fas fa-check-circle me-1"></i> Logros
-                                                        </button>
                                                     </div>
                                                 </div>
                                             </>

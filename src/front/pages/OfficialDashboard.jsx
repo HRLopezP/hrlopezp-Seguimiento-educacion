@@ -27,6 +27,8 @@ export const OfficialDashboard = () => {
         const res = await apiFetch("/official/activities");
         if (res && res.ok) {
             const data = await res.json();
+            // DEBUG: Miremos qué nos trae el servidor exactamente
+            console.log("Datos cargados del servidor:", data);
             setActivities(data);
         }
     };
@@ -87,33 +89,33 @@ export const OfficialDashboard = () => {
 
     const handleCancelActivity = async (actId, reason) => {
         try {
-            const res = await apiFetch(`/official/activities/${actId}`, {
+            // APUNTAMOS A LA RUTA CORRECTA: /cancel
+            const res = await apiFetch(`/official/activities/${actId}/cancel`, {
                 method: 'PATCH',
                 body: JSON.stringify({
-                    status: 'Cancelada',
                     cancellation_reason: reason
                 })
             });
 
-            if (res && res.ok) {
+            const result = await res.json();
+
+            if (res.ok) {
                 toast.success("Actividad cancelada correctamente");
 
-                // 1. Recargamos la lista global de actividades
+                // 1. Recargamos la lista global
                 await loadActivities();
 
-                // 2. Actualizamos la lista local del modal para que el cambio se vea de inmediato
+                // 2. Actualizamos el modal local inmediatamente usando el objeto que devolvió el servidor
                 setActivitiesInSelectedDate(prev =>
-                    prev.map(act => act.id === actId
-                        ? { ...act, status: 'Cancelada', cancellation_reason: reason }
-                        : act
-                    )
+                    prev.map(act => act.id === actId ? result.activity : act)
                 );
             } else {
-                toast.error("No se pudo cancelar la actividad");
+                // Si el backend devuelve error (ej: razón muy corta), lo mostramos
+                toast.error(result.msg || "No se pudo cancelar");
             }
         } catch (error) {
-            console.error("Error cancelando:", error);
-            toast.error("Error de conexión al cancelar");
+            console.error("Error al cancelar:", error);
+            toast.error("Error de conexión");
         }
     };
 
