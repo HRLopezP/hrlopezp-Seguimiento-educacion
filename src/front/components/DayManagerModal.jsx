@@ -1,14 +1,14 @@
 import React, { useState } from 'react'; // Usamos desestructuración para React.useState
 import { getStatusData } from "../../utils/statusHelper";
 
-const DayManagerModal = ({ 
-    selectedDate, 
+const DayManagerModal = ({
+    selectedDate,
     activities = [], // Valor por defecto para evitar errores
-    onEditActivity, 
-    onAddActivity, 
-    onRegisterAchievement, 
-    onCancelActivity, 
-    onClose 
+    onEditActivity,
+    onAddActivity,
+    onRegisterAchievement,
+    onCancelActivity,
+    onClose
 }) => {
     const [cancellingId, setCancellingId] = useState(null);
     const [reason, setReason] = useState("");
@@ -126,15 +126,23 @@ const DayManagerModal = ({
                                                                         <i className="fas fa-ban"></i>
                                                                     </button>
                                                                 )}
-                                                                <button className="btn btn-sm btn-outline-secondary border-0" onClick={() => onEditActivity(act)} title="Editar">
-                                                                    <i className="fas fa-edit"></i>
-                                                                </button>
-                                                                <button 
-                                                                    className="btn btn-sm text-white ms-2 shadow-sm" 
-                                                                    style={{ backgroundColor: '#10b981', borderRadius: '8px' }} 
+                                                                {/* 2. EDITAR PLANIFICACIÓN: Se oculta si ya se completó */}
+                                                                {act.status !== 'Completada' && (
+                                                                    <button className="btn btn-sm btn-outline-secondary border-0" onClick={() => onEditActivity(act)} title="Editar Planificación">
+                                                                        <i className="fas fa-edit"></i>
+                                                                    </button>
+                                                                )}
+                                                                {/* 3. LOGROS: Botón dinámico */}
+                                                                <button
+                                                                    className="btn btn-sm text-white ms-2 shadow-sm d-flex align-items-center"
+                                                                    style={{
+                                                                        backgroundColor: act.status === 'Completada' ? '#3a86ff' : '#10b981',
+                                                                        borderRadius: '8px'
+                                                                    }}
                                                                     onClick={() => onRegisterAchievement(act)}
                                                                 >
-                                                                    <i className="fas fa-check-circle me-1"></i> Logros
+                                                                    <i className={`fas ${act.status === 'Completada' ? 'fa-pen-nib' : 'fa-check-circle'} me-1`}></i>
+                                                                    {act.status === 'Completada' ? 'Editar Logros' : 'Logros'}
                                                                 </button>
                                                             </>
                                                         )}

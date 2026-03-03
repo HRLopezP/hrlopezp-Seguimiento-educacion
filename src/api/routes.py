@@ -1907,85 +1907,70 @@ def create_achievement():
     user_id = get_jwt_identity()
     data = request.json
 
-    # 1. Validamos que la actividad exista
-    activity = Activity.query.get(data.get('activity_id'))
-    if not activity:
-        return jsonify({"message": "La actividad vinculada no existe"}), 404
+    activity = Activity.query.get_or_404(data.get('activity_id'))
 
     try:
-        # 2. Creamos el registro del logro (el "hecho")
         new_record = AchievementRecord(
-            activity_id=data['activity_id'],
-            men_reached=int(data.get('men_reached', 0)),
-            women_reached=int(data.get('women_reached', 0)),
-            disability_reached=int(data.get('disability_reached', 0)),
+            activity_id=activity.id_activity,
+            men_reached=float(data.get('men_reached', 0)),
+            women_reached=float(data.get('women_reached', 0)),
+            disability_reached=float(data.get('disability_reached', 0)),
             evidence_url=data.get('evidence_url'),
             observations=data.get('observations'),
             user_id=user_id
         )
 
-        # 3. LÓGICA DE TIEMPO REAL:
-        # Calculamos si con este nuevo registro ya alcanzamos la meta de la actividad
-        total_previo_hombres = db.session.query(func.sum(AchievementRecord.men_reached)).filter_by(
-            activity_id=activity.id_activity).scalar() or 0
-        total_previo_mujeres = db.session.query(func.sum(AchievementRecord.women_reached)).filter_by(
-            activity_id=activity.id_activity).scalar() or 0
-
-        nuevo_total = total_previo_hombres + total_previo_mujeres + \
-            new_record.men_reached + new_record.women_reached
-
-        # Si el total logrado es >= a lo planificado en la actividad, se marca como COMPLETADA
-        # Si no, se queda EN_PROGRESO (Emerald Green activo)
-        if nuevo_total >= activity.planned_target:
-            activity.status = ActivityStatus.COMPLETADA
-        else:
-            activity.status = ActivityStatus.EN_PROGRESO
+        activity.status = ActivityStatus.COMPLETADA
 
         db.session.add(new_record)
         db.session.commit()
 
         return jsonify({
             "message": "Logro registrado exitosamente",
-            "activity_status": activity.status.value,
             "record": new_record.serialize()
         }), 201
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": f"Error al registrar logro: {str(e)}"}), 500
+        return jsonify({"message": str(e)}), 500
 
 
 @api.route('/achievements/<int:id>', methods=['PATCH'])
 @jwt_required()
 def patch_achievement(id):
     user_id = get_jwt_identity()
-    record = AchievementRecord.query.get(id)
-    if not record:
-        return jsonify({"message": "Logro no encontrado"}), 404
+    record = AchievementRecord.query.get_or_404(id)
     data = request.json
+    
+    # 1. ACTUALIZACIÓN DE DATOS NUMÉRICOS
+    if 'men_reached' in data: 
+        record.men_reached = float(data['men_reached'])
+    if 'women_reached' in data: 
+        record.women_reached = float(data['women_reached'])
+    if 'disability_reached' in data: 
+        record.disability_reached = float(data['disability_reached'])
 
-    for field in ["men_reached", "women_reached", "disability_reached", "observations"]:
-        if field in data:
-            old_val = str(getattr(record, field))
-            new_val = str(data[field])
+    # 2. ACTUALIZACIÓN DE TEXTOS (OBSERVACIONES)
+    if 'observations' in data:
+        record.observations = data['observations']
 
-            if old_val != new_val:
-                log = SystemChangeLog(
-                    entity_type="AchievementRecord",
-                    entity_id=record.id,
-                    user_id=user_id,
-                    field_changed=field,
-                    old_value=old_val,
-                    new_value=new_val
-                )
-                db.session.add(log)
-                setattr(record, field, data[field])
+    # 3. MANEJO DE EVIDENCIA (ARCHIVO)
+    if 'evidence_url' in data and data['evidence_url']:
+        record.evidence_url = data['evidence_url']
 
-                record.updated_by_id = user_id
-                db.session.commit()
+    # 4. AUDITORÍA
+    record.updated_by_id = user_id
 
-                return jsonify({"message": "Registro de logro actualizado e historizado"}), 200
-
+    try:
+        db.session.commit()
+        return jsonify({
+            "message": "Logro corregido exitosamente",
+            "record": record.serialize()
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Error al actualizar: {str(e)}"}), 500
+    
 
 @api.route('/achievements/<int:id>', methods=['DELETE'])
 @jwt_required()
@@ -2352,7 +2337,7 @@ def get_activities():
     return jsonify([act.serialize() for act in activities]), 200
 
 
-# En tu archivo de rutas de Flask
+# Para cancelar una actividad planificada y cambiar su estatus
 @api.route('/official/activities/<int:activity_id>/cancel', methods=['PATCH'])
 @jwt_required()
 def cancel_activity(activity_id):
@@ -2469,3 +2454,17 @@ def delete_catalog_activity(id):
             "msg": "No se puede eliminar: Esta actividad está siendo utilizada en proyectos actuales.",
             "error": str(e)  # Opcional: solo para depuración
         }), 400
+
+
+#consultar logros de una actividad en específico
+@api.route('/activities/<int:activity_id>/achievements', methods=['GET'])
+@jwt_required()
+def get_activity_achievements(activity_id):
+    activity = Activity.query.get_or_404(activity_id)
+    
+    # Retornamos la lista de logros serializados
+    # Esto incluye la URL de evidencia y observaciones que te faltaban
+    return jsonify({
+        "activity_id": activity_id,
+        "achievements": [a.serialize() for a in activity.achievements]
+    }), 200

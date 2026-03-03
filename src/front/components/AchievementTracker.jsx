@@ -7,9 +7,12 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
     const [achievedMen, setAchievedMen] = useState(0);
     const [achievedWomen, setAchievedWomen] = useState(0);
     const [totalAchieved, setTotalAchieved] = useState(0);
-
     const [observations, setObservations] = useState("");
     const [file, setFile] = useState(null);
+    const [existingRecordId, setExistingRecordId] = useState(null);
+
+    const isEditing = !!existingRecordId;
+    const hasEvidence = file || activity.last_evidence;
 
     const plannedTotal = activity.planned?.total || 0;
     const progressPercent = plannedTotal > 0 ? Math.min((totalAchieved / plannedTotal) * 100, 100) : 0;
@@ -19,64 +22,65 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
     }, [achievedMen, achievedWomen]);
 
     const handleSave = async () => {
-        if (totalAchieved <= 0 || !file) {
-            return Swal.fire('Atención', 'Asegúrate de registrar logros y subir el archivo.', 'warning');
+        if (totalAchieved <= 0 || (!file && !isEditing)) {
+            return Swal.fire('Atención', 'Asegúrate de registrar logros y subir la evidencia.', 'warning');
         }
 
         setLoading(true);
         try {
-            // --- PASO 1: SUBIR EVIDENCIA ---
-            const formData = new FormData();
-            formData.append('file', file);
+            let finalEvidenceUrl = activity.achievements?.[0]?.evidence_url || "";
 
-            const uploadRes = await apiFetch("/upload-evidence", {
-                method: 'POST',
-                body: formData,
-            });
-
-            const uploadData = await uploadRes.json();
-
-            if (!uploadRes.ok) {
-                throw new Error(uploadData.message || "Error al subir la evidencia");
+            // Solo subimos archivo si el usuario seleccionó uno nuevo
+            if (file) {
+                const formData = new FormData();
+                formData.append('file', file);
+                const uploadRes = await apiFetch("/upload-evidence", { method: 'POST', body: formData });
+                const uploadData = await uploadRes.json();
+                if (!uploadRes.ok) throw new Error("Error al subir evidencia");
+                finalEvidenceUrl = uploadData.url;
             }
 
-            // --- PASO 2: GUARDAR LOGRO ---
             const payload = {
-                activity_id: activity.id_activity || activity.id,
+                activity_id: activity.id,
                 men_reached: Number(achievedMen),
                 women_reached: Number(achievedWomen),
-                disability_reached: 0,
-                observations: observations.trim() || "Sin descripción adicional",
-                evidence_url: uploadData.url
+                observations: observations.trim(),
+                evidence_url: file ? finalEvidenceUrl : activity.last_evidence
             };
 
-            const res = await apiFetch("/achievements", {
-                method: "POST",
+            // DECIDIMOS: ¿POST o PATCH?
+            const method = isEditing ? 'PATCH' : 'POST';
+            const endpoint = isEditing ? `/achievements/${existingRecordId}` : '/achievements';
+
+            const res = await apiFetch(endpoint, {
+                method: method,
                 body: JSON.stringify(payload)
             });
 
             if (res?.ok) {
-                // quitamos el 'await' de aquí para que no bloquee el cierre
-                Swal.fire('¡Éxito!', 'El logro se ha registrado correctamente.', 'success');
-
-                // Ejecutamos el cierre y refresh de inmediato
+                Swal.fire('¡Éxito!', isEditing ? 'Logro actualizado' : 'Logro registrado', 'success');
                 onRefresh();
                 onClose();
-            } else {
-                // Si el backend responde error (ej. 400 o 500), intentamos leer el mensaje
-                const errorSave = await res.json();
-                throw new Error(errorSave.message || "No se pudo guardar el logro.");
             }
-
         } catch (error) {
-            console.error("Error en el proceso de guardado:", error);
-            Swal.fire('Error', error.message || 'Ocurrió un fallo inesperado.', 'error');
+            Swal.fire('Error', error.message, 'error');
         } finally {
-            // IMPORTANTE: Solo ponemos loading en false si el componente sigue montado
-            // Pero como onClose() lo desmonta, esto es preventivo por si hubo error
             setLoading(false);
         }
     };
+
+
+    useEffect(() => {
+        // Si la actividad ya trae los campos que añadimos en la Fase 1:
+        if (activity.last_achievement_id) {
+            setExistingRecordId(activity.last_achievement_id);
+            setAchievedMen(activity.real_progress.men || 0);
+            setAchievedWomen(activity.real_progress.women || 0);
+            setObservations(activity.last_observations || "");
+            // Nota: No seteamos 'file' porque es un objeto de sistema, 
+            // pero la URL ya vive en el objeto 'activity'
+        }
+    }, [activity]);
 
     return (
         <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '15px' }}>
@@ -174,14 +178,14 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                 <button className="btn btn-outline-secondary px-4" onClick={onClose}>Cancelar</button>
                 <button
                     className="btn text-white px-5 shadow"
-                    style={{ backgroundColor: file && totalAchieved > 0 ? '#10b981' : '#9ca3af' }} // Color verde si está listo, gris si no
+                    style={{ backgroundColor: hasEvidence && totalAchieved > 0 ? '#10b981' : '#9ca3af' }}
                     onClick={handleSave}
-                    disabled={loading || !file || totalAchieved <= 0} // <--- BLOQUEO AQUÍ
+                    disabled={loading || !hasEvidence || totalAchieved <= 0}
                 >
                     {loading ? (
-                        <span><i className="fas fa-spinner fa-spin me-2"></i>Subiendo...</span>
+                        <span><i className="fas fa-spinner fa-spin me-2"></i> Procesando...</span>
                     ) : (
-                        !file ? 'Falta Evidencia' : 'Confirmar y Descontar'
+                        isEditing ? 'Actualizar Logro' : 'Confirmar y Descontar'
                     )}
                 </button>
             </div>

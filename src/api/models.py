@@ -560,18 +560,13 @@ class Activity(db.Model):
         if self.status == ActivityStatus.CANCELADA:
             return ActivityStatus.CANCELADA.value
 
-        total_logrado = sum((rec.men_reached or 0) + (rec.women_reached or 0) for rec in self.achievements)
-        if total_logrado > 0:
+        if len(self.achievements) > 0:
             return ActivityStatus.COMPLETADA.value
 
         hoy = date.today() 
         inicio = self.start_date.date()
-        fin = self.end_date.date()
-        
         if hoy < inicio:
             return ActivityStatus.PLANIFICADA.value
-        elif inicio <= hoy <= fin: # Ahora "hoy" sí entrará en este rango
-            return ActivityStatus.EN_PROGRESO.value
         else:
             return ActivityStatus.VENCIDA.value
     
@@ -586,6 +581,8 @@ class Activity(db.Model):
         template = self.indicator.template if self.indicator else None
         ind_code = template.code if template else "IND"
         ind_name = template.name if template else "Sin nombre"
+
+        last_achievement = self.achievements[-1] if self.achievements else None
         
         return {
             "id": self.id_activity,
@@ -622,6 +619,10 @@ class Activity(db.Model):
                 "last_update": self.updated_at.isoformat() if self.updated_at else None,
                 "updated_by_name": f"{getattr(self.editor, 'name', '')} {getattr(self.editor, 'lastname', '')}".strip() if self.editor else "Sin cambios"
             },
+
+            "last_achievement_id": last_achievement.id if last_achievement else None,
+            "last_observations": last_achievement.observations if last_achievement else "",
+            "last_evidence_url": last_achievement.evidence_url if last_achievement else None,
             "achievements_history": [a.serialize() for a in self.achievements]
         }
 
