@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { apiFetch } from "../../utils/api";
 import Swal from 'sweetalert2';
 
 const AchievementTracker = ({ activity, onClose, onRefresh }) => {
+    // 1. ESTADOS: Siempre van al principio
     const [loading, setLoading] = useState(false);
     const [achievedMen, setAchievedMen] = useState(0);
     const [achievedWomen, setAchievedWomen] = useState(0);
@@ -11,26 +12,43 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
     const [file, setFile] = useState(null);
     const [existingRecordId, setExistingRecordId] = useState(null);
 
+    // 2. LÓGICA DE DERIVACIÓN
     const isEditing = !!existingRecordId;
-    const hasEvidence = file || activity.last_evidence;
+
+    // IMPORTANTE: Aquí usamos 'last_evidence_url' porque así viene de tu consola (image_b80820.png)
+    const hasEvidence = useMemo(() => {
+        const previousEvidence = activity?.last_evidence_url || activity?.real_progress?.evidence_url;
+        return !!file || !!previousEvidence;
+    }, [file, activity]);
 
     const plannedTotal = activity.planned?.total || 0;
     const progressPercent = plannedTotal > 0 ? Math.min((totalAchieved / plannedTotal) * 100, 100) : 0;
 
+    // 3. EFECTOS
     useEffect(() => {
         setTotalAchieved(Number(achievedMen) + Number(achievedWomen));
     }, [achievedMen, achievedWomen]);
 
+    useEffect(() => {
+        if (activity?.last_achievement_id) {
+            setExistingRecordId(activity.last_achievement_id);
+            setAchievedMen(activity.real_progress?.men || 0);
+            setAchievedWomen(activity.real_progress?.women || 0);
+            setObservations(activity.last_observations || "");
+        }
+    }, [activity]);
+
+    // 4. ACCIONES
     const handleSave = async () => {
-        if (totalAchieved <= 0 || (!file && !isEditing)) {
-            return Swal.fire('Atención', 'Asegúrate de registrar logros y subir la evidencia.', 'warning');
+        if (totalAchieved <= 0 || !hasEvidence) {
+            return Swal.fire('Atención', 'Logros en 0 o falta evidencia.', 'warning');
         }
 
         setLoading(true);
         try {
-            let finalEvidenceUrl = activity.achievements?.[0]?.evidence_url || "";
+            // Si no hay archivo nuevo, mantenemos la URL que ya existía
+            let finalEvidenceUrl = activity?.last_evidence_url || activity?.real_progress?.evidence_url || "";
 
-            // Solo subimos archivo si el usuario seleccionó uno nuevo
             if (file) {
                 const formData = new FormData();
                 formData.append('file', file);
@@ -45,10 +63,9 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                 men_reached: Number(achievedMen),
                 women_reached: Number(achievedWomen),
                 observations: observations.trim(),
-                evidence_url: file ? finalEvidenceUrl : activity.last_evidence
+                evidence_url: finalEvidenceUrl 
             };
 
-            // DECIDIMOS: ¿POST o PATCH?
             const method = isEditing ? 'PATCH' : 'POST';
             const endpoint = isEditing ? `/achievements/${existingRecordId}` : '/achievements';
 
@@ -69,19 +86,7 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
         }
     };
 
-
-    useEffect(() => {
-        // Si la actividad ya trae los campos que añadimos en la Fase 1:
-        if (activity.last_achievement_id) {
-            setExistingRecordId(activity.last_achievement_id);
-            setAchievedMen(activity.real_progress.men || 0);
-            setAchievedWomen(activity.real_progress.women || 0);
-            setObservations(activity.last_observations || "");
-            // Nota: No seteamos 'file' porque es un objeto de sistema, 
-            // pero la URL ya vive en el objeto 'activity'
-        }
-    }, [activity]);
-
+    // 5. RENDER (EL "DIBUJO")
     return (
         <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '15px' }}>
             <div className="modal-header text-white" style={{ backgroundColor: '#10b981' }}>
@@ -92,7 +97,7 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
             </div>
 
             <div className="modal-body p-4 bg-light">
-                {/* Resumen de lo planificado */}
+                {/* Resumen de planificación */}
                 <div className="card mb-4 border-0 shadow-sm" style={{ backgroundColor: '#f1f5f9' }}>
                     <div className="card-body">
                         <h6 className="text-oxford fw-bold small mb-3 text-uppercase">Resumen de Planificación</h6>
@@ -112,7 +117,8 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                         </div>
                     </div>
                 </div>
-                {/* Barra de Progreso Dinámica */}
+
+                {/* Barra de progreso */}
                 <div className="mb-4">
                     <div className="d-flex justify-content-between mb-1">
                         <span className="small fw-bold text-oxford">Progreso de la Actividad</span>
@@ -127,7 +133,7 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                     </div>
                 </div>
 
-                {/* Inputs de Logros Reales */}
+                {/* Formulario */}
                 <div className="row g-3">
                     <div className="col-md-6">
                         <label className="form-label fw-bold small text-oxford">HOMBRES LOGRADOS</label>
@@ -139,26 +145,37 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                         <input type="number" className="form-control border-emerald"
                             value={achievedWomen} onChange={(e) => setAchievedWomen(e.target.value)} />
                     </div>
-                    <div className="col-12">
-                        <div className="p-3 bg-white border rounded text-center shadow-sm">
+                    <div className="col-12 text-center">
+                        <div className="p-3 bg-white border rounded shadow-sm">
                             <span className="text-muted small">TOTAL LOGRADO EN CAMPO:</span>
                             <h2 className="fw-bold text-emerald mb-0">{totalAchieved}</h2>
                         </div>
                     </div>
-                    {/* --- Observación  --- */}
                     <div className="col-12">
                         <label className="form-label fw-bold small text-oxford">OBSERVACIONES DE CAMPO</label>
                         <textarea
                             className="form-control border-emerald"
                             rows="2"
-                            placeholder="Describe brevemente cómo se desarrolló la actividad..."
                             value={observations}
                             onChange={(e) => setObservations(e.target.value)}
                         ></textarea>
                     </div>
-                    {/* --- NUEVO: SUBIDA DE ARCHIVO --- */}
+
+                    {/* --- SECCIÓN DE EVIDENCIA --- */}
                     <div className="col-12">
                         <label className="form-label fw-bold small text-oxford">ARCHIVO DE RESPALDO (KOBO)</label>
+                        
+                        {/* AQUÍ UBICAMOS EL CÓDIGO QUE BUSCABAS: Muestra evidencia previa si existe */}
+                        {activity?.last_evidence_url && !file && (
+                            <div className="alert alert-info d-flex align-items-center p-2 mb-2" style={{ fontSize: '0.85rem' }}>
+                                <i className="fas fa-check-circle me-2"></i>
+                                <span className="text-truncate flex-grow-1">Ya existe una evidencia cargada</span>
+                                <a href={activity.last_evidence_url} target="_blank" rel="noreferrer" className="btn btn-sm btn-link text-info p-0 ms-2">
+                                    Ver archivo
+                                </a>
+                            </div>
+                        )}
+
                         <div className="input-group">
                             <input
                                 type="file"
@@ -170,10 +187,11 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                                 <i className="fas fa-upload"></i>
                             </span>
                         </div>
-                        <small className="text-muted">Formatos permitidos: Excel, CSV, PDF o Imagen.</small>
+                        <small className="text-muted">Formatos: Excel, CSV, PDF o Imagen.</small>
                     </div>
                 </div>
             </div>
+
             <div className="modal-footer border-0 bg-light">
                 <button className="btn btn-outline-secondary px-4" onClick={onClose}>Cancelar</button>
                 <button
