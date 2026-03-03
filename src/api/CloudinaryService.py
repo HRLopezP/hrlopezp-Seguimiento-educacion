@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Configuración centralizada
 cloudinary.config(
     cloud_name = os.getenv('VITE_CLOUDINARY_CLOUD_NAME'),
     api_key = os.getenv('CLOUDINARY_API_KEY'),
@@ -16,30 +17,39 @@ class CloudinaryService:
     @staticmethod
     def upload_file(file, folder="sigssep_general"):
         """
-        NUEVO: Esta función recibe el archivo y lo sube.
-        Retorna la URL segura que nos da Cloudinary.
+        Sube un archivo y retorna (url, public_id).
         """
-        result = cloudinary.uploader.upload(
-            file,
-            folder=folder,
-            resource_type="auto"
-        )
-        return result.get("secure_url")
+        try:
+            result = cloudinary.uploader.upload(
+                file,
+                folder=folder,
+                resource_type="auto"
+            )
+            return result.get("secure_url"), result.get("public_id")
+        except Exception as e:
+            print(f"Error en Cloudinary Upload: {str(e)}")
+            return None, None
+
+    @staticmethod
+    def delete_file(public_id):
+        """
+        Elimina un archivo de la nube usando su ID único.
+        Es la forma más segura y profesional.
+        """
+        if not public_id: 
+            return False
+        try:
+            res = cloudinary.uploader.destroy(public_id)
+            return res.get("result") == "ok"
+        except Exception as e:
+            print(f"Error al eliminar en Cloudinary: {str(e)}")
+            return False
 
     @staticmethod
     def validate_cloudinary_url(url):
-
+        """
+        Verifica si una URL pertenece a nuestra cuenta de Cloudinary.
+        """
+        if not url: return False
         cloud_name = os.getenv('VITE_CLOUDINARY_CLOUD_NAME')
         return f"res.cloudinary.com/{cloud_name}" in url
-
-    @staticmethod
-    def delete_old_image(image_url):
-        if not image_url: return
-        try:
-            public_id = "/".join(image_url.split("/")[-2:]).split(".")[0]
-            cloudinary.uploader.destroy(public_id)
-            return True
-        except Exception as e:
-            print(f"Error al eliminar imagen vieja: {str(e)}")
-            return False
-        

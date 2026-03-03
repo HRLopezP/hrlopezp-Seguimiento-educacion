@@ -46,16 +46,23 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
 
         setLoading(true);
         try {
-            // Si no hay archivo nuevo, mantenemos la URL que ya existía
+            // Variables para los datos finales
             let finalEvidenceUrl = activity?.last_evidence_url || activity?.real_progress?.evidence_url || "";
+            let finalPublicId = activity?.last_evidence_public_id || ""; // <-- NUEVO: Recuperamos el ID previo si existe
 
             if (file) {
                 const formData = new FormData();
                 formData.append('file', file);
+                formData.append('folder', 'sigssep_evidences'); // Organizar por carpetas es pro
+
                 const uploadRes = await apiFetch("/upload-evidence", { method: 'POST', body: formData });
                 const uploadData = await uploadRes.json();
+
                 if (!uploadRes.ok) throw new Error("Error al subir evidencia");
+
+                // Ahora capturamos ambos campos del JSON que devuelve el backend
                 finalEvidenceUrl = uploadData.url;
+                finalPublicId = uploadData.public_id; // <-- NUEVO
             }
 
             const payload = {
@@ -63,7 +70,8 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                 men_reached: Number(achievedMen),
                 women_reached: Number(achievedWomen),
                 observations: observations.trim(),
-                evidence_url: finalEvidenceUrl 
+                evidence_url: finalEvidenceUrl,
+                evidence_public_id: finalPublicId // <-- NUEVO: Enviamos el ID al backend
             };
 
             const method = isEditing ? 'PATCH' : 'POST';
@@ -85,7 +93,7 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
             setLoading(false);
         }
     };
-
+    
     // 5. RENDER (EL "DIBUJO")
     return (
         <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '15px' }}>
@@ -164,7 +172,7 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                     {/* --- SECCIÓN DE EVIDENCIA --- */}
                     <div className="col-12">
                         <label className="form-label fw-bold small text-oxford">ARCHIVO DE RESPALDO (KOBO)</label>
-                        
+
                         {/* AQUÍ UBICAMOS EL CÓDIGO QUE BUSCABAS: Muestra evidencia previa si existe */}
                         {activity?.last_evidence_url && !file && (
                             <div className="alert alert-info d-flex align-items-center p-2 mb-2" style={{ fontSize: '0.85rem' }}>

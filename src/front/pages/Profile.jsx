@@ -95,11 +95,16 @@ const Profile = () => {
         if (!file) return;
         setUploading(true);
         try {
-            const imageUrl = await uploadImage(file);
+            const { url, public_id } = await uploadImage(file);
+
             const res = await apiFetch("/user/update-avatar", {
                 method: "PATCH",
-                body: JSON.stringify({ image_url: imageUrl }),
+                body: JSON.stringify({ 
+                    image_url: url,  
+                    public_id: public_id 
+                }),
             });
+
             if (res.ok) {
                 const data = await res.json();
                 setUser(data.user);
@@ -107,6 +112,7 @@ const Profile = () => {
                 toast.success("¡Imagen de perfil actualizada!");
             }
         } catch (error) {
+            console.error("Error en upload:", error);
             toast.error("Error al procesar la imagen");
         } finally {
             setUploading(false);
@@ -125,7 +131,7 @@ const Profile = () => {
                         <i className="fas fa-user-circle me-2"></i> Perfil de Usuario
                     </h5>
                 </div>
-                
+
                 <div className="profile-content">
                     {/* Sección Avatar */}
                     <div className="avatar-section">
@@ -199,7 +205,7 @@ const Profile = () => {
                                             onChange={handlePassChange}
                                             value={passData[field]}
                                         />
-                                        <button className="btn auth-input border-start-0" type="button" onClick={() => setShowPass({...showPass, [field]: !showPass[field]})}>
+                                        <button className="btn auth-input border-start-0" type="button" onClick={() => setShowPass({ ...showPass, [field]: !showPass[field] })}>
                                             <i className={`fa-solid ${showPass[field] ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                                         </button>
                                     </div>

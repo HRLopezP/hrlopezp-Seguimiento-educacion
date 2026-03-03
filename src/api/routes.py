@@ -440,8 +440,6 @@ def get_profile():
         if not user:
             return jsonify({"message": "Usuario no encontrado"}), 404
 
-        # IMPORTANTE: Usamos 'profile' que es como se llama en tu modelo
-        # Y usamos el método serialize() que ya tienes bien hecho
         return jsonify(user.serialize()), 200
 
     except Exception as e:
@@ -523,28 +521,37 @@ def update_avatar():
     user = User.query.get(user_id)
 
     data = request.json
-    new_image_url = data.get("image_url")  # Coincide con Profile.jsx
+    new_image_url = data.get("image_url") 
+    new_public_id = data.get("public_id") # <--- React debe enviar esto ahora
 
     if not new_image_url:
         return jsonify({"msg": "URL de imagen requerida"}), 400
 
-    # 1. Validar URL (Opcional pero recomendado)
+    # 1. Validar URL (Sigue funcionando igual)
     if not CloudinaryService.validate_cloudinary_url(new_image_url):
         return jsonify({"msg": "URL de imagen no válida"}), 400
 
-    # 2. Borrar la vieja si existe (Usamos user.profile que es el nombre real)
-    if user.profile:
-        CloudinaryService.delete_old_image(user.profile)
+    # 2. LIMPIEZA: Borrar la foto anterior de la nube
+    # Usamos el public_id guardado en la DB, que es lo más seguro
+    if user.profile_public_id:
+        # Solo borramos si el nuevo archivo es realmente distinto
+        if user.profile_public_id != new_public_id:
+            CloudinaryService.delete_file(user.profile_public_id)
 
-    # 3. Guardar en la columna correcta: 'profile'
+    # 3. Guardar en la base de datos
     user.profile = new_image_url
-    db.session.commit()
-
-    return jsonify({
-        "msg": "Avatar actualizado con éxito",
-        "user": user.serialize()  # Devolvemos el usuario completo actualizado
-    }), 200
-
+    user.profile_public_id = new_public_id
+    
+    try:
+        db.session.commit()
+        return jsonify({
+            "msg": "Avatar actualizado con éxito",
+            "user": user.serialize() 
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Error al guardar en base de datos"}), 500
+    
 
 @api.route('/competences', methods=['GET'])
 @jwt_required()
@@ -1916,6 +1923,8 @@ def create_achievement():
             women_reached=float(data.get('women_reached', 0)),
             disability_reached=float(data.get('disability_reached', 0)),
             evidence_url=data.get('evidence_url'),
+            # ESTA ES LA LÍNEA QUE DEBES AGREGAR:
+            evidence_public_id=data.get('evidence_public_id'), 
             observations=data.get('observations'),
             user_id=user_id
         )
@@ -1942,34 +1951,42 @@ def patch_achievement(id):
     record = AchievementRecord.query.get_or_404(id)
     data = request.json
     
-    # 1. ACTUALIZACIÓN DE DATOS NUMÉRICOS
-    if 'men_reached' in data: 
-        record.men_reached = float(data['men_reached'])
-    if 'women_reached' in data: 
-        record.women_reached = float(data['women_reached'])
-    if 'disability_reached' in data: 
-        record.disability_reached = float(data['disability_reached'])
+    # 1. ACTUALIZACIÓN DE DATOS (Mantenemos tu lógica sólida)
+    if 'men_reached' in data: record.men_reached = float(data['men_reached'])
+    if 'women_reached' in data: record.women_reached = float(data['women_reached'])
+    if 'disability_reached' in data: record.disability_reached = float(data['disability_reached'])
+    if 'observations' in data: record.observations = data['observations']
 
-    # 2. ACTUALIZACIÓN DE TEXTOS (OBSERVACIONES)
-    if 'observations' in data:
-        record.observations = data['observations']
+    # 2. LÓGICA DE REEMPLAZO DE EVIDENCIA (Refactorizada)
+    if 'evidence_url' in data:
+        new_url = data.get('evidence_url')
+        new_public_id = data.get('evidence_public_id')
 
-    # 3. MANEJO DE EVIDENCIA (ARCHIVO)
-    if 'evidence_url' in data and data['evidence_url']:
-        record.evidence_url = data['evidence_url']
+        # Si el usuario mandó una URL nueva y es distinta a la vieja...
+        if new_url and new_url != record.evidence_url:
+            
+            # Si teníamos un archivo anterior, usamos el SERVICIO para borrar
+            if record.evidence_public_id:
+                # LLAMADA PROFESIONAL AL SERVICIO
+                CloudinaryService.delete_file(record.evidence_public_id)
+                print(f"DEBUG: Solicitado borrado de ID: {record.evidence_public_id}")
 
-    # 4. AUDITORÍA
+            # ACTUALIZACIÓN DE AMBOS CAMPOS (Lo que me consultaste)
+            record.evidence_url = new_url
+            record.evidence_public_id = new_public_id # <--- Clave para futuras limpiezas
+
+    # 3. AUDITORÍA Y GUARDADO
     record.updated_by_id = user_id
 
     try:
         db.session.commit()
         return jsonify({
-            "message": "Logro corregido exitosamente",
+            "message": "Logro actualizado y archivos gestionados",
             "record": record.serialize()
         }), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": f"Error al actualizar: {str(e)}"}), 500
+        return jsonify({"message": f"Error en base de datos: {str(e)}"}), 500
     
 
 @api.route('/achievements/<int:id>', methods=['DELETE'])
@@ -1994,27 +2011,30 @@ def delete_achievement(id):
 @api.route('/upload-evidence', methods=['POST'])
 @jwt_required()
 def upload_evidence():
-    # 1. ¿Viene un archivo?
     if 'file' not in request.files:
         return jsonify({"message": "No se encontró ningún archivo"}), 400
     
     file = request.files['file']
     if file.filename == '':
-        return jsonify({"message": "Nombre de archivo no válido"}), 400
+        return jsonify({"message": "El archivo no tiene nombre"}), 400
+
+    folder = request.form.get("folder", "sigssep_evidences")
 
     try:
-        # 2. Le decimos al CloudinaryService que haga el trabajo sucio
-        # Ya no necesitamos llamar a cloudinary.uploader aquí directamente
-        secure_url = CloudinaryService.upload_file(file, folder="sigssep_evidences")
+        secure_url, public_id = CloudinaryService.upload_file(file, folder=folder)
         
-        # 3. Respondemos con la URL que el Servicio nos entregó
+        if secure_url is None or public_id is None:
+            return jsonify({"message": "Cloudinary no pudo procesar el archivo"}), 500
+
         return jsonify({
             "message": "Archivo subido con éxito",
-            "url": secure_url
+            "url": secure_url,
+            "public_id": public_id
         }), 200
 
     except Exception as e:
-        return jsonify({"message": f"Error al procesar el archivo: {str(e)}"}), 500
+        print(f"Error crítico en endpoint upload: {str(e)}")
+        return jsonify({"message": "Error interno al procesar la subida"}), 500
     
 
 @api.route('/project/<int:project_id>/progress-summary', methods=['GET'])

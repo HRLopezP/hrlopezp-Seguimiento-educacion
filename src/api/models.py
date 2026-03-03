@@ -49,6 +49,7 @@ class User(db.Model):
     password: Mapped[str] = mapped_column(String(255), nullable=False)
     profile: Mapped[Optional[str]] = mapped_column(
         String(255), nullable=True, default=None)
+    profile_public_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     is_active: Mapped[bool] = mapped_column(
         Boolean(), nullable=False, default=False)
@@ -108,8 +109,8 @@ class User(db.Model):
         "rol_id": self.rol_id,
         "rol_name": self.rol.name_rol if self.rol else None,
         "is_active": self.is_active,
-        # Ahora sí, pasamos los valores del diccionario a una lista
         "competences": competences_list,
+        "profile_public_id": self.profile_public_id,
         "image": self.profile if self.profile else f"https://ui-avatars.com/api/?name={initials.replace(' ', '+')}&size=128&background=random&rounded=true"
     }
 
@@ -749,6 +750,7 @@ class AchievementRecord(db.Model):
     disability_reached: Mapped[float] = mapped_column(Float, default=0.0)
     
     evidence_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    evidence_public_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     observations: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     execution_date: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
@@ -773,6 +775,7 @@ class AchievementRecord(db.Model):
                 "total": self.men_reached + self.women_reached
             },
             "evidence": self.evidence_url,
+            "evidence_public_id": self.evidence_public_id,
             "observations": self.observations,
             "audit": {
                 "created_by": f"{self.creator.name} {self.creator.lastname}" if self.creator else "N/A",
