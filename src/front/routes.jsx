@@ -17,6 +17,7 @@ import ResetPassword from "./pages/ResetPassword";
 import UserManagement from "./pages/UserManagement";
 import RoleManagement from "./pages/RoleManagement";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { OfficialRoute } from "./components/OfficialRoute";
 import CompetenceManagement from "./pages/CompetenceManagement";
 import TheoryManagement from "./pages/TheoryManagement";
 import TheoryConsole from "./pages/TheoryConsole";
@@ -25,7 +26,9 @@ import LocationManagement from "./pages/LocationManagement";
 import ProjectList from "./pages/ProjectList";
 import ProjectDetail from "./pages/ProjectDetail";
 import ProjectTechnicalSetup from "./pages/ProjectTechnicalSetup";
+import ActivityCatalogManagement from "./pages/ActivityCatalogManagement";
 import VerificationMeansManagement from "./pages/VerificationMeansManagement";
+import { OfficialDashboard } from "./pages/OfficialDashboard";
 import Profile from "./pages/Profile";
 
 export const router = createBrowserRouter(
@@ -154,6 +157,24 @@ export const router = createBrowserRouter(
           <ProtectedRoute>
             <VerificationMeansManagement />
           </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/manager/catalogs/activities"
+        element={
+          <ProtectedRoute>
+            <ActivityCatalogManagement />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/official/dashboard"
+        element={
+          <OfficialRoute>
+            <OfficialDashboard />
+          </OfficialRoute>
         }
       />
 

@@ -1,34 +1,36 @@
-// src/utils/api.js
 export const apiFetch = async (endpoint, options = {}) => {
-    const urlBase = import.meta.env.VITE_BACKEND_URL;
-    const token = localStorage.getItem("access_token");
+  const urlBase = import.meta.env.VITE_BACKEND_URL;
+  const token = localStorage.getItem("access_token");
 
-    const defaultHeaders = {
-        "Content-Type": "application/json",
-        ...(token ? { "Authorization": `Bearer ${token}` } : {})
-    };
+  const headers = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...options.headers, 
+  };
 
-    const config = {
-        ...options,
-        headers: {
-            ...defaultHeaders,
-            ...options.headers
-        }
-    };
 
-    try {
-        const response = await fetch(`${urlBase}${endpoint}`, config);
+  if (!(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
 
-        // Si el token expiró, limpiamos y redirigimos
-        if (response.status === 401) {
-            localStorage.removeItem("access_token");
-            window.location.href = "/login"; 
-            return null;
-        }
+  const config = {
+    ...options,
+    headers,
+  };
 
-        return response;
-    } catch (error) {
-        console.error("Error en la petición:", error);
-        throw error;
+  try {
+    const response = await fetch(`${urlBase}${endpoint}`, config);
+
+    if (response.status === 401) {
+      localStorage.removeItem("access_token");
+      window.location.href = "/login";
+      return null;
     }
+
+    return response;
+  } catch (error) {
+    if (error.name === "AbortError") return null;
+
+    console.error("Error en la comunicación con la API:", error);
+    throw error;
+  }
 };

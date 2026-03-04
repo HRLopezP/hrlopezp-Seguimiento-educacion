@@ -1,9 +1,10 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Integer, String, Column, Table, Boolean, DateTime, Text, Enum, ForeignKey, Float
+from sqlalchemy import Integer, func, String, Column, Table, Boolean, DateTime, Text, Enum, ForeignKey, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from typing import Optional, List
 from sqlalchemy.ext.hybrid import hybrid_property
+import enum
 
 db = SQLAlchemy()
 
@@ -48,8 +49,8 @@ class User(db.Model):
     password: Mapped[str] = mapped_column(String(255), nullable=False)
     profile: Mapped[Optional[str]] = mapped_column(
         String(255), nullable=True, default=None)
+    profile_public_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
-    # Cambiado a False para cumplir con la regla del SIGSSEP
     is_active: Mapped[bool] = mapped_column(
         Boolean(), nullable=False, default=False)
 
@@ -67,9 +68,17 @@ class User(db.Model):
         back_populates="users"
     )
 
-    # En Activity, el campo debería llamarse 'responsible' para que esto funcione
-    activities: Mapped[List["Activity"]] = relationship(
-        back_populates="responsible")
+    activities_created: Mapped[List["Activity"]] = relationship(
+        "Activity", 
+        foreign_keys="[Activity.created_by_id]",
+        back_populates="creator"
+    )
+
+    activities_updated: Mapped[List["Activity"]] = relationship(
+        "Activity", 
+        foreign_keys="[Activity.updated_by_id]",
+        back_populates="editor"
+    )
 
     project_assignments: Mapped[List["ProjectCompetence"]] = relationship(back_populates="manager")
 
@@ -100,13 +109,11 @@ class User(db.Model):
         "rol_id": self.rol_id,
         "rol_name": self.rol.name_rol if self.rol else None,
         "is_active": self.is_active,
-        # Ahora sí, pasamos los valores del diccionario a una lista
         "competences": competences_list,
+        "profile_public_id": self.profile_public_id,
         "image": self.profile if self.profile else f"https://ui-avatars.com/api/?name={initials.replace(' ', '+')}&size=128&background=random&rounded=true"
     }
 
-
-# --- CATÁLOGOS / MOLDES (Lo que el Admin define) ---
 
 class TheoryTemplate(db.Model):
     __tablename__ = 'theory_template'
@@ -144,11 +151,9 @@ class ResultTemplate(db.Model):
     theory_id: Mapped[int] = mapped_column(ForeignKey('theory_template.id'))
     theory: Mapped["TheoryTemplate"] = relationship(back_populates="results")
 
-    # Cascade delete es vital aquí: si borras un output, se van sus indicadores
     indicators: Mapped[List["IndicatorTemplate"]] = relationship(
         back_populates="result", cascade="all, delete-orphan")
 
-    # ¡IMPORTANTE! Añadir serialize para el siguiente paso del proyecto
     def serialize(self):
         return {
             "id": self.id,
@@ -180,7 +185,12 @@ class IndicatorTemplate(db.Model):
         }
 
 
-# --- INSTANCIAS DEL PROYECTO (Lo que el Gerente llena) ---
+class ProjectStatus(enum.Enum):
+    PLANIFICADO = "Planificado"
+    EN_PROGRESO = "En Progreso"
+    COMPLETADO = "Completado"
+    SUSPENDIDO = "Suspendido"
+
 
 class Project(db.Model):
     __tablename__ = 'project'
@@ -196,10 +206,9 @@ class Project(db.Model):
         DateTime, nullable=True)
     end_date: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True)
-    status: Mapped[str] = mapped_column(
-        String(20), default="En Progreso", nullable=False)
+    status: Mapped[ProjectStatus] = mapped_column(
+        db.Enum(ProjectStatus), default=ProjectStatus.EN_PROGRESO, nullable=False)
 
-    # Estos son los BENEFICIARIOS ÚNICOS (Los 10,000 del ejemplo)
     target_total: Mapped[float] = mapped_column(Float, default=0.0)
     target_men: Mapped[float] = mapped_column(Float, default=0.0)
     target_women: Mapped[float] = mapped_column(Float, default=0.0)
@@ -214,7 +223,6 @@ class Project(db.Model):
             return max(0, delta.days)
         return 0
 
-    # Relaciones
     locations: Mapped[List["Location"]] = relationship(
         back_populates="project")
     indicators: Mapped[List["Indicator"]] = relationship(
@@ -237,7 +245,7 @@ class Project(db.Model):
             "results_summary": self.results_summary,
             "start_date": self.start_date.strftime("%Y-%m-%d") if self.start_date else None,
             "end_date": self.end_date.strftime("%Y-%m-%d") if self.end_date else None,
-            "status": self.status,
+            "status": self.status.value if hasattr(self.status, 'value') else self.status,
             "remaining_days": self.remaining_days,
             "theories_and_indicators": [t.serialize() for t in self.theories_assigned],
             "unique_targets": {
@@ -251,12 +259,10 @@ class Project(db.Model):
                     "id": cp.id_pc,  # Usamos 'id' a secas para que React lo maneje mejor como key
                     "competence_id": cp.competence_id,
                     "manager_id": cp.manager_id,
-                    "name": cp.competence.name,  # Para mostrar en la tabla
-                    # Para mostrar en la tabla
+                    "name": cp.competence.name,  
                     "manager_name": f"{cp.manager.name} {cp.manager.lastname}"
                 } for cp in self.competence_assignments
             ],
-            # Aquí se ven Apure: 4000, Zulia: 6000
             "province_unique_breakdown": [pg.serialize() for pg in self.province_goals],
             "locations": [loc.serialize() for loc in self.locations],
             "indicators": [ind.serialize() for ind in self.indicators],
@@ -269,7 +275,6 @@ indicator_verification_means = db.Table(
     db.Column('mean_id', db.Integer, db.ForeignKey('master_verification_mean.id'), primary_key=True)
 )
 
-# 2. CATÁLOGO MAESTRO
 class MasterVerificationMean(db.Model):
     __tablename__ = 'master_verification_mean'
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -298,11 +303,9 @@ class Indicator(db.Model):
     project_result: Mapped["ProjectResult"] = relationship(back_populates="indicators")
     template: Mapped["IndicatorTemplate"] = relationship()
     
-    # --- MANTENEMOS TUS CAMPOS ORIGINALES ---
     verification_means: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # <-- NO CAMBIA
     observations: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    # --- NUEVA RELACIÓN (LO EXTRA) ---
     selected_means_list: Mapped[List["MasterVerificationMean"]] = relationship(
         secondary=indicator_verification_means
     )
@@ -322,6 +325,25 @@ class Indicator(db.Model):
     def serialize(self):
         res_temp = self.project_result.result_template if self.project_result else None
         theo_temp = res_temp.theory if res_temp else None
+
+        if not theo_temp and self.template and self.template.result:
+            theo_temp = self.template.result.theory
+        
+        comp_id = theo_temp.competence_id if theo_temp else None
+        pc_id = None
+
+        if comp_id:
+            pc = ProjectCompetence.query.filter_by(
+                project_id=self.project_id, 
+                competence_id=comp_id
+            ).first()
+            if pc:
+                pc_id = pc.id_pc
+        
+        if pc_id is None:
+            first_pc = ProjectCompetence.query.filter_by(project_id=self.project_id).first()
+            pc_id = first_pc.id_pc if first_pc else None
+
         comp_temp = theo_temp.competence if theo_temp else None
 
         final_type = "output"
@@ -335,14 +357,28 @@ class Indicator(db.Model):
             theo_temp = res_temp.theory
             comp_temp = theo_temp.competence
         
+        nombre_resultado = "General"
+        tipo_resultado = "output"
+
+        if self.project_result:
+            # Aquí es donde vive el nombre real ("Output 1 de Estrategia...", etc.)
+            nombre_resultado = self.project_result.name
+            tipo_resultado = self.project_result.type or "output"
+        elif self.template and self.template.result:
+            # Si no hay nodo de proyecto, miramos la plantilla
+            nombre_resultado = self.template.result.name
+            tipo_resultado = self.template.result.type or "output"
+        
         return {
             "id": self.id_indicator,
+            "competence_id": comp_temp.id_competence if comp_temp else None,
             "template_id": self.template_id,
             "indicator_code": self.template.code,
             "indicator_name": self.template.name,
             "description": self.template.description,
             "verification_means": self.verification_means or "", 
             "observations": self.observations or "",
+            "project_competence_id": pc_id,
             "means_tags": [m.serialize() for m in self.selected_means_list],
             "indicator_targets": {
                 "total": self.target_total,
@@ -352,9 +388,8 @@ class Indicator(db.Model):
             "goals_by_province": [goal.serialize() for goal in self.location_goals],
             "comp_name": comp_temp.name if comp_temp else "Otras Competencias",
             "theory_name": theo_temp.name if theo_temp else "Sin Teoría",
-            "result_name": res_temp.name if res_temp else "General",
-            "result_type": final_type.lower() if final_type else "output",
-            # NUEVO: Para que el oficial sepa si el indicador es dependiente o independiente
+            "result_name": nombre_resultado, 
+            "result_type": tipo_resultado.lower(),
             "depends_on_ids": [i.id_indicator for i in self.depends_on]
         }
 
@@ -373,11 +408,9 @@ class Location(db.Model):
     community_institution: Mapped[Optional[str]
                                   ] = mapped_column(String(100), nullable=True)
 
-    # El "dueño" de esta ubicación es el proyecto
     project_id: Mapped[int] = mapped_column(
         ForeignKey('project.id_project'), nullable=False)
 
-    # Relaciones para poder acceder al nombre fácilmente
     province_ref: Mapped["Province"] = relationship()
     municipality_ref: Mapped["Municipality"] = relationship()
     parish_ref: Mapped["Parish"] = relationship()
@@ -402,11 +435,9 @@ class IndicatorLocationGoal(db.Model):
     indicator_id: Mapped[int] = mapped_column(
         ForeignKey('indicator.id_indicator'), nullable=False)
 
-    # Lo vinculamos a la Provincia para saber a qué meta de estado pertenece
     province_id: Mapped[int] = mapped_column(
         ForeignKey('province.id'), nullable=False)
 
-    # Metas que el gerente asigna (Ejemplo: Indicador "Vacunación" en Apure: 4500)
     total_target: Mapped[float] = mapped_column(Float, default=0.0) 
     men: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
     women: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
@@ -437,7 +468,6 @@ class Competence(db.Model):
     id_competence: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
 
-    # Relación inversa hacia User
     users: Mapped[List["User"]] = relationship(
         secondary=user_competence,
         back_populates="competences"
@@ -456,7 +486,6 @@ class Competence(db.Model):
             "theories": [t.serialize() for t in self.theories] if self.theories else []
         }
 
-# --- RELACIONES DE GESTIÓN ---
 
 
 class ProjectCompetence(db.Model):
@@ -471,7 +500,7 @@ class ProjectCompetence(db.Model):
 
     competence: Mapped["Competence"] = relationship(
         back_populates="project_assignments")
-    manager: Mapped["User"] = relationship()
+    manager: Mapped["User"] = relationship(back_populates="project_assignments")
     project: Mapped["Project"] = relationship(
         back_populates="competence_assignments")
 
@@ -482,82 +511,121 @@ class ProjectCompetence(db.Model):
             "competence": self.competence.serialize() if self.competence else None,
             "manager": self.manager.serialize() if self.manager else None
         }
-# --- REGISTRO DE AVANCES (OPERATIVO) ---
 
+
+class ActivityStatus(enum.Enum):
+    PLANIFICADA = "Planificada"
+    EN_PROGRESO = "En Progreso"
+    COMPLETADA = "Completada"
+    VENCIDA = "Vencida"
+    CANCELADA = "Cancelada"
 
 class Activity(db.Model):
     __tablename__ = 'activity'
     id_activity: Mapped[int] = mapped_column(primary_key=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    implementation_date: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False)
-
-    # Logros numéricos
-    achievement_men: Mapped[float] = mapped_column(Float, default=0.0)
-    achievement_women: Mapped[float] = mapped_column(Float, default=0.0)
-    achievement_disability: Mapped[float] = mapped_column(Float, default=0.0)
-
-    status: Mapped[str] = mapped_column(String(20), default="Pendiente")
-
-    planned_date_end: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    start_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    end_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     planned_target: Mapped[float] = mapped_column(Float, default=0.0)
-    
-    # NUEVO PARA EJECUCIÓN REAL
-    evidence_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    actual_observations: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    
-    # PARA OUTCOMES INDEPENDIENTES (Denominador variable)
-    context_denominator: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    planned_men: Mapped[float] = mapped_column(Float, default=0.0) 
+    planned_women: Mapped[float] = mapped_column(Float, default=0.0)
+    status: Mapped[ActivityStatus] = mapped_column(db.Enum(ActivityStatus), default=ActivityStatus.PLANIFICADA)
+    cancellation_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    # Relaciones
-    indicator_id: Mapped[int] = mapped_column(
-        ForeignKey('indicator.id_indicator'), nullable=False)
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey('user.id_user'), nullable=False)
-    location_id: Mapped[int] = mapped_column(
-        ForeignKey('location.id_location'), nullable=False)
-
+    indicator_id: Mapped[int] = mapped_column(ForeignKey('indicator.id_indicator'), nullable=False)
     project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
+    location_id: Mapped[int] = mapped_column(ForeignKey('location.id_location'), nullable=False)
+    project_competence_id: Mapped[int] = mapped_column(ForeignKey('project_competence.id_pc'), nullable=False)
 
-    responsible: Mapped["User"] = relationship(back_populates="activities")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, onupdate=func.now())
+    created_by_id: Mapped[int] = mapped_column(ForeignKey('user.id_user'), nullable=False)
+    updated_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey('user.id_user'), nullable=True)
 
-    indicator: Mapped["Indicator"] = relationship() 
-    project: Mapped["Project"] = relationship()
+    achievements: Mapped[List["AchievementRecord"]] = relationship(back_populates="activity", cascade="all, delete-orphan")
+    creator: Mapped["User"] = relationship(
+        "User", 
+        foreign_keys=[created_by_id], 
+        back_populates="activities_created" 
+    )
+    editor: Mapped["User"] = relationship(
+        "User", 
+        foreign_keys=[updated_by_id], 
+        back_populates="activities_updated" 
+    )
 
+    location: Mapped["Location"] = relationship()
+    indicator: Mapped["Indicator"] = relationship()
+    
+    def get_real_status(self):
+        if self.status == ActivityStatus.CANCELADA:
+            return ActivityStatus.CANCELADA.value
+
+        if len(self.achievements) > 0:
+            return ActivityStatus.COMPLETADA.value
+
+        hoy = date.today() 
+        inicio = self.start_date.date()
+        if hoy < inicio:
+            return ActivityStatus.PLANIFICADA.value
+        else:
+            return ActivityStatus.VENCIDA.value
+    
     def serialize(self):
+        total_men_reached = sum((rec.men_reached or 0) for rec in self.achievements)
+        total_women_reached = sum((rec.women_reached or 0) for rec in self.achievements)
+
+        p_name = self.location.province_ref.name if self.location and self.location.province_ref else None
+        m_name = self.location.municipality_ref.name if self.location and self.location.municipality_ref else None
+        pa_name = self.location.parish_ref.name if self.location and self.location.parish_ref else None
+
+        template = self.indicator.template if self.indicator else None
+        ind_code = template.code if template else "IND"
+        ind_name = template.name if template else "Sin nombre"
+
+        last_achievement = self.achievements[-1] if self.achievements else None
+        
         return {
             "id": self.id_activity,
-            "project_id": self.project_id,
-            "indicator_id": self.indicator_id,
-            "indicator_code": self.indicator.template.code if self.indicator and self.indicator.template else "N/A",
             "description": self.description,
-            "status": self.status,
-            
-            # Fechas
-            "start_date": self.implementation_date.strftime("%Y-%m-%d"),
-            "end_date": self.planned_date_end.strftime("%Y-%m-%d") if self.planned_date_end else None,
-            
-            # Planificación vs Logros
-            "planned_target": self.planned_target,
-            "achievements": {
-                "men": self.achievement_men,
-                "women": self.achievement_women,
-                "disability": self.achievement_disability,
-                "total": self.achievement_men + self.achievement_women
-            },
-            
-            # Resultados y Evidencias
-            "evidence_url": self.evidence_url,
-            "actual_observations": self.actual_observations,
-            "context_denominator": self.context_denominator, # Para outcomes variables
-            
-            # Ubicación y Responsable
+            "indicator_id": self.indicator_id,
+            "indicator_code": ind_code,
+            "indicator_name": ind_name,
             "location_id": self.location_id,
-            "responsible_name": f"{self.responsible.name} {self.responsible.lastname}" if self.responsible else "N/A"
+            "province_name": p_name,
+            "municipality_name": m_name,
+            "parish_name": pa_name,
+            "project_id": self.project_id,
+            "cancellation_reason": self.cancellation_reason,
+            "project_competence_id": self.project_competence_id,
+            "period": {
+                "start": self.start_date.strftime("%Y-%m-%d") if self.start_date else None,
+                "end": self.end_date.strftime("%Y-%m-%d") if self.end_date else None
+            },
+            "status": self.get_real_status(),
+            "planned": {
+                "total": self.planned_target,
+                "men": self.planned_men,
+                "women": self.planned_women
+            },
+            "real_progress": { 
+                "men": total_men_reached, 
+                "women": total_women_reached, 
+                "total": total_men_reached + total_women_reached 
+            },
+            "audit": {
+                "created_at": self.created_at.strftime("%Y-%m-%d %H:%M") if self.created_at else None,
+            # Usamos getattr para evitar errores si la relación no cargó a tiempo
+                "created_by_name": f"{getattr(self.creator, 'name', 'Usuario')} {getattr(self.creator, 'lastname', '')}".strip() if self.creator else "Sistema",
+                "last_update": self.updated_at.isoformat() if self.updated_at else None,
+                "updated_by_name": f"{getattr(self.editor, 'name', '')} {getattr(self.editor, 'lastname', '')}".strip() if self.editor else "Sin cambios"
+            },
+
+            "last_achievement_id": last_achievement.id if last_achievement else None,
+            "last_observations": last_achievement.observations if last_achievement else "",
+            "last_evidence_url": last_achievement.evidence_url if last_achievement else None,
+            "achievements_history": [a.serialize() for a in self.achievements]
         }
-
-
-# --- CATÁLOGOS DE TERRITORIO (Los que el Admin llena primero) ---
 
 class Province(db.Model):
     __tablename__ = 'province'
@@ -616,7 +684,6 @@ class ProjectProvinceGoal(db.Model):
     province_id: Mapped[int] = mapped_column(
         ForeignKey('province.id'), nullable=False)
 
-    # Metas por provincia (Apure: 4000...)
     target_total: Mapped[float] = mapped_column(Float, default=0.0)
     target_men: Mapped[float] = mapped_column(Float, default=0.0)
     target_women: Mapped[float] = mapped_column(Float, default=0.0)
@@ -635,21 +702,15 @@ class ProjectProvinceGoal(db.Model):
         }
 
 
-# --- NUEVOS MODELOS DE INSTANCIA ---
-
 class ProjectTheory(db.Model):
     __tablename__ = 'project_theory'
     id: Mapped[int] = mapped_column(primary_key=True)
     project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
-    # Quién es el dueño de esta selección
     project_competence_id: Mapped[int] = mapped_column(ForeignKey('project_competence.id_pc'), nullable=False)
-    # Qué teoría del catálogo seleccionó
     theory_template_id: Mapped[int] = mapped_column(ForeignKey('theory_template.id'), nullable=False)
 
-    # Relaciones
     project: Mapped["Project"] = relationship(back_populates="theories_assigned")
     theory_template: Mapped["TheoryTemplate"] = relationship()
-    # Esto nos permite llegar a los resultados seleccionados
     selected_results: Mapped[List["ProjectResult"]] = relationship(back_populates="project_theory", cascade="all, delete-orphan")
 
     def serialize(self):
@@ -668,7 +729,6 @@ class ProjectResult(db.Model):
 
     project_theory: Mapped["ProjectTheory"] = relationship(back_populates="selected_results")
     result_template: Mapped["ResultTemplate"] = relationship()
-    # Conectamos con los indicadores reales que el gerente va a llenar
     indicators: Mapped[List["Indicator"]] = relationship(back_populates="project_result", cascade="all, delete-orphan")
 
     def serialize(self):
@@ -678,5 +738,100 @@ class ProjectResult(db.Model):
             "type": self.result_template.type,
             "indicators": [i.serialize() for i in self.indicators]
         }
+    
+
+class AchievementRecord(db.Model):
+    __tablename__ = 'achievement_record'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    activity_id: Mapped[int] = mapped_column(ForeignKey('activity.id_activity'), nullable=False)
+    
+    men_reached: Mapped[float] = mapped_column(Float, default=0.0)
+    women_reached: Mapped[float] = mapped_column(Float, default=0.0)
+    disability_reached: Mapped[float] = mapped_column(Float, default=0.0)
+    
+    evidence_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    evidence_public_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    observations: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    execution_date: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    user_id: Mapped[int] = mapped_column(ForeignKey('user.id_user'), nullable=False)
+    
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, onupdate=func.now())
+    updated_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey('user.id_user'), nullable=True)
+    
+    activity: Mapped["Activity"] = relationship(back_populates="achievements")
+    creator: Mapped["User"] = relationship("User", foreign_keys=[user_id])
+    editor: Mapped["User"] = relationship("User", foreign_keys=[updated_by_id])
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "activity_id": self.activity_id,
+            "date": self.execution_date.strftime("%Y-%m-%d %H:%M"),
+            "reach": {
+                "men": self.men_reached, 
+                "women": self.women_reached, 
+                "disability": self.disability_reached,
+                "total": self.men_reached + self.women_reached
+            },
+            "evidence": self.evidence_url,
+            "evidence_public_id": self.evidence_public_id,
+            "observations": self.observations,
+            "audit": {
+                "created_by": f"{self.creator.name} {self.creator.lastname}" if self.creator else "N/A",
+                "updated_at": self.updated_at.strftime("%Y-%m-%d %H:%M") if self.updated_at else None,
+                "updated_by": f"{self.editor.name} {self.editor.lastname}" if self.editor else None
+            }
+        }
 
 
+class SystemChangeLog(db.Model):
+    __tablename__ = 'system_change_log'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    
+    entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    entity_id: Mapped[int] = mapped_column(Integer, nullable=False) # Corregido a Integer
+    
+    user_id: Mapped[int] = mapped_column(ForeignKey('user.id_user'), nullable=False)
+    
+    field_changed: Mapped[str] = mapped_column(String(50)) 
+    old_value: Mapped[str] = mapped_column(Text, nullable=True) 
+    new_value: Mapped[str] = mapped_column(Text, nullable=True) 
+    
+    change_date: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    user: Mapped["User"] = relationship() 
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "entity": self.entity_type,
+            "entity_id": self.entity_id,
+            "field": self.field_changed,
+            "old": self.old_value,
+            "new": self.new_value,
+            "date": self.change_date.strftime("%Y-%m-%d %H:%M:%S"),
+            "user": f"{self.user.name} {self.user.lastname}" if self.user else "Desconocido"
+        }
+
+
+class ActivityCatalog(db.Model):
+    __tablename__ = 'activity_catalog'
+    id_ac: Mapped[int] = mapped_column(primary_key=True)
+    description: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Podemos asociarlo a una competencia si queremos que sea específico
+    competence_id: Mapped[Optional[int]] = mapped_column(ForeignKey('competence.id_competence'))
+    
+    competence = relationship("Competence")
+
+    def serialize(self):
+        comp_name = "General"
+        if self.competence:
+            comp_name = getattr(self.competence, 'name', "General")
+            
+        return {
+            "id": self.id_ac,
+            "description": self.description,
+            "competence_id": self.competence_id,
+            "competence_name": comp_name
+            }
