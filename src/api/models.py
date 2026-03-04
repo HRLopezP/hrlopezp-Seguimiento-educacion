@@ -303,8 +303,10 @@ class Indicator(db.Model):
     project_result: Mapped["ProjectResult"] = relationship(back_populates="indicators")
     template: Mapped["IndicatorTemplate"] = relationship()
     
-    verification_means: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # <-- NO CAMBIA
+    verification_means: Mapped[Optional[str]] = mapped_column(Text, nullable=True) 
     observations: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    measurement_unit: Mapped[str] = mapped_column(String(20), default="absolute")
+    calculation_type: Mapped[str] = mapped_column(String(50), default="direct") 
 
     selected_means_list: Mapped[List["MasterVerificationMean"]] = relationship(
         secondary=indicator_verification_means
@@ -361,11 +363,9 @@ class Indicator(db.Model):
         tipo_resultado = "output"
 
         if self.project_result:
-            # Aquí es donde vive el nombre real ("Output 1 de Estrategia...", etc.)
             nombre_resultado = self.project_result.name
             tipo_resultado = self.project_result.type or "output"
         elif self.template and self.template.result:
-            # Si no hay nodo de proyecto, miramos la plantilla
             nombre_resultado = self.template.result.name
             tipo_resultado = self.template.result.type or "output"
         
@@ -386,6 +386,8 @@ class Indicator(db.Model):
                 "women": self.target_women
             },
             "goals_by_province": [goal.serialize() for goal in self.location_goals],
+            "measurement_unit": self.measurement_unit,
+            "calculation_type": self.calculation_type,
             "comp_name": comp_temp.name if comp_temp else "Otras Competencias",
             "theory_name": theo_temp.name if theo_temp else "Sin Teoría",
             "result_name": nombre_resultado, 
@@ -456,9 +458,10 @@ class IndicatorLocationGoal(db.Model):
             "province_id": self.province_id,
             "province_name": self.province.name if self.province else None,
             "target": self.total_target,
-            "is_percentage": is_outcome, # <-- Esto le avisará al Frontend que ponga el "%"
-            "men": self.men if not is_outcome else None, # Ocultamos si es outcome
-            "women": self.women if not is_outcome else None
+            "is_percentage": is_outcome, 
+            "men": self.men if not is_outcome else None,
+            "women": self.women if not is_outcome else None,
+            "disability_target": 0.0
         }
 
 
