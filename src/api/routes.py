@@ -1157,20 +1157,15 @@ def bulk_indicators():
         for item in indicators_list:
             from api.models import IndicatorTemplate, ProjectResult, ProjectTheory
 
-            # A. Buscamos la "llave maestra": el ProjectResult real para este proyecto
             template_info = IndicatorTemplate.query.get(item['template_id'])
             is_outcome = template_info.result.type == 'outcome' if template_info and template_info.result else False
 
-            # Buscamos el ID real uniendo ProjectResult con ProjectTheory para filtrar por este proyecto
             real_project_result = ProjectResult.query.join(ProjectTheory).filter(
                 ProjectTheory.project_id == project_id,
                 ProjectResult.result_template_id == template_info.result_id
             ).first()
 
             project_res_id = real_project_result.id if real_project_result else None
-            if not project_res_id:
-                print(
-                    f"⚠️ Alerta SIGSSEP: No se encontró ProjectResult para template_id {item['template_id']}")
 
             # B. Buscamos si el indicador ya existe en la base de datos
             indicator = Indicator.query.filter_by(
@@ -1182,10 +1177,15 @@ def bulk_indicators():
             t_men = item.get('target_men', 0) if not is_outcome else None
             t_women = item.get('target_women', 0) if not is_outcome else None
 
+            calc_type = item.get('calculation_type', 'direct')
+            meas_unit = item.get('measurement_unit', 'absolute')
+
             if indicator:
                 indicator.target_total = t_total
                 indicator.target_men = t_men
                 indicator.target_women = t_women
+                indicator.calculation_type = calc_type 
+                indicator.measurement_unit = meas_unit 
                 indicator.verification_means = item.get(
                     'verification_means', indicator.verification_means)
                 indicator.observations = item.get(
@@ -1198,11 +1198,20 @@ def bulk_indicators():
                     target_total=t_total,
                     target_men=t_men,
                     target_women=t_women,
+                    calculation_type=calc_type,
+                    measurement_unit=meas_unit,
                     verification_means=item.get('verification_means', ""),
                     observations=item.get('observations', ""),
                     project_result_id=project_res_id,
                 )
                 db.session.add(indicator)
+
+            # Aquí es donde el Outcome 'aprende' de qué Outputs depende
+            if 'depends_on_ids' in item:
+                parent_indicators = Indicator.query.filter(
+                    Indicator.id_indicator.in_(item['depends_on_ids'])
+                ).all()
+                indicator.depends_on = parent_indicators
 
             # C. Sincronizar Medios de Verificación (Catálogo maestro)
             if 'means_ids' in item:

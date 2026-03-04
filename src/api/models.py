@@ -392,6 +392,7 @@ class Indicator(db.Model):
             "theory_name": theo_temp.name if theo_temp else "Sin Teoría",
             "result_name": nombre_resultado, 
             "result_type": tipo_resultado.lower(),
+            "is_dependent": self.calculation_type == "dependent",
             "depends_on_ids": [i.id_indicator for i in self.depends_on]
         }
 

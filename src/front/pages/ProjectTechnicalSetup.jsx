@@ -148,7 +148,10 @@ const ProjectTechnicalSetup = () => {
                 observations: "",
                 province_goals: uniqueProvinces,
                 means_ids: [],
-                means_tags: []
+                means_tags: [],
+                calculation_type: resultObj?.type === 'outcome' ? 'dependent' : 'direct', // Por defecto, si es outcome, es dependiente
+                measurement_unit: resultObj?.type === 'outcome' ? 'percentage' : 'absolute',
+                depends_on_ids: [],
             };
 
             console.log("✅ Nuevo indicador capturado con éxito:", newIndicator);
@@ -167,8 +170,11 @@ const ProjectTechnicalSetup = () => {
                 let extraData = {};
 
                 if (field === 'means_ids') {
-
                     extraData.means_tags = masterMeans.filter(m => value.includes(m.id));
+                }
+
+                if (field === 'calculation_type' && value === 'independent') {
+                    extraData.depends_on_ids = [];
                 }
 
                 return {
@@ -183,11 +189,21 @@ const ProjectTechnicalSetup = () => {
 
     const validateData = () => {
         for (const ind of selectedIndicators) {
-            // 1. Buscamos el tipo de forma más segura
             const type = ind.result_type?.toLowerCase();
 
+            if (type === 'outcome' && ind.calculation_type === 'dependent') {
+                if (!ind.depends_on_ids || ind.depends_on_ids.length === 0) {
+                    Swal.fire({
+                        title: 'Faltan Dependencias',
+                        text: `El indicador ${ind.code} es dependiente, pero no has seleccionado ningún Output del cual dependa.`,
+                        icon: 'warning',
+                        confirmButtonColor: '#1b263b'
+                    });
+                    return false;
+                }
+            }
+
             // 2. Si es Outcome, saltamos. 
-            // TIP DE PROFE: Agregamos una validación extra por si acaso el type viene vacío
             if (type === 'outcome') continue;
 
             for (const pg of ind.province_goals) {
@@ -218,7 +234,6 @@ const ProjectTechnicalSetup = () => {
             if (resSaved.ok) {
                 const savedData = await resSaved.json();
                 const formattedSaved = savedData.map(ind => {
-                    // Usamos la lista de teorías que nos pasen o la del estado
                     const info = getIndicatorContext(ind.template_id, allTheories);
                     return {
                         template_id: ind.template_id,
@@ -229,6 +244,9 @@ const ProjectTechnicalSetup = () => {
                         result_name: info.result_name,
                         result_type: ind.result_type || info.result_type,
                         comp_name: info.comp_name,
+                        calculation_type: ind.calculation_type || (info.result_type === 'outcome' ? 'dependent' : 'direct'),
+                        measurement_unit: ind.measurement_unit || (info.result_type === 'outcome' ? 'percentage' : 'absolute'),
+                        depends_on_ids: ind.depends_on_ids || [],
                         means_ids: ind.means_ids || [],
                         means_tags: ind.means_tags || [],
                         verification_means: ind.verification_means || "",
@@ -253,13 +271,15 @@ const ProjectTechnicalSetup = () => {
         return indicatorsList.map(ind => {
             const isOutcome = ind.result_type?.toLowerCase() === 'outcome';
 
-            // Lógica inteligente para medios de verificación: prioriza IDs, luego mapea tags
             const finalMeansIds = ind.means_ids && ind.means_ids.length > 0
                 ? ind.means_ids
                 : (ind.means_tags ? ind.means_tags.map(t => t.id) : []);
 
             return {
                 template_id: ind.template_id,
+                calculation_type: ind.calculation_type,
+                measurement_unit: ind.measurement_unit,
+                depends_on_ids: ind.depends_on_ids || [],
                 means_ids: finalMeansIds,
                 target_total: ind.province_goals?.reduce((acc, curr) => acc + curr.total, 0) || 0,
                 target_men: isOutcome ? null : ind.province_goals?.reduce((acc, curr) => acc + curr.men, 0) || 0,
@@ -622,70 +642,104 @@ const ProjectTechnicalSetup = () => {
 
                                     {/* SECCIÓN DE DEPENDENCIAS (Solo para Outcomes) */}
                                     {activeInd.result_type === 'outcome' && (
-                                        <div className="mb-4">
+                                        <div className="mb-4 fade-in">
+                                            {/* INTERRUPTOR DE ESTRATEGIA */}
                                             <label className="uppercase-label text-emerald small fw-bold mb-2 d-block">
-                                                <i className="fas fa-link me-2"></i>Indicadores de Contribución (Outputs)
+                                                <i className="fas fa-cog me-2"></i>Estrategia de Medición
                                             </label>
-                                            <div className="accordion accordion-flush shadow-sm" id="accordionDependencies">
-                                                {Object.keys(groupedData).map((theoryName) => (
-                                                    <React.Fragment key={theoryName}>
-                                                        {groupedData[theoryName]['output'] && Object.keys(groupedData[theoryName]['output']).map((resultName) => {
-                                                            const indicatorsInGroup = groupedData[theoryName]['output'][resultName];
-                                                            const collapseId = `collapse-${resultName.replace(/\s+/g, '-')}`;
 
-                                                            return (
-                                                                <div className="accordion-item bg-card-dynamic border-dynamic" key={resultName}>
-                                                                    <h1 className="accordion-header">
-                                                                        <button
-                                                                            className="accordion-button collapsed table-custom-sigssep py-2 px-3 fw-bold"
-                                                                            type="button"
-                                                                            data-bs-toggle="collapse"
-                                                                            data-bs-target={`#${collapseId}`}
-                                                                        >
-                                                                            {resultName}
-                                                                            <span className="badge bg-success ms-4 small">
-                                                                                {indicatorsInGroup.length}
-                                                                            </span>
-                                                                        </button>
-                                                                    </h1>
-                                                                    <div id={collapseId} className="accordion-collapse collapse" data-bs-parent="#accordionDependencies">
-                                                                        <div className="accordion-body p-3">
-                                                                            {/* 3. Mapeamos los indicadores reales dentro del grupo */}
-                                                                            {indicatorsInGroup.map((outputInd) => (
-                                                                                <div className="form-check mb-2" key={outputInd.template_id}>
-                                                                                    <input
-                                                                                        className="form-check-input"
-                                                                                        type="checkbox"
-                                                                                        id={`chk-${outputInd.template_id}`}
-                                                                                        checked={(activeInd.depends_on_ids || []).includes(outputInd.template_id)}
-                                                                                        onChange={(e) => {
-                                                                                            let currentDeps = [...(activeInd.depends_on_ids || [])];
-                                                                                            if (e.target.checked) currentDeps.push(outputInd.template_id);
-                                                                                            else currentDeps = currentDeps.filter(id => id !== outputInd.template_id);
-                                                                                            handleInfoChange(activeIndicatorId, 'depends_on_ids', currentDeps);
-                                                                                        }}
-                                                                                    />
-                                                                                    <label className="form-check-label ms-2 cursor-pointer" htmlFor={`chk-${outputInd.template_id}`}>
-                                                                                        <span className="text-emerald fw-bold">{outputInd.code}:</span> <span style={{ fontSize: '0.75rem' }}>{outputInd.indicator_name}</span>
-                                                                                    </label>
-                                                                                </div>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </React.Fragment>
-                                                ))}
-
-                                                {/* Mensaje de estado vacío si no hay indicadores agrupados */}
-                                                {Object.keys(groupedData).length === 0 && (
-                                                    <div className="p-4 text-center text-muted border-dynamic rounded bg-light-grey">
-                                                        <i className="fas fa-info-circle me-2"></i>
-                                                        No hay indicadores de Output seleccionados para esta competencia.
-                                                    </div>
-                                                )}
+                                            <div className="d-flex gap-2 mb-3">
+                                                <button
+                                                    className={`btn btn-sm flex-grow-1 ${activeInd.calculation_type === 'dependent' ? 'btn-emerald' : 'btn-outline-secondary text-main-dynamic'}`}
+                                                    onClick={() => handleInfoChange(activeIndicatorId, 'calculation_type', 'dependent')}
+                                                >
+                                                    <i className="fas fa-project-diagram me-2"></i>Porcentaje Dependiente
+                                                </button>
+                                                <button
+                                                    className={`btn btn-sm flex-grow-1 ${activeInd.calculation_type === 'independent' ? 'btn-oxford' : 'btn-outline-secondary text-main-dynamic'}`}
+                                                    onClick={() => handleInfoChange(activeIndicatorId, 'calculation_type', 'independent')}
+                                                >
+                                                    <i className="fas fa-user-check me-2"></i>Logro Independiente
+                                                </button>
                                             </div>
+
+                                            {/* CONTENIDO CONDICIONAL: Solo mostramos el acordeón si es DEPENDIENTE */}
+                                            {activeInd.calculation_type === 'dependent' ? (
+                                                <div className="dependency-container animate__animated animate__fadeIn">
+                                                    <label className="uppercase-label text-muted small fw-bold mb-2 d-block">
+                                                        <i className="fas fa-link me-2"></i>Vincular a Indicadores de Contribución (Outputs)
+                                                    </label>
+
+                                                    <div className="accordion accordion-flush shadow-sm border-dynamic rounded" id="accordionDependencies">
+                                                        {Object.keys(groupedData).map((theoryName) => (
+                                                            <React.Fragment key={theoryName}>
+                                                                {groupedData[theoryName]['output'] && Object.keys(groupedData[theoryName]['output']).map((resultName) => {
+                                                                    const indicatorsInGroup = groupedData[theoryName]['output'][resultName];
+                                                                    const collapseId = `collapse-${resultName.replace(/\s+/g, '-')}`;
+
+                                                                    return (
+                                                                        <div className="accordion-item bg-card-dynamic border-dynamic" key={resultName}>
+                                                                            <h2 className="accordion-header">
+                                                                                <button
+                                                                                    className="accordion-button collapsed py-2 px-3 fw-bold small"
+                                                                                    type="button"
+                                                                                    data-bs-toggle="collapse"
+                                                                                    data-bs-target={`#${collapseId}`}
+                                                                                    style={{ backgroundColor: 'var(--bg-input-dynamic)', color: 'var(--text-main-dynamic)' }}
+                                                                                >
+                                                                                    {resultName}
+                                                                                    <span className="badge bg-emerald ms-auto">{indicatorsInGroup.length}</span>
+                                                                                </button>
+                                                                            </h2>
+                                                                            <div id={collapseId} className="accordion-collapse collapse" data-bs-parent="#accordionDependencies">
+                                                                                <div className="accordion-body p-2">
+                                                                                    {indicatorsInGroup.map((outputInd) => (
+                                                                                        <div className="custom-check-item p-2 mb-1 rounded hover-shadow-sm" key={outputInd.template_id}>
+                                                                                            <div className="form-check m-0">
+                                                                                                <input
+                                                                                                    className="form-check-input"
+                                                                                                    type="checkbox"
+                                                                                                    id={`chk-${outputInd.template_id}`}
+                                                                                                    checked={(activeInd.depends_on_ids || []).includes(outputInd.template_id)}
+                                                                                                    onChange={(e) => {
+                                                                                                        let currentDeps = [...(activeInd.depends_on_ids || [])];
+                                                                                                        if (e.target.checked) currentDeps.push(outputInd.template_id);
+                                                                                                        else currentDeps = currentDeps.filter(id => id !== outputInd.template_id);
+                                                                                                        handleInfoChange(activeIndicatorId, 'depends_on_ids', currentDeps);
+                                                                                                    }}
+                                                                                                />
+                                                                                                <label className="form-check-label ms-2 cursor-pointer d-block" htmlFor={`chk-${outputInd.template_id}`}>
+                                                                                                    <span className="text-emerald fw-bold small">{outputInd.code}:</span>
+                                                                                                    <span className="ms-1 text-main-dynamic" style={{ fontSize: '0.75rem' }}>{outputInd.indicator_name}</span>
+                                                                                                </label>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </React.Fragment>
+                                                        ))}
+                                                        {Object.keys(groupedData).length === 0 && (
+                                                            <div className="p-3 text-center text-muted small">
+                                                                <i className="fas fa-exclamation-triangle me-2 text-warning"></i>
+                                                                Debes seleccionar indicadores de tipo Output primero.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                /* Mensaje para Logro Independiente */
+                                                <div className="alert alert-info border-0 shadow-sm d-flex align-items-center mb-0 py-2">
+                                                    <i className="fas fa-info-circle me-3 fs-4"></i>
+                                                    <small className="text-dark">
+                                                        Este indicador se medirá de forma <strong>directa</strong>.
+                                                        El oficial registrará el avance manualmente sin depender de otros indicadores.
+                                                    </small>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                     <h6 className="uppercase-label text-emerald mb-3 border-bottom-dynamic pb-2 small fw-bold">
