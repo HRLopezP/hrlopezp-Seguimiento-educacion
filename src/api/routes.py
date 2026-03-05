@@ -1207,11 +1207,15 @@ def bulk_indicators():
                 db.session.add(indicator)
 
             # Aquí es donde el Outcome 'aprende' de qué Outputs depende
-            if 'depends_on_ids' in item:
+            if 'depends_on_ids' in item and item['depends_on_ids']:
                 parent_indicators = Indicator.query.filter(
-                    Indicator.id_indicator.in_(item['depends_on_ids'])
-                ).all()
+                    Indicator.project_id == project_id,
+                    Indicator.template_id.in_(item['depends_on_ids'])
+                    ).all()
+                
                 indicator.depends_on = parent_indicators
+            else:
+                indicator.depends_on = []
 
             # C. Sincronizar Medios de Verificación (Catálogo maestro)
             if 'means_ids' in item:

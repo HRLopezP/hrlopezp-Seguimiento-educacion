@@ -30,10 +30,15 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
     });
 
     const filteredIndicators = useMemo(() => {
-        return indicadores.filter(ind =>
-            ind.indicator_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            ind.indicator_name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        return indicadores.filter(ind => {
+            const matchesSearch = ind.indicator_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                ind.indicator_name.toLowerCase().includes(searchTerm.toLowerCase());
+            
+            const isPlanificable = ind.result_type === 'output' || 
+                                 (ind.result_type === 'outcome' && ind.calculation_type === 'independent');
+            
+            return matchesSearch && isPlanificable;
+        });
     }, [indicadores, searchTerm]);
 
     const groupedIndicators = useMemo(() => {
