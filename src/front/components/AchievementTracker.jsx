@@ -48,10 +48,14 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
 
     // 4. ACCIONES
     const handleSave = async () => {
-        // Validación de negocio
         if (totalAchieved <= 0) {
             return Swal.fire('Atención', 'El logro debe ser mayor a 0 para poder descontar de la meta.', 'warning');
         }
+
+        if (isOutcome && totalApproved > totalAttended) {
+            return Swal.fire('Error de Lógica', 'Los aprobados no pueden superar a los evaluados.', 'error');
+        }
+        
         if (!hasEvidence) {
             return Swal.fire('Falta Evidencia', 'Es obligatorio subir un respaldo (Kobo/Excel) para registrar el avance.', 'warning');
         }
@@ -155,8 +159,17 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                                 <input
                                     type="number"
                                     className="form-control form-control-lg border-primary"
-                                    value={totalAttended}
-                                    onChange={(e) => setTotalAttended(Math.max(0, e.target.value))}
+                                    value={totalAttended === 0 ? '' : totalAttended}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        const numVal = val === '' ? 0 : Math.max(0, parseInt(val));
+                                        setTotalAttended(numVal);
+
+                                        // NUEVO: Si los evaluados bajan de los aprobados, ajustamos aprobados
+                                        if (numVal < totalApproved) {
+                                            setTotalApproved(numVal);
+                                        }
+                                    }}
                                 />
                             </div>
                             <div className="col-md-6">
@@ -164,8 +177,20 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                                 <input
                                     type="number"
                                     className="form-control form-control-lg border-emerald"
-                                    value={totalApproved}
-                                    onChange={(e) => setTotalApproved(Math.max(0, e.target.value))}
+                                    value={totalApproved === 0 ? '' : totalApproved}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        const numVal = val === '' ? 0 : Math.max(0, parseInt(val));
+
+                                        // NUEVO: No permitir que aprobados superen a los evaluados
+                                        if (numVal > totalAttended) {
+                                            // Si intenta poner más, lo bloqueamos en el máximo actual
+                                            setTotalApproved(totalAttended);
+                                            // Opcional: Podrías lanzar un Sonner/Toast aquí avisando
+                                        } else {
+                                            setTotalApproved(numVal);
+                                        }
+                                    }}
                                 />
                             </div>
                         </>
@@ -176,8 +201,11 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                                 <input
                                     type="number"
                                     className="form-control form-control-lg"
-                                    value={achievedMen}
-                                    onChange={(e) => setAchievedMen(Math.max(0, e.target.value))}
+                                    value={achievedMen === 0 ? '' : achievedMen}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setAchievedMen(val === '' ? 0 : Math.max(0, parseInt(val)));
+                                    }}
                                 />
                             </div>
                             <div className="col-md-6">
@@ -185,8 +213,11 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                                 <input
                                     type="number"
                                     className="form-control form-control-lg"
-                                    value={achievedWomen}
-                                    onChange={(e) => setAchievedWomen(Math.max(0, e.target.value))}
+                                    value={achievedWomen === 0 ? '' : achievedWomen}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setAchievedWomen(val === '' ? 0 : Math.max(0, parseInt(val)));
+                                    }}
                                 />
                             </div>
                         </>
