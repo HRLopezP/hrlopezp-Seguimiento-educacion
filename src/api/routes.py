@@ -10,6 +10,7 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 from .manager_decorator import manager_required
 from flask_mail import Message
 from datetime import datetime
+from datetime import date
 from dateutil.relativedelta import relativedelta
 from api.extensions import mail
 from sqlalchemy import func, or_
@@ -2374,6 +2375,7 @@ def get_indicator_locations(indicator_id):
 @jwt_required()
 def get_activities():
     user_id = get_jwt_identity()
+    today = date.today() # Capturamos la fecha actual (solo año-mes-día)
     
     activities = Activity.query.filter_by(created_by_id=user_id)\
         .options(
@@ -2382,8 +2384,28 @@ def get_activities():
             joinedload(Activity.indicator).joinedload(Indicator.template)
         ).all()
 
-    return jsonify([act.serialize() for act in activities]), 200
+    results = []
+    for act in activities:
+        # Extraemos la data serializada
+        data = act.serialize()
+        
+        # LÓGICA DINÁMICA DE ESTADOS
+        # Solo recalculamos si no está 'Completada' ni 'Cancelada'
+        if data['status'] not in ['Completada', 'Cancelada']:
+            # Convertimos las fechas de la DB a objeto date de Python para comparar
+            start_dt = act.start_date.date()
+            end_dt = act.end_date.date()
 
+            if end_dt < today:
+                data['status'] = 'Vencida'
+            elif start_dt <= today <= end_dt:
+                data['status'] = 'En Progreso'
+            else:
+                data['status'] = 'Planificada'
+        
+        results.append(data)
+
+    return jsonify(results), 200
 
 # Para cancelar una actividad planificada y cambiar su estatus
 @api.route('/official/activities/<int:activity_id>/cancel', methods=['PATCH'])
