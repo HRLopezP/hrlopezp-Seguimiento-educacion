@@ -2381,18 +2381,15 @@ def get_activities():
         .options(
             joinedload(Activity.location).joinedload(Location.province_ref),
             joinedload(Activity.location).joinedload(Location.municipality_ref),
-            joinedload(Activity.indicator).joinedload(Indicator.template)
+            joinedload(Activity.indicator).joinedload(Indicator.template).joinedload(IndicatorTemplate.result),
+            joinedload(Activity.indicator).joinedload(Indicator.project_result)
         ).all()
 
     results = []
     for act in activities:
-        # Extraemos la data serializada
         data = act.serialize()
-        
-        # LÓGICA DINÁMICA DE ESTADOS
-        # Solo recalculamos si no está 'Completada' ni 'Cancelada'
+
         if data['status'] not in ['Completada', 'Cancelada']:
-            # Convertimos las fechas de la DB a objeto date de Python para comparar
             start_dt = act.start_date.date()
             end_dt = act.end_date.date()
 

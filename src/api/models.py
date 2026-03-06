@@ -564,9 +564,12 @@ class Activity(db.Model):
     def get_real_status(self):
         if self.status == ActivityStatus.CANCELADA:
             return ActivityStatus.CANCELADA.value
-
-        if len(self.achievements) > 0:
+        
+        if self.achievements and len(self.achievements) > 0:
             return ActivityStatus.COMPLETADA.value
+        
+        if not self.start_date:
+            return ActivityStatus.PLANIFICADA.value
 
         hoy = date.today() 
         inicio = self.start_date.date()
@@ -576,25 +579,34 @@ class Activity(db.Model):
             return ActivityStatus.VENCIDA.value
     
     def serialize(self):
-        total_men_reached = sum((rec.men_reached or 0) for rec in self.achievements)
-        total_women_reached = sum((rec.women_reached or 0) for rec in self.achievements)
+        recs = self.achievements if self.achievements else []
+        last_achievement = recs[-1] if recs else None
+        total_men = sum((rec.men_reached or 0) for rec in recs)
+        total_women = sum((rec.women_reached or 0) for rec in recs)
+        ind = self.indicator
+        template = getattr(ind, 'template', None)
 
-        p_name = self.location.province_ref.name if self.location and self.location.province_ref else None
-        m_name = self.location.municipality_ref.name if self.location and self.location.municipality_ref else None
-        pa_name = self.location.parish_ref.name if self.location and self.location.parish_ref else None
+        res_obj = None
+        if ind:
+            res_obj = ind.project_result if ind.project_result else (template.result if template else None)
 
-        template = self.indicator.template if self.indicator else None
-        ind_code = template.code if template else "IND"
-        ind_name = template.name if template else "Sin nombre"
-
-        last_achievement = self.achievements[-1] if self.achievements else None
+        raw_type = getattr(res_obj, 'type', 'output') or 'output'
+        final_type = raw_type.capitalize()
         
+        loc = self.location
+        p_name = loc.province_ref.name if loc and getattr(loc, 'province_ref', None) else None
+        m_name = loc.municipality_ref.name if loc and getattr(loc, 'municipality_ref', None) else None
+        pa_name = loc.parish_ref.name if loc and getattr(loc, 'parish_ref', None) else None
+
         return {
             "id": self.id_activity,
             "description": self.description,
-            "indicator_id": self.indicator_id,
-            "indicator_code": ind_code,
-            "indicator_name": ind_name,
+            "indicator": {
+                "id": self.indicator_id,
+                "code": getattr(template, 'code', "IND-???"),
+                "name": getattr(template, 'name', "Sin nombre"),
+                "type": final_type
+            },
             "location_id": self.location_id,
             "province_name": p_name,
             "municipality_name": m_name,
@@ -613,23 +625,24 @@ class Activity(db.Model):
                 "women": self.planned_women
             },
             "real_progress": { 
-                "men": total_men_reached, 
-                "women": total_women_reached, 
-                "total": total_men_reached + total_women_reached 
+                "men": total_men, 
+                "women": total_women, 
+                "total": total_men + total_women,
+                "attended": sum((getattr(r, 'attended_count', 0) or 0) for r in recs),
+                "approved": sum((getattr(r, 'approved_count', 0) or 0) for r in recs)
             },
             "audit": {
                 "created_at": self.created_at.strftime("%Y-%m-%d %H:%M") if self.created_at else None,
-            # Usamos getattr para evitar errores si la relación no cargó a tiempo
                 "created_by_name": f"{getattr(self.creator, 'name', 'Usuario')} {getattr(self.creator, 'lastname', '')}".strip() if self.creator else "Sistema",
                 "last_update": self.updated_at.isoformat() if self.updated_at else None,
                 "updated_by_name": f"{getattr(self.editor, 'name', '')} {getattr(self.editor, 'lastname', '')}".strip() if self.editor else "Sin cambios"
             },
-
-            "last_achievement_id": last_achievement.id if last_achievement else None,
-            "last_observations": last_achievement.observations if last_achievement else "",
-            "last_evidence_url": last_achievement.evidence_url if last_achievement else None,
-            "achievements_history": [a.serialize() for a in self.achievements]
+            "last_achievement_id": getattr(last_achievement, 'id_achievement', None) if last_achievement else None,
+            "last_observations": getattr(last_achievement, 'observations', "") if last_achievement else "",
+            "last_evidence_url": getattr(last_achievement, 'evidence_url', None) if last_achievement else None,
+            "achievements_history": [a.serialize() for a in recs]
         }
+    
 
 class Province(db.Model):
     __tablename__ = 'province'
