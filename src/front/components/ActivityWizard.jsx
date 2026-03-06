@@ -32,11 +32,11 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
     const filteredIndicators = useMemo(() => {
         return indicadores.filter(ind => {
             const matchesSearch = ind.indicator_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                ind.indicator_name.toLowerCase().includes(searchTerm.toLowerCase());
-            
-            const isPlanificable = ind.result_type === 'output' || 
-                                 (ind.result_type === 'outcome' && ind.calculation_type === 'independent');
-            
+                ind.indicator_name.toLowerCase().includes(searchTerm.toLowerCase());
+
+            const isPlanificable = ind.result_type === 'output' ||
+                (ind.result_type === 'outcome' && ind.calculation_type === 'independent');
+
             return matchesSearch && isPlanificable;
         });
     }, [indicadores, searchTerm]);
@@ -55,6 +55,12 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
             return acc;
         }, {});
     }, [filteredIndicators]);
+
+    const selectedIndicatorDetails = useMemo(() => {
+        return indicadores.find(ind => String(ind.id) === String(form.indicator_id));
+    }, [indicadores, form.indicator_id]);
+
+    const isOutcome = selectedIndicatorDetails?.result_type === 'outcome';
 
 
     useEffect(() => {
@@ -462,41 +468,60 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                                     <div className="d-flex justify-content-between align-items-center">
                                         <span className="small fw-bold text-oxford">
                                             <i className="fas fa-chart-line me-2 text-emerald"></i>
-                                            ESTADO ACTUAL EN ESTA PROVINCIA
+                                            FALTA EN ESTA PROVINCIA
+                                        </span>
+                                        <span className={`badge bg-white ${isOutcome ? 'text-info border-info' : 'text-emerald border-emerald'} border`}>
+                                            {isOutcome ? 'Meta de Impacto' : 'Pendiente'}
                                         </span>
                                         <span className="badge bg-white text-emerald border border-emerald">Pendiente</span>
                                     </div>
                                 </div>
                                 <div className="card-body py-3 bg-white">
-                                    <div className="row text-center g-0">
-                                        <div className="col-4 border-end">
-                                            <p className="text-muted mb-0" style={{ fontSize: '0.65rem' }}>HOMBRES</p>
-                                            <h5 className={`fw-bold mb-0 ${gapData.gap.men > 0 ? 'text-primary' : 'text-success'}`}>
-                                                {gapData.gap.men}
-                                            </h5>
+                                    {!isOutcome ? (
+                                        <div className="row text-center g-0">
+                                            <div className="col-4 border-end">
+                                                <p className="text-muted mb-0" style={{ fontSize: '0.65rem' }}>HOMBRES</p>
+                                                <h5 className={`fw-bold mb-0 ${gapData.gap.men > 0 ? 'text-primary' : 'text-success'}`}>
+                                                    {gapData.gap.men}
+                                                </h5>
+                                            </div>
+                                            <div className="col-4 border-end">
+                                                <p className="text-muted mb-0" style={{ fontSize: '0.65rem' }}>MUJERES</p>
+                                                <h5 className={`fw-bold mb-0 ${gapData.gap.women > 0 ? 'text-primary' : 'text-success'}`}>
+                                                    {gapData.gap.women}
+                                                </h5>
+                                            </div>
+                                            <div className="col-4">
+                                                <p className="text-muted mb-0" style={{ fontSize: '0.65rem' }}>TOTAL PENDIENTE</p>
+                                                <h5 className={`fw-bold mb-0 ${gapData.gap.total > 0 ? 'text-danger' : 'text-success'}`}>
+                                                    {gapData.gap.total}
+                                                </h5>
+                                            </div>
                                         </div>
-                                        <div className="col-4 border-end">
-                                            <p className="text-muted mb-0" style={{ fontSize: '0.65rem' }}>MUJERES</p>
-                                            <h5 className={`fw-bold mb-0 ${gapData.gap.women > 0 ? 'text-primary' : 'text-success'}`}>
-                                                {gapData.gap.women}
-                                            </h5>
+                                    ) : (
+                                        /* VISTA PARA OUTCOMES (Personalizada) */
+                                        <div className="text-center">
+                                            <p className="text-muted mb-1" style={{ fontSize: '0.75rem' }}>OBJETIVO DEL INDICADOR</p>
+                                            <h4 className="fw-bold text-info mb-0">
+                                                {gapData.target.total}% <span className="text-muted fs-6 fw-normal">esperado</span>
+                                            </h4>
+                                            <p className="small text-muted mt-1 mb-0">
+                                                Este valor representa la calidad o impacto esperado en la provincia.
+                                            </p>
                                         </div>
-                                        <div className="col-4">
-                                            <p className="text-muted mb-0" style={{ fontSize: '0.65rem' }}>TOTAL PENDIENTE</p>
-                                            <h5 className={`fw-bold mb-0 ${gapData.gap.total > 0 ? 'text-danger' : 'text-success'}`}>
-                                                {gapData.gap.total}
-                                            </h5>
-                                        </div>
-                                    </div>
+                                    )}
                                     {/* Barra de progreso visual */}
+                                    {/* Barra de progreso común */}
                                     <div className="mt-3">
                                         <div className="d-flex justify-content-between small mb-1" style={{ fontSize: '0.7rem' }}>
-                                            <span className="text-muted">Meta: {gapData.target.total}</span>
-                                            <span className="fw-bold text-emerald">Logrado: {gapData.achieved.total}</span>
+                                            <span className="text-muted">Meta: {gapData.target.total}{isOutcome ? '%' : ''}</span>
+                                            <span className={`fw-bold ${isOutcome ? 'text-info' : 'text-emerald'}`}>
+                                                Logrado: {gapData.achieved.total}{isOutcome ? '%' : ''}
+                                            </span>
                                         </div>
                                         <div className="progress" style={{ height: '6px' }}>
                                             <div
-                                                className="progress-bar bg-emerald"
+                                                className={`progress-bar ${isOutcome ? 'bg-info' : 'bg-emerald'}`}
                                                 style={{ width: `${Math.min(100, (gapData.achieved.total / gapData.target.total) * 100)}%` }}
                                             ></div>
                                         </div>
@@ -508,10 +533,12 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                     {/* Metas con Autocompletado */}
                     <div className="col-12 mt-3">
                         <div className="p-3 rounded border-start border-4 border-emerald bg-white shadow-sm">
-                            <p className="fw-bold small text-oxford mb-2">METAS DE BENEFICIARIOS</p>
+                            <p className="fw-bold small text-oxford mb-2">
+                                {isOutcome ? 'POBLACIÓN OBJETIVO PARA MEDICIÓN' : 'METAS DE BENEFICIARIOS'}
+                            </p>
                             <div className="row g-2">
                                 <div className="col-md-4">
-                                    <label className="small fw-bold">Hombres</label>
+                                    <label className="small fw-bold">{isOutcome ? 'Hombres a medir' : 'Hombres'}</label>
                                     <input
                                         type="number"
                                         className="form-control"
@@ -527,7 +554,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                                         }} />
                                 </div>
                                 <div className="col-md-4">
-                                    <label className="small fw-bold">Mujeres</label>
+                                    <label className="small fw-bold">{isOutcome ? 'Mujeres a medir' : 'Mujeres'}</label>
                                     <input
                                         type="number"
                                         className="form-control"
