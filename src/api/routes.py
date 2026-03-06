@@ -1140,26 +1140,32 @@ def bulk_indicators():
 
     try:
         # --- PASO 1: ELIMINACIÓN DE INDICADORES OMITIDOS ---
-        received_template_ids = [item['template_id']
-                                 for item in indicators_list]
+        # Si el gerente quita un indicador de la lista en el frontend, lo borramos de la DB.
+        received_template_ids = [item['template_id'] for item in indicators_list]
         to_delete = Indicator.query.filter(
             Indicator.project_id == project_id,
             ~Indicator.template_id.in_(received_template_ids)
         ).all()
 
         for ind in to_delete:
-            IndicatorLocationGoal.query.filter_by(
-                indicator_id=ind.id_indicator).delete()
+            # Borramos metas geográficas primero por la integridad referencial
+            IndicatorLocationGoal.query.filter_by(indicator_id=ind.id_indicator).delete()
             ind.selected_means_list = []
             db.session.delete(ind)
 
-        # --- PASO 2: PROCESAR CADA INDICADOR (UPSERT) ---
+        # --- PASO 2: PRIMERA PASADA (UPSERT DE DATOS BÁSICOS) ---
+        # Creamos o actualizamos el indicador, pero sin tocar 'depends_on' todavía.
         for item in indicators_list:
-            from api.models import IndicatorTemplate, ProjectResult, ProjectTheory
+            from api.models import IndicatorTemplate, ProjectResult, ProjectTheory, MasterVerificationMean
 
             template_info = IndicatorTemplate.query.get(item['template_id'])
-            is_outcome = template_info.result.type == 'outcome' if template_info and template_info.result else False
+            if not template_info:
+                continue
 
+            # Determinamos si es outcome para manejar nulos en hombres/mujeres (según tu lógica de %)
+            is_outcome = template_info.result.type == 'outcome' if template_info.result else False
+
+            # Buscamos el resultado relacionado en este proyecto específico
             real_project_result = ProjectResult.query.join(ProjectTheory).filter(
                 ProjectTheory.project_id == project_id,
                 ProjectResult.result_template_id == template_info.result_id
@@ -1167,7 +1173,7 @@ def bulk_indicators():
 
             project_res_id = real_project_result.id if real_project_result else None
 
-            # B. Buscamos si el indicador ya existe en la base de datos
+            # Buscamos si ya existe para actualizarlo, sino lo creamos
             indicator = Indicator.query.filter_by(
                 project_id=project_id,
                 template_id=item['template_id']
@@ -1177,80 +1183,89 @@ def bulk_indicators():
             t_men = item.get('target_men', 0) if not is_outcome else None
             t_women = item.get('target_women', 0) if not is_outcome else None
 
-            calc_type = item.get('calculation_type', 'direct')
-            meas_unit = item.get('measurement_unit', 'absolute')
-
             if indicator:
+                # Actualización de campos existentes
                 indicator.target_total = t_total
                 indicator.target_men = t_men
                 indicator.target_women = t_women
-                indicator.calculation_type = calc_type 
-                indicator.measurement_unit = meas_unit 
-                indicator.verification_means = item.get(
-                    'verification_means', indicator.verification_means)
-                indicator.observations = item.get(
-                    'observations', indicator.observations)
+                indicator.calculation_type = item.get('calculation_type', 'direct')
+                indicator.measurement_unit = item.get('measurement_unit', 'absolute')
+                indicator.verification_means = item.get('verification_means', indicator.verification_means)
+                indicator.observations = item.get('observations', indicator.observations)
                 indicator.project_result_id = project_res_id
             else:
+                # Creación de nuevo registro
                 indicator = Indicator(
                     project_id=project_id,
                     template_id=item['template_id'],
                     target_total=t_total,
                     target_men=t_men,
                     target_women=t_women,
-                    calculation_type=calc_type,
-                    measurement_unit=meas_unit,
+                    calculation_type=item.get('calculation_type', 'direct'),
+                    measurement_unit=item.get('measurement_unit', 'absolute'),
                     verification_means=item.get('verification_means', ""),
                     observations=item.get('observations', ""),
                     project_result_id=project_res_id,
                 )
                 db.session.add(indicator)
 
-            # Aquí es donde el Outcome 'aprende' de qué Outputs depende
-            if 'depends_on_ids' in item and item['depends_on_ids']:
-                parent_indicators = Indicator.query.filter(
-                    Indicator.project_id == project_id,
-                    Indicator.template_id.in_(item['depends_on_ids'])
-                    ).all()
-                
-                indicator.depends_on = parent_indicators
-            else:
-                indicator.depends_on = []
-
-            # C. Sincronizar Medios de Verificación (Catálogo maestro)
+            # Sincronizar Medios de Verificación (Relación Many-to-Many)
             if 'means_ids' in item:
-                from api.models import MasterVerificationMean
                 selected_means = MasterVerificationMean.query.filter(
                     MasterVerificationMean.id.in_(item['means_ids'])
                 ).all()
                 indicator.selected_means_list = selected_means
 
+            # Flush para asegurar que el indicador tenga ID (especialmente si es nuevo)
             db.session.flush()
 
-            # D. METAS POR PROVINCIA
+            # --- Sincronizar Metas Geográficas ---
             if 'goals_by_province' in item:
-                IndicatorLocationGoal.query.filter_by(
-                    indicator_id=indicator.id_indicator).delete()
+                # Borramos las viejas y recreamos (más simple para asegurar consistencia)
+                IndicatorLocationGoal.query.filter_by(indicator_id=indicator.id_indicator).delete()
                 for goal in item['goals_by_province']:
                     new_goal = IndicatorLocationGoal(
                         indicator_id=indicator.id_indicator,
                         province_id=goal['province_id'],
                         total_target=goal.get('target', 0),
-                        men=goal.get(
-                            'target_men', 0) if not is_outcome else None,
-                        women=goal.get(
-                            'target_women', 0) if not is_outcome else None
+                        men=goal.get('target_men', 0) if not is_outcome else None,
+                        women=goal.get('target_women', 0) if not is_outcome else None
                     )
                     db.session.add(new_goal)
 
-        # --- FINALIZAR ---
+        # --- PASO 3: SEGUNDA PASADA (VINCULACIÓN DE DEPENDENCIAS) ---
+        # Ahora que TODOS los indicadores están en la DB, conectamos los hilos.
+        for item in indicators_list:
+            # CLAVE: Solo entramos si la llave existe para evitar borrados accidentales
+            if 'depends_on_ids' in item:
+                current_indicator = Indicator.query.filter_by(
+                    project_id=project_id,
+                    template_id=item['template_id']
+                ).first()
+
+                if current_indicator:
+                    ids_a_conectar = item.get('depends_on_ids')
+                    
+                    # Si es None (null), el frontend no envió info, NO TOCAMOS NADA.
+                    # Si es [] (lista vacía), el gerente quiere quitar las dependencias.
+                    if ids_a_conectar is not None:
+                        parent_indicators = Indicator.query.filter(
+                            Indicator.project_id == project_id,
+                            Indicator.template_id.in_(ids_a_conectar)
+                        ).all()
+                        
+                        # Actualizamos la relación Many-to-Many recursiva
+                        current_indicator.depends_on = parent_indicators
+
         db.session.commit()
-        return jsonify({"msg": "SIGSSEP: Configuración sincronizada con éxito"}), 200
+        return jsonify({
+            "msg": "SIGSSEP: Configuración de indicadores sincronizada con éxito",
+            "status": "success"
+        }), 200
 
     except Exception as e:
         db.session.rollback()
-        # Esto ayuda a ver el error en la terminal
-        print(f"Error en SIGSSEP: {str(e)}")
+        print(f"Error crítico en SIGSSEP: {str(e)}")
         return jsonify({"msg": f"Error en la base de datos: {str(e)}"}), 500
 
 

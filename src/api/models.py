@@ -393,7 +393,7 @@ class Indicator(db.Model):
             "result_name": nombre_resultado, 
             "result_type": tipo_resultado.lower(),
             "is_dependent": self.calculation_type == "dependent",
-            "depends_on_ids": [i.id_indicator for i in self.depends_on]
+            "depends_on_ids": [i.template_id for i in self.depends_on]
         }
 
 

@@ -95,22 +95,32 @@ const ProjectTechnicalSetup = () => {
 
 
     const handleMetaChange = (indicatorId, provinceId, field, value) => {
+        const numValue = parseFloat(value) || 0;
+
         setSelectedIndicators(prev => prev.map(ind => {
-            if (ind.template_id === indicatorId) {
-                const isOutcome = ind.result_type?.toLowerCase() === 'outcome';
+            if (ind.template_id !== indicatorId) return ind;
 
-                const updatedProvinces = ind.province_goals.map(p => {
-                    if (p.province_id === provinceId) {
-                        // Si es Outcome, bloqueamos cualquier intento de cambiar 'men' o 'women'
-                        if (isOutcome && (field === 'men' || field === 'women')) return p;
+            const isOutcome = ind.result_type?.toLowerCase() === 'outcome';
 
-                        return { ...p, [field]: parseFloat(value) || 0 };
-                    }
-                    return p;
-                });
-                return { ...ind, province_goals: updatedProvinces };
-            }
-            return ind;
+            const updatedProvinces = ind.province_goals.map(p => {
+                if (p.province_id !== provinceId) return p;
+
+                // 1. Bloqueo de género para Outcomes
+                if (isOutcome && (field === 'men' || field === 'women')) return p;
+
+                // 2. Creamos el nuevo objeto de provincia
+                let updatedProvince = { ...p, [field]: numValue };
+
+                // 3. Lógica de Autocalculado (Solo para Outputs)
+                // Si cambias H o M, el Total se suma solo.
+                if (!isOutcome && (field === 'men' || field === 'women')) {
+                    updatedProvince.total = updatedProvince.men + updatedProvince.women;
+                }
+
+                return updatedProvince;
+            });
+
+            return { ...ind, province_goals: updatedProvinces };
         }));
     };
 
@@ -154,12 +164,18 @@ const ProjectTechnicalSetup = () => {
                 depends_on_ids: [],
             };
 
+            setSelectedIndicators(prev => {
+                const alreadyExists = prev.find(i => i.template_id === newIndicator.template_id);
+                if (alreadyExists) return prev;
+                return [...prev, newIndicator];
+            });
+
             console.log("✅ Nuevo indicador capturado con éxito:", newIndicator);
-            setSelectedIndicators([...selectedIndicators, newIndicator]);
             setActiveIndicatorId(ind.id);
 
         } else {
-            setSelectedIndicators(selectedIndicators.filter(i => i.template_id !== ind.id));
+            // Para quitar también usamos la versión funcional por seguridad
+            setSelectedIndicators(prev => prev.filter(i => i.template_id !== ind.id));
             if (activeIndicatorId === ind.id) setActiveIndicatorId(null);
         }
     };
@@ -235,35 +251,31 @@ const ProjectTechnicalSetup = () => {
                 const savedData = await resSaved.json();
                 const formattedSaved = savedData.map(ind => {
                     const info = getIndicatorContext(ind.template_id, allTheories);
+
                     return {
+                        ...ind, // Traemos lo que viene del server (id, verification_means, etc.)
                         template_id: ind.template_id,
                         code: ind.indicator_code,
                         description: ind.description,
-                        indicator_name: info.indicator_name || "Indicador",
-                        theory_name: info.theory_name,
-                        result_name: info.result_name,
+                        indicator_name: info.indicator_name || ind.indicator_name,
                         result_type: ind.result_type || info.result_type,
-                        comp_name: info.comp_name,
-                        calculation_type: ind.calculation_type || (info.result_type === 'outcome' ? 'dependent' : 'direct'),
-                        measurement_unit: ind.measurement_unit || (info.result_type === 'outcome' ? 'percentage' : 'absolute'),
+                        // Mantenemos los IDs de templates para que al re-guardar no se pierdan
                         depends_on_ids: ind.depends_on_ids || [],
-                        means_ids: ind.means_ids || [],
                         means_tags: ind.means_tags || [],
-                        verification_means: ind.verification_means || "",
-                        observations: ind.observations || "",
-                        province_goals: ind.goals_by_province.map(g => ({
+                        // Convertimos la nomenclatura del server a la del estado de React
+                        province_goals: (ind.goals_by_province || []).map(g => ({
                             province_id: g.province_id,
                             province_name: g.province_name,
                             total: g.target || 0,
-                            men: g.men || 0,
-                            women: g.women || 0
+                            men: g.men,
+                            women: g.women
                         }))
                     };
                 });
                 setSelectedIndicators(formattedSaved);
             }
         } catch (error) {
-            console.error("Error en refresh:", error);
+            console.error("Error en refresh de SIGSSEP:", error);
         }
     };
 
@@ -271,27 +283,30 @@ const ProjectTechnicalSetup = () => {
         return indicatorsList.map(ind => {
             const isOutcome = ind.result_type?.toLowerCase() === 'outcome';
 
-            const finalMeansIds = ind.means_ids && ind.means_ids.length > 0
-                ? ind.means_ids
-                : (ind.means_tags ? ind.means_tags.map(t => t.id) : []);
+            // Aseguramos que las dependencias sean un array de IDs (Template IDs)
+            const finalDependsOn = Array.isArray(ind.depends_on_ids) ? ind.depends_on_ids : [];
+
+            // Extraemos solo los IDs de los medios de verificación
+            const finalMeansIds = ind.means_tags ? ind.means_tags.map(t => t.id) : (ind.means_ids || []);
 
             return {
                 template_id: ind.template_id,
-                calculation_type: ind.calculation_type,
-                measurement_unit: ind.measurement_unit,
-                depends_on_ids: ind.depends_on_ids || [],
+                calculation_type: ind.calculation_type || 'direct',
+                measurement_unit: ind.measurement_unit || (isOutcome ? 'percentage' : 'absolute'),
+                depends_on_ids: finalDependsOn,
                 means_ids: finalMeansIds,
-                target_total: ind.province_goals?.reduce((acc, curr) => acc + curr.total, 0) || 0,
-                target_men: isOutcome ? null : ind.province_goals?.reduce((acc, curr) => acc + curr.men, 0) || 0,
-                target_women: isOutcome ? null : ind.province_goals?.reduce((acc, curr) => acc + curr.women, 0) || 0,
+                // Cálculo automático de totales basados en lo que el usuario puso en las provincias
+                target_total: ind.province_goals?.reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0) || 0,
+                target_men: isOutcome ? null : (ind.province_goals?.reduce((acc, curr) => acc + (parseFloat(curr.men) || 0), 0) || 0),
+                target_women: isOutcome ? null : (ind.province_goals?.reduce((acc, curr) => acc + (parseFloat(curr.women) || 0), 0) || 0),
                 verification_means: ind.verification_means || "",
                 observations: ind.observations || "",
-                project_result_id: ind.project_result_id,
+                // Enviamos las metas desglosadas para el PASO 2 del backend
                 goals_by_province: ind.province_goals?.map(pg => ({
                     province_id: pg.province_id,
-                    target: pg.total,
-                    target_men: isOutcome ? null : pg.men,
-                    target_women: isOutcome ? null : pg.women
+                    target: parseFloat(pg.total) || 0,
+                    target_men: isOutcome ? null : (parseFloat(pg.men) || 0),
+                    target_women: isOutcome ? null : (parseFloat(pg.women) || 0)
                 })) || []
             };
         });
@@ -304,7 +319,6 @@ const ProjectTechnicalSetup = () => {
 
         if (!validateData()) return;
 
-        // Usamos la fábrica
         const formattedData = {
             project_id: parseInt(projectId),
             indicators: prepareIndicatorsForServer(selectedIndicators)
@@ -325,6 +339,7 @@ const ProjectTechnicalSetup = () => {
 
         if (result.isConfirmed) {
             try {
+                console.log("Datos a enviar:", formattedData)
                 const res = await apiFetch('/indicators/bulk', {
                     method: 'POST',
                     body: JSON.stringify(formattedData)
