@@ -2083,38 +2083,43 @@ def get_project_progress(project_id):
     try:
         location_id = request.args.get('location_id')
         
-        # 1. Obtener la provincia
+        # 1. Obtener la provincia para filtrar metas locales
         target_province_id = None
         if location_id and location_id != 'undefined':
             loc = Location.query.get(location_id)
-            if loc: target_province_id = loc.province_id
+            if loc: 
+                target_province_id = loc.province_id
 
-        # 2. Indicadores
+        # 2. Obtener indicadores del proyecto
         indicators = Indicator.query.filter_by(project_id=project_id).all()
         indicator_ids = [ind.id_indicator for ind in indicators]
 
         if not indicator_ids:
             return jsonify([]), 200
 
-        # 3. Consulta con COALESCE para evitar Nones desde la DB
-        # Usamos func.coalesce(valor, 0) para que la DB nos de 0 en vez de None
+        # 3. Consulta de totales acumulados
+        # IMPORTANTE: Usamos ActivityStatus (el Enum) para que SQLAlchemy haga el match correcto
         query_achieved = db.session.query(
             Indicator.id_indicator,
             func.sum(func.coalesce(AchievementRecord.men_reached, 0)).label("men"),
-            func.sum(func.coalesce(AchievementRecord.women_reached, 0)).label("women")
+            func.sum(func.coalesce(AchievementRecord.women_reached, 0)).label("women"),
+            func.sum(func.coalesce(AchievementRecord.attended_count, 0)).label("attended"),
+            func.sum(func.coalesce(AchievementRecord.approved_count, 0)).label("approved")
         ).select_from(Indicator)\
          .outerjoin(Activity, Activity.indicator_id == Indicator.id_indicator)\
          .outerjoin(AchievementRecord, AchievementRecord.activity_id == Activity.id_activity)\
          .filter(Indicator.id_indicator.in_(indicator_ids))\
-         .filter(Activity.status.in_(['COMPLETADA', 'EN_PROGRESO'])) # Asegúrate que coincida con tu modelo
+         .filter(Activity.status.in_([ActivityStatus.COMPLETADA, ActivityStatus.EN_PROGRESO])) # <-- CORRECCIÓN DE ENUM
 
+        # Si hay una provincia seleccionada, filtramos los logros de esa ubicación
         if target_province_id:
             query_achieved = query_achieved.join(Location, Activity.location_id == Location.id_location)\
                                            .filter(Location.province_id == target_province_id)
         
-        achieved_totals = {res.id_indicator: res for res in query_achieved.group_by(Indicator.id_indicator).all()}
+        results = query_achieved.group_by(Indicator.id_indicator).all()
+        achieved_totals = {res.id_indicator: res for res in results}
 
-        # 4. Metas
+        # 4. Obtener Metas específicas de la provincia si aplica
         goals_dict = {}
         if target_province_id:
             goals = IndicatorLocationGoal.query.filter(
@@ -2123,21 +2128,32 @@ def get_project_progress(project_id):
             ).all()
             goals_dict = {g.indicator_id: g for g in goals}
 
-        # 5. Construcción del JSON
+        # 5. Construcción del JSON de respuesta
         summary = []
         for ind in indicators:
             res = achieved_totals.get(ind.id_indicator)
             
-            # Valores alcanzados (limpios)
-            m_done = float(res.men) if res and res.men else 0.0
-            w_done = float(res.women) if res and res.women else 0.0
+            # --- DETECCIÓN INTELIGENTE DEL TIPO ---
+            # Navegamos hasta el template para saber si es Outcome u Output
+            raw_type = 'output'
+            if ind.template and ind.template.result:
+                raw_type = (ind.template.result.type or 'output').lower()
             
-            # Lógica de tipo de indicador
-            # Si es Outcome, tal vez usas una lógica distinta, pero por ahora sumamos m+w
-            # para no romper el frontend que espera 'total'
-            total_done = m_done + w_done 
+            is_outcome = raw_type == 'outcome'
+            
+            if is_outcome:
+                # Lógica de Porcentaje (Impacto)
+                att = float(res.attended) if res and res.attended else 0.0
+                app = float(res.approved) if res and res.approved else 0.0
+                total_done = (app / att * 100) if att > 0 else 0.0
+                m_done, w_done = 0.0, 0.0 
+            else:
+                # Lógica de Sumatoria (Personas)
+                m_done = float(res.men) if res and res.men else 0.0
+                w_done = float(res.women) if res and res.women else 0.0
+                total_done = m_done + w_done 
 
-            # Metas
+            # Metas: Priorizar meta de provincia, si no, usar la global del indicador
             goal = goals_dict.get(ind.id_indicator) if target_province_id else None
             t_total = float(goal.total_target if goal else (ind.target_total or 0))
             t_men = float(goal.men if goal else (ind.target_men or 0))
@@ -2145,10 +2161,10 @@ def get_project_progress(project_id):
 
             summary.append({
                 "indicator_id": ind.id_indicator,
-                "indicator_type": getattr(ind, 'type', 'Output'), # Evita error si no existe 'type'
+                "indicator_type": raw_type.capitalize(),
                 "target": {"total": t_total, "men": t_men, "women": t_women},
                 "achieved": {
-                    "total": total_done, 
+                    "total": round(total_done, 2),
                     "men": m_done, 
                     "women": w_done
                 },
@@ -2162,9 +2178,8 @@ def get_project_progress(project_id):
         return jsonify(summary), 200
 
     except Exception as e:
-        print(f"Error en progress-summary: {str(e)}")
+        print(f"Error crítico en progress-summary: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
 
 @api.route('/audit-logs', methods=['GET'])
 @jwt_required()

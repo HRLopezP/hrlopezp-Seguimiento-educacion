@@ -237,15 +237,20 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
         const controller = new AbortController();
 
         const fetchGap = async () => {
-            // Solo actuamos si tenemos indicador y lugar
             if (form.indicator_id && form.location_id) {
 
+                // --- CAMBIO PARA REFRESCO: Si quieres que siempre sea fresco al abrir el modal ---
+                // Podrías comentar o quitar temporalmente el bloque del gapCache para probar
                 if (gapCache[form.location_id]) {
                     const data = gapCache[form.location_id];
-                    // Buscamos el indicador específico dentro de los datos guardados
                     const currentGap = data.find(d => String(d.indicator_id) === String(form.indicator_id));
-                    setGapData(currentGap);
-                    return; // ¡LISTO! Salimos sin ir al servidor.
+
+                    // Si encontramos el dato y tiene un 'achieved.total' > 0, lo usamos. 
+                    // Si no, forzamos la recarga para asegurar que no sea un residuo viejo.
+                    if (currentGap && currentGap.achieved.total > 0) {
+                        setGapData(currentGap);
+                        return;
+                    }
                 }
 
                 setLoadingGap(true);
@@ -257,19 +262,14 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
 
                     if (res?.ok) {
                         const data = await res.json();
-
-                        // Guardamos en nuestra "memoria fotográfica"
                         gapCache[form.location_id] = data;
-
                         const currentGap = data.find(d => String(d.indicator_id) === String(form.indicator_id));
+                        console.log("Datos de la brecha (currentGap):", currentGap);
                         setGapData(currentGap);
                     }
                 } catch (err) {
-                    if (err.name !== 'AbortError') {
-                        console.error("Error real cargando brecha:", err);
-                    }
+                    if (err.name !== 'AbortError') console.error("Error cargando brecha:", err);
                 } finally {
-                    // AJUSTE VITAL: Siempre quitamos el loading para que no se quede pegado
                     setLoadingGap(false);
                 }
             } else {
@@ -520,7 +520,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                                             </p>
                                         </div>
                                     )}
-                                    {/* Barra de progreso visual */}
                                     {/* Barra de progreso común */}
                                     <div className="mt-3">
                                         <div className="d-flex justify-content-between small mb-1" style={{ fontSize: '0.7rem' }}>
