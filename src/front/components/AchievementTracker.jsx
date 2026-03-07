@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiFetch } from "../../utils/api";
 import Swal from 'sweetalert2';
+import { invalidateGapCache } from "./ActivityWizard";
 
 const AchievementTracker = ({ activity, onClose, onRefresh }) => {
     // 1. ESTADOS (Inicializados en 0 numérico)
@@ -105,6 +106,7 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
             });
 
             if (res?.ok) {
+                invalidateGapCache(activity.location_id);
                 await Swal.fire('¡Logrado!', isEditing ? 'El registro ha sido actualizado.' : 'El logro se ha descontado de la meta global.', 'success');
                 onRefresh();
                 onClose();

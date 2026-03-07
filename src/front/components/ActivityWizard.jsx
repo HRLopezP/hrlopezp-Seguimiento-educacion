@@ -4,6 +4,18 @@ import Swal from 'sweetalert2';
 
 const gapCache = {};
 
+export const invalidateGapCache = (locationId = null) => {
+    if (locationId) {
+        // Al usar delete, eliminamos la propiedad sin romper la referencia del objeto
+        delete gapCache[locationId];
+        console.log(`Cache invalidado para location: ${locationId}`);
+    } else {
+        // Para limpiar todo sin cambiar la referencia:
+        Object.keys(gapCache).forEach(key => delete gapCache[key]);
+        console.log("Cache global invalidado");
+    }
+};
+
 const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSaveSuccess }) => {
     const [indicadores, setIndicadores] = useState([]);
     const [lugares, setLugares] = useState([]);
