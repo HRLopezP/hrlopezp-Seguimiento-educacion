@@ -228,8 +228,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
             // Solo actuamos si tenemos indicador y lugar
             if (form.indicator_id && form.location_id) {
 
-                // --- ESTRATEGIA DE CACHÉ ---
-                // ¿Ya consultamos esta ubicación antes?
                 if (gapCache[form.location_id]) {
                     const data = gapCache[form.location_id];
                     // Buscamos el indicador específico dentro de los datos guardados

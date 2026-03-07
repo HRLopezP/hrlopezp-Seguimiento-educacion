@@ -9,8 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from .manager_decorator import manager_required
 from flask_mail import Message
-from datetime import datetime
-from datetime import date
+from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
 from api.extensions import mail
 from sqlalchemy import func, or_
@@ -1943,25 +1942,33 @@ def create_achievement():
     user_id = get_jwt_identity()
     data = request.json
 
+    # 1. Verificación de existencia de la actividad
     activity = Activity.query.get_or_404(data.get('activity_id'))
 
     try:
+        # 2. Creación del registro con todos los campos del modelo
         new_record = AchievementRecord(
             activity_id=activity.id_activity,
             men_reached=float(data.get('men_reached', 0)),
             women_reached=float(data.get('women_reached', 0)),
             disability_reached=float(data.get('disability_reached', 0)),
+            attended_count=float(data.get('attended_count', 0)), # Agregado según tu modelo
+            approved_count=float(data.get('approved_count', 0)), # Agregado según tu modelo
             evidence_url=data.get('evidence_url'),
-            # ESTA ES LA LÍNEA QUE DEBES AGREGAR:
             evidence_public_id=data.get('evidence_public_id'), 
             observations=data.get('observations'),
             user_id=user_id
         )
 
-        activity.status = ActivityStatus.COMPLETADA
+        # 3. Actualizar estado de la actividad (Usa el string exacto o tu Enum)
+        activity.status = 'COMPLETADA' 
 
         db.session.add(new_record)
         db.session.commit()
+
+        # 4. Refrescar el objeto para asegurar que las relaciones (activity e indicator) 
+        # estén disponibles para el serialize()
+        db.session.refresh(new_record)
 
         return jsonify({
             "message": "Logro registrado exitosamente",
@@ -1970,13 +1977,15 @@ def create_achievement():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": str(e)}), 500
+        # IMPORTANTE: Imprime el error en consola para ver el nombre exacto de la falla
+        print(f"DEBUG SIGSSEP ERROR: {str(e)}") 
+        return jsonify({"message": f"Error en el servidor: {str(e)}"}), 500
 
 
 @api.route('/achievements/<int:id>', methods=['PATCH'])
 @jwt_required()
 def patch_achievement(id):
-    user_id = get_jwt_identity()
+    user_id = get_jwt_identity() 
     record = AchievementRecord.query.get_or_404(id)
     data = request.json
     
@@ -1984,6 +1993,8 @@ def patch_achievement(id):
     if 'men_reached' in data: record.men_reached = float(data['men_reached'])
     if 'women_reached' in data: record.women_reached = float(data['women_reached'])
     if 'disability_reached' in data: record.disability_reached = float(data['disability_reached'])
+    if 'attended_count' in data: record.attended_count = float(data['attended_count'])
+    if 'approved_count' in data: record.approved_count = float(data['approved_count'])
     if 'observations' in data: record.observations = data['observations']
 
     # 2. LÓGICA DE REEMPLAZO DE EVIDENCIA (Refactorizada)
@@ -2069,69 +2080,90 @@ def upload_evidence():
 @api.route('/project/<int:project_id>/progress-summary', methods=['GET'])
 @jwt_required()
 def get_project_progress(project_id):
-    location_id = request.args.get('location_id')
-    
-    # 1. Obtener la provincia una sola vez
-    target_province_id = None
-    if location_id and location_id != 'undefined':
-        loc = Location.query.get(location_id)
-        if loc: target_province_id = loc.province_id
-
-    # 2. Traer todos los indicadores del proyecto
-    indicators = Indicator.query.filter_by(project_id=project_id).all()
-    indicator_ids = [ind.id_indicator for ind in indicators]
-
-    # 3. CONSULTA OPTIMIZADA: Sumamos TODO de una sola vez agrupado por indicador
-    query_achieved = db.session.query(
-        Indicator.id_indicator,
-        func.sum(AchievementRecord.men_reached).label("men"),
-        func.sum(AchievementRecord.women_reached).label("women")
-    ).select_from(Indicator)\
-     .outerjoin(Activity, Activity.indicator_id == Indicator.id_indicator)\
-     .outerjoin(AchievementRecord, AchievementRecord.activity_id == Activity.id_activity)\
-     .filter(Indicator.id_indicator.in_(indicator_ids))\
-     .filter(Activity.status.in_([ActivityStatus.COMPLETADA, ActivityStatus.EN_PROGRESO]))
-
-    if target_province_id:
-        query_achieved = query_achieved.join(Location, Activity.location_id == Location.id_location)\
-                                       .filter(Location.province_id == target_province_id)
-    
-    # Agrupamos por ID para que la DB nos de los totales por indicador
-    achieved_totals = {res.id_indicator: res for res in query_achieved.group_by(Indicator.id_indicator).all()}
-
-    # 4. Obtener metas por provincia de una sola vez
-    goals_dict = {}
-    if target_province_id:
-        goals = IndicatorLocationGoal.query.filter(
-            IndicatorLocationGoal.indicator_id.in_(indicator_ids),
-            IndicatorLocationGoal.province_id == target_province_id
-        ).all()
-        goals_dict = {g.indicator_id: g for g in goals}
-
-    # 5. Armar el resumen (ahora solo es procesar datos en memoria, no más DB)
-    summary = []
-    for ind in indicators:
-        res_achieved = achieved_totals.get(ind.id_indicator)
-        men_done = res_achieved.men if res_achieved else 0
-        women_done = res_achieved.women if res_achieved else 0
+    try:
+        location_id = request.args.get('location_id')
         
-        goal = goals_dict.get(ind.id_indicator) if target_province_id else None
-        t_total = goal.total_target if goal else (ind.target_total or 0)
-        t_men = goal.men if goal else (ind.target_men or 0)
-        t_women = goal.women if goal else (ind.target_women or 0)
+        # 1. Obtener la provincia
+        target_province_id = None
+        if location_id and location_id != 'undefined':
+            loc = Location.query.get(location_id)
+            if loc: target_province_id = loc.province_id
 
-        summary.append({
-            "indicator_id": ind.id_indicator,
-            "target": {"total": t_total, "men": t_men, "women": t_women},
-            "achieved": {"men": men_done, "women": women_done, "total": men_done + women_done},
-            "gap": {
-                "men": max(0, t_men - men_done),
-                "women": max(0, t_women - women_done),
-                "total": max(0, t_total - (men_done + women_done))
-            }
-        })
+        # 2. Indicadores
+        indicators = Indicator.query.filter_by(project_id=project_id).all()
+        indicator_ids = [ind.id_indicator for ind in indicators]
 
-    return jsonify(summary), 200
+        if not indicator_ids:
+            return jsonify([]), 200
+
+        # 3. Consulta con COALESCE para evitar Nones desde la DB
+        # Usamos func.coalesce(valor, 0) para que la DB nos de 0 en vez de None
+        query_achieved = db.session.query(
+            Indicator.id_indicator,
+            func.sum(func.coalesce(AchievementRecord.men_reached, 0)).label("men"),
+            func.sum(func.coalesce(AchievementRecord.women_reached, 0)).label("women")
+        ).select_from(Indicator)\
+         .outerjoin(Activity, Activity.indicator_id == Indicator.id_indicator)\
+         .outerjoin(AchievementRecord, AchievementRecord.activity_id == Activity.id_activity)\
+         .filter(Indicator.id_indicator.in_(indicator_ids))\
+         .filter(Activity.status.in_(['COMPLETADA', 'EN_PROGRESO'])) # Asegúrate que coincida con tu modelo
+
+        if target_province_id:
+            query_achieved = query_achieved.join(Location, Activity.location_id == Location.id_location)\
+                                           .filter(Location.province_id == target_province_id)
+        
+        achieved_totals = {res.id_indicator: res for res in query_achieved.group_by(Indicator.id_indicator).all()}
+
+        # 4. Metas
+        goals_dict = {}
+        if target_province_id:
+            goals = IndicatorLocationGoal.query.filter(
+                IndicatorLocationGoal.indicator_id.in_(indicator_ids),
+                IndicatorLocationGoal.province_id == target_province_id
+            ).all()
+            goals_dict = {g.indicator_id: g for g in goals}
+
+        # 5. Construcción del JSON
+        summary = []
+        for ind in indicators:
+            res = achieved_totals.get(ind.id_indicator)
+            
+            # Valores alcanzados (limpios)
+            m_done = float(res.men) if res and res.men else 0.0
+            w_done = float(res.women) if res and res.women else 0.0
+            
+            # Lógica de tipo de indicador
+            # Si es Outcome, tal vez usas una lógica distinta, pero por ahora sumamos m+w
+            # para no romper el frontend que espera 'total'
+            total_done = m_done + w_done 
+
+            # Metas
+            goal = goals_dict.get(ind.id_indicator) if target_province_id else None
+            t_total = float(goal.total_target if goal else (ind.target_total or 0))
+            t_men = float(goal.men if goal else (ind.target_men or 0))
+            t_women = float(goal.women if goal else (ind.target_women or 0))
+
+            summary.append({
+                "indicator_id": ind.id_indicator,
+                "indicator_type": getattr(ind, 'type', 'Output'), # Evita error si no existe 'type'
+                "target": {"total": t_total, "men": t_men, "women": t_women},
+                "achieved": {
+                    "total": total_done, 
+                    "men": m_done, 
+                    "women": w_done
+                },
+                "gap": {
+                    "total": max(0, t_total - total_done),
+                    "men": max(0, t_men - m_done),
+                    "women": max(0, t_women - w_done)
+                }
+            })
+
+        return jsonify(summary), 200
+
+    except Exception as e:
+        print(f"Error en progress-summary: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 @api.route('/audit-logs', methods=['GET'])
@@ -2375,28 +2407,28 @@ def get_indicator_locations(indicator_id):
 @jwt_required()
 def get_activities():
     user_id = get_jwt_identity()
-    today = date.today() # Capturamos la fecha actual (solo año-mes-día)
     
-    activities = Activity.query.filter_by(created_by_id=user_id)\
-        .options(
-            joinedload(Activity.location).joinedload(Location.province_ref),
-            joinedload(Activity.location).joinedload(Location.municipality_ref),
-            joinedload(Activity.indicator).joinedload(Indicator.template).joinedload(IndicatorTemplate.result),
-            joinedload(Activity.indicator).joinedload(Indicator.project_result)
-        ).all()
+    # En lugar de pytz, restamos 4 horas al tiempo UTC del servidor (Codespaces)
+    # para obtener la hora real de Venezuela.
+    hoy_venezuela = datetime.utcnow() - timedelta(hours=4)
+    today = hoy_venezuela.date()
+
+    activities = Activity.query.filter_by(created_by_id=user_id).all()
 
     results = []
     for act in activities:
         data = act.serialize()
 
-        if data['status'] not in ['Completada', 'Cancelada']:
-            start_dt = act.start_date.date()
-            end_dt = act.end_date.date()
+        if data.get('status') not in ['Completada', 'Cancelada']:
+            # Extraemos fechas de forma segura
+            start_dt = act.start_date.date() if hasattr(act.start_date, 'date') else act.start_date
+            end_dt = act.end_date.date() if hasattr(act.end_date, 'date') else act.end_date
 
+            # Ahora la comparación será justa
             if end_dt < today:
                 data['status'] = 'Vencida'
             elif start_dt <= today <= end_dt:
-                data['status'] = 'En Progreso'
+                data['status'] = 'En Progreso' # ¡Verás el Emerald Green ahora!
             else:
                 data['status'] = 'Planificada'
         

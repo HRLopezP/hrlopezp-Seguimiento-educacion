@@ -324,6 +324,15 @@ class Indicator(db.Model):
         backref="is_parent_of"
     )
 
+    @property
+    def type(self):
+        """Calcula dinámicamente si es Outcome u Output basándose en el resultado asociado"""
+        if self.project_result:
+            return (self.project_result.type or "output").lower()
+        if self.template and self.template.result:
+            return (self.template.result.type or "output").lower()
+        return "output"
+
     def serialize(self):
         res_temp = self.project_result.result_template if self.project_result else None
         theo_temp = res_temp.theory if res_temp else None
@@ -392,6 +401,7 @@ class Indicator(db.Model):
             "theory_name": theo_temp.name if theo_temp else "Sin Teoría",
             "result_name": nombre_resultado, 
             "result_type": tipo_resultado.lower(),
+            "type": self.type,
             "is_dependent": self.calculation_type == "dependent",
             "depends_on_ids": [i.template_id for i in self.depends_on]
         }
@@ -765,6 +775,8 @@ class AchievementRecord(db.Model):
     men_reached: Mapped[float] = mapped_column(Float, default=0.0)
     women_reached: Mapped[float] = mapped_column(Float, default=0.0)
     disability_reached: Mapped[float] = mapped_column(Float, default=0.0)
+    attended_count: Mapped[float] = mapped_column(Float, default=0.0)
+    approved_count: Mapped[float] = mapped_column(Float, default=0.0)
     
     evidence_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     evidence_public_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -785,11 +797,13 @@ class AchievementRecord(db.Model):
             "id": self.id,
             "activity_id": self.activity_id,
             "date": self.execution_date.strftime("%Y-%m-%d %H:%M"),
-            "reach": {
+            "real_progress": {
                 "men": self.men_reached, 
                 "women": self.women_reached, 
                 "disability": self.disability_reached,
-                "total": self.men_reached + self.women_reached
+                "attended": self.attended_count, # Agregado
+                "approved": self.approved_count, # Agregado
+                "total": self.approved_count if self.activity.indicator.type == 'Outcome' else (self.men_reached + self.women_reached)
             },
             "evidence": self.evidence_url,
             "evidence_public_id": self.evidence_public_id,

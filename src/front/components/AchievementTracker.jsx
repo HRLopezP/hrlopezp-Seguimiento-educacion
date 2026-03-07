@@ -35,14 +35,22 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
     const progressPercent = plannedTotal > 0 ? Math.min((totalAchieved / plannedTotal) * 100, 100) : 0;
 
     // 3. EFECTO DE CARGA INICIAL (Sincronización con el Backend)
+    // 3. EFECTO DE CARGA INICIAL (Sincronización con el Backend)
     useEffect(() => {
-        if (activity?.last_achievement_id) {
-            setExistingRecordId(activity.last_achievement_id);
-            setAchievedMen(activity.real_progress?.men || 0);
-            setAchievedWomen(activity.real_progress?.women || 0);
-            setTotalAttended(activity.real_progress?.attended || 0);
-            setTotalApproved(activity.real_progress?.approved || 0);
-            setObservations(activity.last_observations || "");
+        // Buscamos el último logro registrado en el historial
+        const history = activity?.achievements_history || [];
+        const lastRecord = history.length > 0 ? history[history.length - 1] : null;
+
+        if (lastRecord) {
+            setExistingRecordId(lastRecord.id);
+
+            // Extraemos los datos del último registro individual
+            const prog = lastRecord.real_progress;
+            setAchievedMen(prog?.men || 0);
+            setAchievedWomen(prog?.women || 0);
+            setTotalAttended(prog?.attended || 0);
+            setTotalApproved(prog?.approved || 0);
+            setObservations(lastRecord.observations || "");
         }
     }, [activity]);
 
@@ -55,7 +63,7 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
         if (isOutcome && totalApproved > totalAttended) {
             return Swal.fire('Error de Lógica', 'Los aprobados no pueden superar a los evaluados.', 'error');
         }
-        
+
         if (!hasEvidence) {
             return Swal.fire('Falta Evidencia', 'Es obligatorio subir un respaldo (Kobo/Excel) para registrar el avance.', 'warning');
         }
