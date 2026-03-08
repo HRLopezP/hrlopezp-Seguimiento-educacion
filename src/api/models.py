@@ -611,6 +611,7 @@ class Activity(db.Model):
         return {
             "id": self.id_activity,
             "description": self.description,
+            "indicator_id": self.indicator_id,
             "indicator": {
                 "id": self.indicator_id,
                 "code": getattr(template, 'code', "IND-???"),

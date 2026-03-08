@@ -79,57 +79,42 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
         const total = (parseInt(form.planned_men) || 0) + (parseInt(form.planned_women) || 0);
         setForm(prev => ({ ...prev, planned_total: total }));
     }, [form.planned_men, form.planned_women]);
+    
 
     useEffect(() => {
         const loadInitialData = async () => {
             try {
                 setLoading(true);
+                const resInd = await apiFetch(`/official/projects/${proyectoId}/indicators`);
 
-                const promesas = [apiFetch(`/official/projects/${proyectoId}/indicators`)];
-
-                if (initialData?.indicator_id) {
-                    promesas.push(apiFetch(`/official/indicators/${initialData.indicator_id}/locations`));
-                }
-
-                const respuestas = await Promise.all(promesas);
-                const resInd = respuestas[0];
-                const resLoc = respuestas[1];
-
-                let listaIndicadores = [];
                 if (resInd?.ok) {
-                    listaIndicadores = await resInd.json();
+                    const listaIndicadores = await resInd.json();
                     setIndicadores(listaIndicadores);
-                }
 
-                if (initialData) {
-                    if (resLoc?.ok) {
-                        const todasLasLoc = await resLoc.json();
-                        const indSeleccionado = listaIndicadores.find(i => String(i.id) === String(initialData.indicator_id));
+                    if (initialData) {
+                        const currentIndicatorId = initialData.indicator?.id || initialData.indicator_id;
+                        const indSeleccionado = listaIndicadores.find(i => String(i.id) === String(currentIndicatorId));
 
-                        const provinciasPermitidas = indSeleccionado?.goals_by_province
-                            ?.filter(g => g.target > 0)
-                            ?.map(g => g.province_name.trim().toLowerCase()) || [];
+                        // CARGA CRÍTICA: Esperamos a que los lugares se carguen y filtren
+                        if (currentIndicatorId) {
+                            await cargarLugares(currentIndicatorId, indSeleccionado);
+                        }
 
-                        const filtradas = todasLasLoc.filter(loc =>
-                            provinciasPermitidas.includes(loc.province_name?.trim().toLowerCase())
-                        );
-                        setLugares(filtradas);
-                    }
+                        setForm({
+                            indicator_id: String(currentIndicatorId || ''),
+                            location_id: String(initialData.location_id || ''),
+                            planned_total: initialData.planned?.total || 0,
+                            planned_men: initialData.planned?.men || 0,
+                            planned_women: initialData.planned?.women || 0,
+                            start_date: initialData.period?.start || selectedDate,
+                            end_date: initialData.period?.end || selectedDate,
+                            project_id: proyectoId,
+                            project_competence_id: initialData.project_competence_id || ''
+                        });
 
-                    setForm({
-                        indicator_id: initialData.indicator_id || '',
-                        location_id: initialData.location_id || '',
-                        planned_total: initialData.planned?.total || 0,
-                        planned_men: initialData.planned?.men || 0,
-                        planned_women: initialData.planned?.women || 0,
-                        start_date: initialData.period?.start || selectedDate,
-                        end_date: initialData.period?.end || selectedDate,
-                        project_id: proyectoId,
-                        project_competence_id: initialData.project_competence_id || ''
-                    });
-
-                    if (initialData.description) {
-                        setSelectedActivities(initialData.description.split(", "));
+                        if (initialData.description) {
+                            setSelectedActivities(initialData.description.split(", "));
+                        }
                     }
                 }
             } catch (err) {
@@ -144,13 +129,24 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
 
 
     const cargarLugares = async (indicatorId, indicadorDirecto = null) => {
+        if (!indicatorId) return [];
+
         try {
             setLoadingLugares(true);
+
+            // Buscamos el indicador en la lista si no nos lo pasaron directamente
             const ind = indicadorDirecto || indicadores.find(i => String(i.id) === String(indicatorId));
 
-            const provinciasPermitidasNombres = ind?.goals_by_province
+            // Si no hay indicador (aún no cargan los indicadores), no podemos filtrar
+            if (!ind) {
+                console.warn("CargarLugares: No se encontró el indicador", indicatorId);
+                setLugares([]);
+                return [];
+            }
+
+            const provinciasPermitidasNombres = ind.goals_by_province
                 ?.filter(g => g.target > 0)
-                ?.map(g => g.province_name.trim().toLowerCase()) || [];
+                ?.map(g => g.province_name?.trim().toLowerCase()) || [];
 
             const res = await apiFetch(`/official/indicators/${indicatorId}/locations`);
             if (res?.ok) {
@@ -161,7 +157,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                 });
 
                 setLugares(ubicacionesFiltradas);
-                return ubicacionesFiltradas;
+                return ubicacionesFiltradas; // Retornamos para poder usarlas en el loadInitialData
             }
         } catch (error) {
             console.error("Error en cargarLugares:", error);
@@ -172,13 +168,18 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
     };
 
     const selectIndicator = (ind) => {
+        // 1. Aseguramos que tomamos el ID correcto (id o id_indicator)
+        const idParaForm = ind.id || ind.id_indicator;
+
         setForm(prev => ({
             ...prev,
-            indicator_id: ind.id,
-            location_id: '',
+            indicator_id: String(idParaForm), // Siempre string para que los selectores no fallen
+            location_id: '', // Limpiamos la ubicación para obligar a elegir una válida para este indicador
             project_competence_id: ind.project_competence_id || ''
         }));
-        cargarLugares(ind.id, ind);
+
+        // 2. Ejecutamos la carga de lugares pasando el objeto completo del indicador
+        cargarLugares(idParaForm, ind);
     };
 
     const handleSave = async () => {
@@ -338,7 +339,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                         <div className="accordion accordion-flush shadow-sm" id="wizardIndicatorsAccordion">
                             {Object.keys(groupedIndicators).map((theoryName) => (
                                 <React.Fragment key={theoryName}>
-                                    {/* Iteramos por tipos (output/outcome) para mantener el orden de tus imágenes */}
                                     {['output', 'outcome'].map(type => (
                                         groupedIndicators[theoryName][type] && Object.keys(groupedIndicators[theoryName][type]).map((resultName) => {
                                             const indicatorsInGroup = groupedIndicators[theoryName][type][resultName];
@@ -409,7 +409,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                                 {!form.indicator_id
                                     ? "Seleccione primero un indicador"
                                     : loadingLugares
-                                        ? "Cargando ubicaciones válidas..." // Mensaje mientras la API responde
+                                        ? "Cargando ubicaciones válidas..."
                                         : "Seleccione ubicación..."}
                             </option>
                             {lugares.map(loc => (
