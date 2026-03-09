@@ -4,16 +4,9 @@ import Swal from 'sweetalert2';
 
 const gapCache = {};
 
-export const invalidateGapCache = (locationId = null) => {
-    if (locationId) {
-        // Al usar delete, eliminamos la propiedad sin romper la referencia del objeto
-        delete gapCache[locationId];
-        console.log(`Cache invalidado para location: ${locationId}`);
-    } else {
-        // Para limpiar todo sin cambiar la referencia:
-        Object.keys(gapCache).forEach(key => delete gapCache[key]);
-        console.log("Cache global invalidado");
-    }
+export const invalidateGapCache = () => {
+    Object.keys(gapCache).forEach(key => delete gapCache[key]);
+    console.log("Memoria de indicadores refrescada");
 };
 
 const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSaveSuccess }) => {
@@ -28,6 +21,10 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
     const [loadingLugares, setLoadingLugares] = useState(false);
     const [gapData, setGapData] = useState(null);
     const [loadingGap, setLoadingGap] = useState(false);
+
+    const isOutcome = useMemo(() => {
+        return gapData?.indicator_type === 'outcome';
+    }, [gapData]);
 
     const [form, setForm] = useState({
         indicator_id: '',
@@ -72,14 +69,13 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
         return indicadores.find(ind => String(ind.id) === String(form.indicator_id));
     }, [indicadores, form.indicator_id]);
 
-    const isOutcome = selectedIndicatorDetails?.result_type === 'outcome';
 
 
     useEffect(() => {
         const total = (parseInt(form.planned_men) || 0) + (parseInt(form.planned_women) || 0);
         setForm(prev => ({ ...prev, planned_total: total }));
     }, [form.planned_men, form.planned_women]);
-    
+
 
     useEffect(() => {
         const loadInitialData = async () => {
@@ -94,7 +90,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                     if (initialData) {
                         const currentIndicatorId = initialData.indicator?.id || initialData.indicator_id;
                         const indSeleccionado = listaIndicadores.find(i => String(i.id) === String(currentIndicatorId));
-
                         // CARGA CRÍTICA: Esperamos a que los lugares se carguen y filtren
                         if (currentIndicatorId) {
                             await cargarLugares(currentIndicatorId, indSeleccionado);
@@ -133,11 +128,8 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
 
         try {
             setLoadingLugares(true);
-
-            // Buscamos el indicador en la lista si no nos lo pasaron directamente
             const ind = indicadorDirecto || indicadores.find(i => String(i.id) === String(indicatorId));
 
-            // Si no hay indicador (aún no cargan los indicadores), no podemos filtrar
             if (!ind) {
                 console.warn("CargarLugares: No se encontró el indicador", indicatorId);
                 setLugares([]);
@@ -157,7 +149,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                 });
 
                 setLugares(ubicacionesFiltradas);
-                return ubicacionesFiltradas; // Retornamos para poder usarlas en el loadInitialData
+                return ubicacionesFiltradas;
             }
         } catch (error) {
             console.error("Error en cargarLugares:", error);
@@ -168,23 +160,24 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
     };
 
     const selectIndicator = (ind) => {
-        // 1. Aseguramos que tomamos el ID correcto (id o id_indicator)
-        const idParaForm = ind.id || ind.id_indicator;
+        // El nuevo resumen usa 'id', pero tu lista de indicadores inicial puede usar 'id_indicator'
+        // Forzamos a que siempre usemos el mismo nombre de propiedad
+        const idLimpio = ind.id || ind.id_indicator;
 
         setForm(prev => ({
             ...prev,
-            indicator_id: String(idParaForm), // Siempre string para que los selectores no fallen
-            location_id: '', // Limpiamos la ubicación para obligar a elegir una válida para este indicador
+            indicator_id: String(idLimpio),
+            location_id: '',
             project_competence_id: ind.project_competence_id || ''
         }));
 
-        // 2. Ejecutamos la carga de lugares pasando el objeto completo del indicador
-        cargarLugares(idParaForm, ind);
+        cargarLugares(idLimpio, ind);
     };
 
     const handleSave = async () => {
         const finalDescription = selectedActivities.join(", ");
 
+        // Validaciones iniciales
         if (parseInt(form.planned_total) <= 0) {
             Swal.fire('Atención', 'Debes asignar al menos un beneficiario (hombre o mujer) para guardar.', 'warning');
             return;
@@ -206,23 +199,22 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
             });
 
             if (res?.ok) {
-                // ✨ LIMPIEZA DE CACHÉ: Obligamos a recalcular brechas en la siguiente consulta
-                delete gapCache[form.location_id];
-
-                // Opcional: Si tienes una caché global de indicadores, también podrías limpiarla aquí
+                // --- CAMBIO CRÍTICO AQUÍ ---
+                // Invalidados la caché global para que al volver a abrir o cambiar de indicador
+                // se descargue el progreso real time actualizado desde el backend.
+                invalidateGapCache();
 
                 await Swal.fire('¡Éxito!', 'Planificación guardada correctamente.', 'success');
 
-                // Resetear estados críticos antes de salir
                 setSelectedActivities([]);
 
+                // Notificamos al padre que hubo un cambio (esto refresca el calendario/dashboard)
                 if (typeof onSaveSuccess === 'function') {
                     onSaveSuccess();
                 } else {
                     onClose();
                 }
             } else {
-                // 💡 MEJORA: Intentar capturar el mensaje de error del servidor
                 const errorData = await res.json().catch(() => ({}));
                 Swal.fire('Error', errorData.message || 'No se pudo procesar la solicitud.', 'error');
             }
@@ -238,49 +230,78 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
         const controller = new AbortController();
 
         const fetchGap = async () => {
-            if (form.indicator_id && form.location_id) {
+            // Validación: Solo actuamos si hay ambos IDs
+            if (!form.indicator_id || !form.location_id) {
+                setGapData(null);
+                return;
+            }
 
-                // --- CAMBIO PARA REFRESCO: Si quieres que siempre sea fresco al abrir el modal ---
-                // Podrías comentar o quitar temporalmente el bloque del gapCache para probar
-                if (gapCache[form.location_id]) {
-                    const data = gapCache[form.location_id];
-                    const currentGap = data.find(d => String(d.indicator_id) === String(form.indicator_id));
+            let projectData = gapCache["current_project"];
 
-                    // Si encontramos el dato y tiene un 'achieved.total' > 0, lo usamos. 
-                    // Si no, forzamos la recarga para asegurar que no sea un residuo viejo.
-                    if (currentGap && currentGap.achieved.total > 0) {
-                        setGapData(currentGap);
-                        return;
-                    }
-                }
-
+            if (!projectData) {
                 setLoadingGap(true);
                 try {
-                    const res = await apiFetch(
-                        `/project/${proyectoId}/progress-summary?location_id=${form.location_id}`,
-                        { signal: controller.signal }
-                    );
-
+                    const res = await apiFetch(`/project/${proyectoId}/progress-summary`, { signal: controller.signal });
                     if (res?.ok) {
-                        const data = await res.json();
-                        gapCache[form.location_id] = data;
-                        const currentGap = data.find(d => String(d.indicator_id) === String(form.indicator_id));
-                        console.log("Datos de la brecha (currentGap):", currentGap);
-                        setGapData(currentGap);
+                        projectData = await res.json();
+                        gapCache["current_project"] = projectData;
                     }
                 } catch (err) {
                     if (err.name !== 'AbortError') console.error("Error cargando brecha:", err);
                 } finally {
                     setLoadingGap(false);
                 }
-            } else {
-                setGapData(null);
+            }
+
+            if (projectData) {
+                const indInfo = projectData.find(d => String(d.id) === String(form.indicator_id));
+                const ubicacionSeleccionada = lugares.find(l => String(l.id_location) === String(form.location_id));
+                let provId = ubicacionSeleccionada?.province_id;
+
+                if (!provId && ubicacionSeleccionada?.province_name) {
+                    const metaProvincia = selectedIndicatorDetails?.goals_by_province?.find(
+                        g => g.province_name === ubicacionSeleccionada.province_name
+                    );
+                    provId = metaProvincia?.province_id;
+                }
+
+                console.log("Ubicación objeto completo:", ubicacionSeleccionada);
+                console.log("Provincia ID final:", provId);
+
+                if (indInfo && provId) {
+                    const statsProv = indInfo.provinces?.find(p => String(p.province_id) === String(provId));
+
+                    if (statsProv) {
+                        setGapData({
+                            indicator_id: indInfo.id,
+                            indicator_type: indInfo.type, // Asegúrate que el JSON diga 'type'
+                            target: {
+                                total: statsProv.target,
+                                men: statsProv.target_men || 0,
+                                women: statsProv.target_women || 0
+                            },
+                            achieved: {
+                                total: statsProv.achieved,
+                                men: statsProv.men,
+                                women: statsProv.women
+                            },
+                            gap: {
+                                total: Math.max(0, statsProv.target - statsProv.achieved),
+                                men: Math.max(0, (statsProv.target_men || 0) - statsProv.men),
+                                women: Math.max(0, (statsProv.target_women || 0) - statsProv.women)
+                            }
+                        });
+                    } else {
+                        console.warn("No se encontraron estadísticas para la provincia:", provId);
+                        setGapData(null);
+                    }
+                }
             }
         };
 
         fetchGap();
         return () => controller.abort();
-    }, [form.indicator_id, form.location_id, proyectoId]);
+    }, [form.indicator_id, form.location_id, proyectoId, lugares]);
 
 
     useEffect(() => {
@@ -288,8 +309,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
             if (!form.indicator_id) return;
 
             const ind = indicadores.find(i => String(i.id) === String(form.indicator_id));
-
-            // Usamos el ID de la competencia maestra para el catálogo
             const compId = ind?.competence_id;
 
             if (!compId) return;
@@ -306,7 +325,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
         };
 
         fetchCatalogo();
-    }, [form.indicator_id]); // Solo se ejecuta cuando cambias el indicador
+    }, [form.indicator_id]);
 
     return (
         <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '15px' }}>

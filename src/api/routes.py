@@ -2081,105 +2081,114 @@ def upload_evidence():
 @jwt_required()
 def get_project_progress(project_id):
     try:
-        location_id = request.args.get('location_id')
-        
-        # 1. Obtener la provincia para filtrar metas locales
-        target_province_id = None
-        if location_id and location_id != 'undefined':
-            loc = Location.query.get(location_id)
-            if loc: 
-                target_province_id = loc.province_id
-
-        # 2. Obtener indicadores del proyecto
+        # 1. Carga inicial de datos maestros
         indicators = Indicator.query.filter_by(project_id=project_id).all()
-        indicator_ids = [ind.id_indicator for ind in indicators]
-
-        if not indicator_ids:
+        if not indicators:
             return jsonify([]), 200
 
-        # 3. Consulta de totales acumulados
-        # IMPORTANTE: Usamos ActivityStatus (el Enum) para que SQLAlchemy haga el match correcto
-        query_achieved = db.session.query(
+        # 2. Consultamos TODOS los logros agrupados por INDICADOR y PROVINCIA
+        # Esto nos da la base para el desglose territorial
+        results = db.session.query(
             Indicator.id_indicator,
+            Province.id.label("province_id"),
+            Province.name.label("province_name"),
             func.sum(func.coalesce(AchievementRecord.men_reached, 0)).label("men"),
             func.sum(func.coalesce(AchievementRecord.women_reached, 0)).label("women"),
             func.sum(func.coalesce(AchievementRecord.attended_count, 0)).label("attended"),
             func.sum(func.coalesce(AchievementRecord.approved_count, 0)).label("approved")
         ).select_from(Indicator)\
-         .outerjoin(Activity, Activity.indicator_id == Indicator.id_indicator)\
-         .outerjoin(AchievementRecord, AchievementRecord.activity_id == Activity.id_activity)\
-         .filter(Indicator.id_indicator.in_(indicator_ids))\
-         .filter(Activity.status.in_([ActivityStatus.COMPLETADA, ActivityStatus.EN_PROGRESO])) # <-- CORRECCIÓN DE ENUM
+         .join(Activity, Activity.indicator_id == Indicator.id_indicator)\
+         .join(Location, Activity.location_id == Location.id_location)\
+         .join(Province, Location.province_id == Province.id)\
+         .join(AchievementRecord, AchievementRecord.activity_id == Activity.id_activity)\
+         .filter(Indicator.project_id == project_id)\
+         .group_by(Indicator.id_indicator, Province.id, Province.name).all()
 
-        # Si hay una provincia seleccionada, filtramos los logros de esa ubicación
-        if target_province_id:
-            query_achieved = query_achieved.join(Location, Activity.location_id == Location.id_location)\
-                                           .filter(Location.province_id == target_province_id)
-        
-        results = query_achieved.group_by(Indicator.id_indicator).all()
-        achieved_totals = {res.id_indicator: res for res in results}
+        # Organizamos los logros en un diccionario de fácil acceso: {id_indicador: {id_provincia: datos}}
+        achievements_map = {}
+        for r in results:
+            if r.id_indicator not in achievements_map:
+                achievements_map[r.id_indicator] = {}
+            achievements_map[r.id_indicator][r.province_id] = r
 
-        # 4. Obtener Metas específicas de la provincia si aplica
-        goals_dict = {}
-        if target_province_id:
-            goals = IndicatorLocationGoal.query.filter(
-                IndicatorLocationGoal.indicator_id.in_(indicator_ids),
-                IndicatorLocationGoal.province_id == target_province_id
-            ).all()
-            goals_dict = {g.indicator_id: g for g in goals}
-
-        # 5. Construcción del JSON de respuesta
         summary = []
-        for ind in indicators:
-            res = achieved_totals.get(ind.id_indicator)
-            
-            # --- DETECCIÓN INTELIGENTE DEL TIPO ---
-            # Navegamos hasta el template para saber si es Outcome u Output
-            raw_type = 'output'
-            if ind.template and ind.template.result:
-                raw_type = (ind.template.result.type or 'output').lower()
-            
-            is_outcome = raw_type == 'outcome'
-            
-            if is_outcome:
-                # Lógica de Porcentaje (Impacto)
-                att = float(res.attended) if res and res.attended else 0.0
-                app = float(res.approved) if res and res.approved else 0.0
-                total_done = (app / att * 100) if att > 0 else 0.0
-                m_done, w_done = 0.0, 0.0 
-            else:
-                # Lógica de Sumatoria (Personas)
-                m_done = float(res.men) if res and res.men else 0.0
-                w_done = float(res.women) if res and res.women else 0.0
-                total_done = m_done + w_done 
 
-            # Metas: Priorizar meta de provincia, si no, usar la global del indicador
-            goal = goals_dict.get(ind.id_indicator) if target_province_id else None
-            t_total = float(goal.total_target if goal else (ind.target_total or 0))
-            t_men = float(goal.men if goal else (ind.target_men or 0))
-            t_women = float(goal.women if goal else (ind.target_women or 0))
+        for ind in indicators:
+            is_outcome = ind.type == 'outcome'
+            is_dependent = ind.calculation_type == 'dependent'
+            
+            # Recolectamos todas las provincias vinculadas a este indicador (sus metas)
+            provincias_data = []
+            total_ind_men, total_ind_women, total_ind_att, total_ind_app = 0.0, 0.0, 0.0, 0.0
+
+            for goal in ind.location_goals:
+                p_id = goal.province_id
+                
+                # CALCULAMOS LOGROS POR PROVINCIA
+                p_men, p_women, p_att, p_app = 0.0, 0.0, 0.0, 0.0
+                
+                if is_dependent:
+                    # Si depende de otros, sumamos los logros de los hijos en ESTA provincia
+                    for child in ind.depends_on:
+                        c_res = achievements_map.get(child.id_indicator, {}).get(p_id)
+                        if c_res:
+                            p_men += float(c_res.men)
+                            p_women += float(c_res.women)
+                            p_att += float(c_res.attended)
+                            p_app += float(c_res.approved)
+                else:
+                    # Logro directo
+                    res = achievements_map.get(ind.id_indicator, {}).get(p_id)
+                    if res:
+                        p_men, p_women = float(res.men), float(res.women)
+                        p_att, p_app = float(res.attended), float(res.approved)
+
+                # Porcentaje de avance de la provincia
+                p_advance = (p_app / p_att * 100) if is_outcome and p_att > 0 else (p_men + p_women)
+                
+                provincias_data.append({
+                    "province_id": p_id,
+                    "province_name": goal.province.name,
+                    "target": goal.total_target,
+                    "target_men": goal.men,      # <-- AGREGA ESTO
+                    "target_women": goal.women,  # <-- AGREGA ESTO
+                    "achieved": round(p_advance, 2),
+                    "men": p_men,
+                    "women": p_women,
+                    "is_success": p_advance >= (goal.total_target * 0.8) if is_outcome else False
+                })
+
+                # Sumatorias para el total global del indicador
+                total_ind_men += p_men
+                total_ind_women += p_women
+                total_ind_att += p_att
+                total_ind_app += p_app
+
+            # CÁLCULO GLOBAL DEL INDICADOR
+            if is_outcome:
+                global_achieved = (total_ind_app / total_ind_att * 100) if total_ind_att > 0 else 0.0
+            else:
+                global_achieved = total_ind_men + total_ind_women
 
             summary.append({
-                "indicator_id": ind.id_indicator,
-                "indicator_type": raw_type.capitalize(),
-                "target": {"total": t_total, "men": t_men, "women": t_women},
-                "achieved": {
-                    "total": round(total_done, 2),
-                    "men": m_done, 
-                    "women": w_done
-                },
-                "gap": {
-                    "total": max(0, t_total - total_done),
-                    "men": max(0, t_men - m_done),
-                    "women": max(0, t_women - w_done)
-                }
+                "id": ind.id_indicator,
+                "code": ind.template.code if ind.template else "N/A",
+                "name": ind.template.name if ind.template else "Sin nombre",
+                "type": ind.type,
+                "is_dependent": is_dependent,
+                "global_target": ind.target_total,
+                "global_achieved": round(global_achieved, 2),
+                "total_men": total_ind_men,
+                "total_women": total_ind_women,
+                "provinces": provincias_data
             })
 
         return jsonify(summary), 200
 
     except Exception as e:
-        print(f"Error crítico en progress-summary: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        print(f"Error en progress-summary: {str(e)}")
+        return jsonify({"error": "Error al calcular el resumen"}), 500
+
 
 @api.route('/audit-logs', methods=['GET'])
 @jwt_required()
