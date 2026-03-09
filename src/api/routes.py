@@ -2087,7 +2087,6 @@ def get_project_progress(project_id):
             return jsonify([]), 200
 
         # 2. Consultamos TODOS los logros agrupados por INDICADOR y PROVINCIA
-        # Esto nos da la base para el desglose territorial
         results = db.session.query(
             Indicator.id_indicator,
             Province.id.label("province_id"),
@@ -2104,7 +2103,6 @@ def get_project_progress(project_id):
          .filter(Indicator.project_id == project_id)\
          .group_by(Indicator.id_indicator, Province.id, Province.name).all()
 
-        # Organizamos los logros en un diccionario de fácil acceso: {id_indicador: {id_provincia: datos}}
         achievements_map = {}
         for r in results:
             if r.id_indicator not in achievements_map:
@@ -2117,12 +2115,15 @@ def get_project_progress(project_id):
             is_outcome = ind.type == 'outcome'
             is_dependent = ind.calculation_type == 'dependent'
             
-            # Recolectamos todas las provincias vinculadas a este indicador (sus metas)
             provincias_data = []
+            total_target_men, total_target_women = 0.0, 0.0
             total_ind_men, total_ind_women, total_ind_att, total_ind_app = 0.0, 0.0, 0.0, 0.0
 
             for goal in ind.location_goals:
+                if goal.total_target <= 0:
+                    continue
                 p_id = goal.province_id
+                p_men, p_women, p_att, p_app = 0.0, 0.0, 0.0, 0.0
                 
                 # CALCULAMOS LOGROS POR PROVINCIA
                 p_men, p_women, p_att, p_app = 0.0, 0.0, 0.0, 0.0
@@ -2150,21 +2151,21 @@ def get_project_progress(project_id):
                     "province_id": p_id,
                     "province_name": goal.province.name,
                     "target": goal.total_target,
-                    "target_men": goal.men,      # <-- AGREGA ESTO
-                    "target_women": goal.women,  # <-- AGREGA ESTO
+                    "target_men": goal.men,
+                    "target_women": goal.women, 
                     "achieved": round(p_advance, 2),
                     "men": p_men,
                     "women": p_women,
                     "is_success": p_advance >= (goal.total_target * 0.8) if is_outcome else False
                 })
 
-                # Sumatorias para el total global del indicador
+                total_target_men += goal.men
+                total_target_women += goal.women
                 total_ind_men += p_men
                 total_ind_women += p_women
                 total_ind_att += p_att
                 total_ind_app += p_app
 
-            # CÁLCULO GLOBAL DEL INDICADOR
             if is_outcome:
                 global_achieved = (total_ind_app / total_ind_att * 100) if total_ind_att > 0 else 0.0
             else:
@@ -2175,8 +2176,10 @@ def get_project_progress(project_id):
                 "code": ind.template.code if ind.template else "N/A",
                 "name": ind.template.name if ind.template else "Sin nombre",
                 "type": ind.type,
+                "global_target": total_target_men + total_target_women, 
+                "global_target_men": total_target_men,   
+                "global_target_women": total_target_women, 
                 "is_dependent": is_dependent,
-                "global_target": ind.target_total,
                 "global_achieved": round(global_achieved, 2),
                 "total_men": total_ind_men,
                 "total_women": total_ind_women,
