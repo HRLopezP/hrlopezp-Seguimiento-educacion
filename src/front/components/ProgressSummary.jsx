@@ -1,7 +1,7 @@
 import React from 'react';
+import "../styles/ProgressSummary.css"
 
 const CircularImpact = ({ value, target }) => {
-    // Usamos toFixed(2) para la precisión que buscas
     const percentage = target > 0 ? (value / target) * 100 : 0;
     const radius = 36;
     const dash = 2 * Math.PI * radius;
@@ -9,7 +9,7 @@ const CircularImpact = ({ value, target }) => {
 
     return (
         <div style={{
-            position: 'relative', width: '120px', height: '120px', // Un poquito más ancho por los decimales
+            position: 'relative', width: '120px', height: '120px',
             backgroundColor: '#2c3e50', borderRadius: '50%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             border: '4px solid #34495e', boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
@@ -25,7 +25,6 @@ const CircularImpact = ({ value, target }) => {
                 />
             </svg>
             <div style={{ position: 'absolute', textAlign: 'center', color: 'white' }}>
-                {/* PRECISIÓN PROFESIONAL: 2 decimales */}
                 <div style={{ fontSize: '1.2rem', fontWeight: '900', lineHeight: '1' }}>
                     {percentage.toFixed(2)}%
                 </div>
@@ -44,16 +43,20 @@ const ProgressSummary = ({ data }) => {
     );
 
     return (
-        <div className="container-fluid py-4" style={{ animation: 'fadeIn 0.5s ease' }}>
+        <div className="container-fluid py-4">
             {data.map((indicator) => {
                 const isOutcome = indicator.type?.toLowerCase() === 'outcome';
                 const totalTarget = indicator.provinces?.reduce((acc, p) => acc + (p.target || 0), 0) || 0;
                 const totalAchieved = indicator.global_achieved || 0;
 
+                // CÁLCULO DE FALTANTES GLOBALES POR GÉNERO
+                const missingTotal = totalTarget - totalAchieved;
+                const missingMenGlobal = (indicator.global_target_men || 0) - (indicator.total_men || 0);
+                const missingWomenGlobal = (indicator.global_target_women || 0) - (indicator.total_women || 0);
+
                 return (
                     <div key={indicator.id} className="card border-0 shadow-lg mb-5" style={{ borderRadius: '25px', overflow: 'hidden' }}>
-                        
-                        {/* CABECERA OXFORD GREY */}
+
                         <div className="p-4 p-md-5 d-flex flex-column flex-md-row justify-content-between align-items-center gap-4"
                             style={{ backgroundColor: '#34495e', color: 'white' }}>
 
@@ -73,7 +76,6 @@ const ProgressSummary = ({ data }) => {
                                 </p>
                             </div>
 
-                            {/* METAS GLOBALES AL LADO DEL CÍRCULO */}
                             <div className="d-flex align-items-center gap-4 bg-dark bg-opacity-10 p-3 rounded-4 border border-white border-opacity-10">
                                 <div className="d-flex flex-column gap-2 text-end">
                                     <div className="bg-dark bg-opacity-25 p-2 rounded-3 border border-secondary" style={{ minWidth: '150px' }}>
@@ -81,7 +83,12 @@ const ProgressSummary = ({ data }) => {
                                         <span className="fw-bold">{totalTarget}</span>
                                         <div className="opacity-50" style={{ fontSize: '10px' }}>{indicator.global_target_men}H / {indicator.global_target_women}M</div>
                                     </div>
-                                    <div className="bg-dark bg-opacity-25 p-2 rounded-3 border border-success" style={{ minWidth: '150px' }}>
+
+                                    <div
+                                        className="bg-dark bg-opacity-25 p-2 rounded-3 border border-success custom-tooltip"
+                                        style={{ minWidth: '150px' }}
+                                        data-tooltip={`Faltan ${missingTotal} (${Math.max(0, missingMenGlobal)}H y ${Math.max(0, missingWomenGlobal)}M)`}
+                                    >
                                         <small className="d-block opacity-75 text-uppercase" style={{ fontSize: '9px' }}>Logro Total</small>
                                         <span className="fw-bold text-success">{totalAchieved}</span>
                                         <div className="opacity-50" style={{ fontSize: '10px' }}>{indicator.total_men}H / {indicator.total_women}M</div>
@@ -91,21 +98,32 @@ const ProgressSummary = ({ data }) => {
                             </div>
                         </div>
 
-                        {/* CUERPO DE PROVINCIAS */}
                         <div className="card-body bg-light p-4 p-md-5">
                             <div className="row g-4">
                                 {indicator.provinces?.map((prov) => {
                                     const provProgress = prov.target > 0 ? (prov.achieved / prov.target) * 100 : 0;
 
+                                    // CÁLCULO DE FALTANTES POR PROVINCIA Y GÉNERO
+                                    const missingProv = prov.target - prov.achieved;
+                                    const missingMenProv = (prov.target_men || 0) - (prov.men || 0);
+                                    const missingWomenProv = (prov.target_women || 0) - (prov.women || 0);
+
+                                    const isCritical = provProgress < 10 && prov.target > 0;
+
                                     return (
                                         <div key={prov.province_id} className="col-12 col-md-6 col-lg-4">
-                                            <div className="card h-100 border-0 shadow-sm p-4 bg-white"
-                                                style={{ borderRadius: '20px' }}>
+                                            <div className="card h-100 border-0 shadow-sm p-4 bg-white" style={{ borderRadius: '20px' }}>
 
                                                 <div className="d-flex justify-content-between align-items-start mb-3">
                                                     <div>
                                                         <small className="text-success fw-bold text-uppercase" style={{ fontSize: '9px' }}>Provincia</small>
-                                                        <h5 className="fw-black m-0 text-dark">{prov.province_name}</h5>
+                                                        <div className="d-flex align-items-center gap-2">
+                                                            <h5 className="fw-black m-0 text-dark">{prov.province_name}</h5>
+                                                            {isCritical && (
+                                                                <i className="fas fa-exclamation-triangle warning-icon custom-tooltip"
+                                                                    data-tooltip={`¡Atención! Faltan ${missingProv} (${Math.max(0, missingMenProv)}H / ${Math.max(0, missingWomenProv)}M)`}></i>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                     <div className="text-end">
                                                         <small className="d-block text-muted text-uppercase fw-bold" style={{ fontSize: '8px' }}>Meta</small>
@@ -119,11 +137,16 @@ const ProgressSummary = ({ data }) => {
                                                 <div className="mb-4">
                                                     <div className="d-flex justify-content-between mb-1">
                                                         <small className="text-muted fw-bold" style={{ fontSize: '10px' }}>PROGRESO</small>
-                                                        {/* PRECISIÓN: 2 decimales en el avance de provincia */}
-                                                        <small className="fw-bold text-success">{provProgress.toFixed(2)}%</small>
+                                                        <small className={`fw-bold ${isCritical ? 'text-warning' : 'text-success'}`}>
+                                                            {provProgress.toFixed(2)}%
+                                                        </small>
                                                     </div>
-                                                    <div className="progress" style={{ height: '8px', borderRadius: '10px' }}>
-                                                        <div className="progress-bar bg-success"
+                                                    <div
+                                                        className="progress custom-tooltip"
+                                                        style={{ height: '8px', borderRadius: '10px' }}
+                                                        data-tooltip={`Pendiente: ${missingProv} (${Math.max(0, missingMenProv)}H y ${Math.max(0, missingWomenProv)}M)`}
+                                                    >
+                                                        <div className={`progress-bar ${isCritical ? 'bg-warning' : 'bg-success'}`}
                                                             style={{ width: `${Math.min(provProgress, 100)}%` }}></div>
                                                     </div>
                                                 </div>
