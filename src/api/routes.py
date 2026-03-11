@@ -2086,7 +2086,7 @@ def get_project_progress(project_id):
         if not indicators:
             return jsonify([]), 200
 
-        # 2. Consultamos TODOS los logros agrupados por INDICADOR y PROVINCIA
+        # 2. Consultamos logros agrupados por indicador y provincia
         results = db.session.query(
             Indicator.id_indicator,
             Province.id.label("province_id"),
@@ -2116,81 +2116,102 @@ def get_project_progress(project_id):
             is_dependent = ind.calculation_type == 'dependent'
             
             provincias_data = []
-            total_target_men, total_target_women = 0.0, 0.0
             total_ind_men, total_ind_women, total_ind_att, total_ind_app = 0.0, 0.0, 0.0, 0.0
+            
+            # --- LÓGICA ESPECIAL PARA OUTCOMES DEPENDIENTES ---
+            # Si el indicador depende de otros (es un Outcome), necesitamos las metas de sus "padres"
+            parent_goals_by_prov = {}
+            global_parent_men_goal = 0.0
+            global_parent_women_goal = 0.0
+            
+            if is_dependent:
+                for parent in ind.depends_on:
+                    for g in parent.location_goals:
+                        p_id = g.province_id
+                        if p_id not in parent_goals_by_prov:
+                            parent_goals_by_prov[p_id] = {'men': 0, 'women': 0, 'total': 0}
+                        parent_goals_by_prov[p_id]['men'] += g.men
+                        parent_goals_by_prov[p_id]['women'] += g.women
+                        parent_goals_by_prov[p_id]['total'] += g.total_target
+                        global_parent_men_goal += g.men
+                        global_parent_women_goal += g.women
 
+            # --- PROCESAR CADA PROVINCIA DEL INDICADOR ACTUAL ---
             for goal in ind.location_goals:
-                if goal.total_target <= 0:
-                    continue
                 p_id = goal.province_id
                 p_men, p_women, p_att, p_app = 0.0, 0.0, 0.0, 0.0
                 
-                # CALCULAMOS LOGROS POR PROVINCIA
-                p_men, p_women, p_att, p_app = 0.0, 0.0, 0.0, 0.0
-                
+                # Obtener logros (si es dependiente, sumamos los de sus hijos/dependencias)
                 if is_dependent:
-                    # Si depende de otros, sumamos los logros de los hijos en ESTA provincia
                     for child in ind.depends_on:
                         c_res = achievements_map.get(child.id_indicator, {}).get(p_id)
                         if c_res:
-                            p_men += float(c_res.men)
-                            p_women += float(c_res.women)
-                            p_att += float(c_res.attended)
-                            p_app += float(c_res.approved)
+                            p_men += float(c_res.men); p_women += float(c_res.women)
+                            p_att += float(c_res.attended); p_app += float(c_res.approved)
                 else:
-                    # Logro directo
                     res = achievements_map.get(ind.id_indicator, {}).get(p_id)
                     if res:
                         p_men, p_women = float(res.men), float(res.women)
                         p_att, p_app = float(res.attended), float(res.approved)
 
-                # Porcentaje de avance de la provincia
-                p_advance = (p_app / p_att * 100) if is_outcome and p_att > 0 else (p_men + p_women)
-                
+                # Cálculo de valores para el JSON
+                if is_outcome and is_dependent:
+                    # En este caso, 'achieved' es el impacto (%) respecto al padre
+                    p_target = parent_goals_by_prov.get(p_id, {}).get('total', 0)
+                    p_advance = ((p_men + p_women) / p_target * 100) if p_target > 0 else 0
+                    p_men_val = (p_men / parent_goals_by_prov[p_id]['men'] * 100) if parent_goals_by_prov.get(p_id, {}).get('men', 0) > 0 else 0
+                    p_women_val = (p_women / parent_goals_by_prov[p_id]['women'] * 100) if parent_goals_by_prov.get(p_id, {}).get('women', 0) > 0 else 0
+                else:
+                    # Lógica original para Outputs y Outcomes simples
+                    p_advance = (p_app / p_att * 100) if is_outcome and p_att > 0 else (p_men + p_women)
+                    p_men_val, p_women_val = p_men, p_women
+
                 provincias_data.append({
                     "province_id": p_id,
                     "province_name": goal.province.name,
                     "target": goal.total_target,
                     "target_men": goal.men,
-                    "target_women": goal.women, 
+                    "target_women": goal.women,
                     "achieved": round(p_advance, 2),
-                    "men": p_men,
-                    "women": p_women,
-                    "is_success": p_advance >= (goal.total_target * 0.8) if is_outcome else False
+                    "men": round(p_men_val, 2),
+                    "women": round(p_women_val, 2)
                 })
 
-                total_target_men += goal.men
-                total_target_women += goal.women
-                total_ind_men += p_men
-                total_ind_women += p_women
-                total_ind_att += p_att
-                total_ind_app += p_app
+                total_ind_men += p_men; total_ind_women += p_women
+                total_ind_att += p_att; total_ind_app += p_app
 
-            if is_outcome:
-                global_achieved = (total_ind_app / total_ind_att * 100) if total_ind_att > 0 else 0.0
+            # --- CÁLCULO GLOBAL ---
+            if is_outcome and is_dependent:
+                g_target_total = global_parent_men_goal + global_parent_women_goal
+                global_achieved = ((total_ind_men + total_ind_women) / g_target_total * 100) if g_target_total > 0 else 0
+                final_men = (total_ind_men / global_parent_men_goal * 100) if global_parent_men_goal > 0 else 0
+                final_women = (total_ind_women / global_parent_women_goal * 100) if global_parent_women_goal > 0 else 0
+                display_target = 100 # Para Outcomes dependientes, la meta siempre es llegar al 100% de impacto
             else:
-                global_achieved = total_ind_men + total_ind_women
+                global_achieved = (total_ind_app / total_ind_att * 100) if is_outcome and total_ind_att > 0 else (total_ind_men + total_ind_women)
+                final_men, final_women = total_ind_men, total_ind_women
+                display_target = sum(g.total_target for g in ind.location_goals)
 
             summary.append({
                 "id": ind.id_indicator,
                 "code": ind.template.code if ind.template else "N/A",
                 "name": ind.template.name if ind.template else "Sin nombre",
+                "description": ind.template.description if ind.template else "",
                 "type": ind.type,
-                "global_target": total_target_men + total_target_women, 
-                "global_target_men": total_target_men,   
-                "global_target_women": total_target_women, 
                 "is_dependent": is_dependent,
+                "global_target": round(display_target, 2),
+                "global_target_men": sum(g.men for g in ind.location_goals),
+                "global_target_women": sum(g.women for g in ind.location_goals), 
                 "global_achieved": round(global_achieved, 2),
-                "total_men": total_ind_men,
-                "total_women": total_ind_women,
+                "total_men": round(final_men, 2),
+                "total_women": round(final_women, 2),
                 "provinces": provincias_data
             })
 
         return jsonify(summary), 200
-
     except Exception as e:
         print(f"Error en progress-summary: {str(e)}")
-        return jsonify({"error": "Error al calcular el resumen"}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 @api.route('/audit-logs', methods=['GET'])
