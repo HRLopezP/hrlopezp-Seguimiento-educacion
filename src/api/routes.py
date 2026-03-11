@@ -2023,9 +2023,12 @@ def get_project_progress(project_id):
         for ind in indicators:
             is_outcome = ind.type == 'outcome'
             is_dependent = ind.calculation_type == 'dependent'
+            is_independent_outcome = is_outcome and not is_dependent
             
             provincias_data = []
             total_ind_men, total_ind_women, total_ind_att, total_ind_app = 0.0, 0.0, 0.0, 0.0
+
+            final_men, final_women = 0.0, 0.0
             
             # --- LÓGICA ESPECIAL PARA OUTCOMES DEPENDIENTES ---
             parent_goals_by_prov = {}
@@ -2079,21 +2082,30 @@ def get_project_progress(project_id):
                     "target_women": goal.women,
                     "achieved": round(p_advance, 2),
                     "men": round(p_men_val, 2),
-                    "women": round(p_women_val, 2)
+                    "women": round(p_women_val, 2),
+                    "attended": p_att,
+                    "approved": p_app
                 })
 
                 total_ind_men += p_men; total_ind_women += p_women
                 total_ind_att += p_att; total_ind_app += p_app
 
             # --- CÁLCULO GLOBAL ---
-            if is_outcome and is_dependent:
-                g_target_total = global_parent_men_goal + global_parent_women_goal
-                global_achieved = ((total_ind_men + total_ind_women) / g_target_total * 100) if g_target_total > 0 else 0
-                final_men = (total_ind_men / global_parent_men_goal * 100) if global_parent_men_goal > 0 else 0
-                final_women = (total_ind_women / global_parent_women_goal * 100) if global_parent_women_goal > 0 else 0
-                display_target = 100
+            if is_outcome:
+                provincias_con_meta = [g.total_target for g in ind.location_goals if g.total_target > 0]
+                display_target = sum(provincias_con_meta) / len(provincias_con_meta) if provincias_con_meta else 0
+                
+                if is_dependent:
+                    g_target_total = global_parent_men_goal + global_parent_women_goal
+                    global_achieved = ((total_ind_men + total_ind_women) / g_target_total * 100) if g_target_total > 0 else 0
+                    final_men = (total_ind_men / global_parent_men_goal * 100) if global_parent_men_goal > 0 else 0
+                    final_women = (total_ind_women / global_parent_women_goal * 100) if global_parent_women_goal > 0 else 0
+                else:
+                    global_achieved = (total_ind_app / total_ind_att * 100) if total_ind_att > 0 else 0
+                    final_men, final_women = total_ind_men, total_ind_women
+
             else:
-                global_achieved = (total_ind_app / total_ind_att * 100) if is_outcome and total_ind_att > 0 else (total_ind_men + total_ind_women)
+                global_achieved = (total_ind_men + total_ind_women)
                 final_men, final_women = total_ind_men, total_ind_women
                 display_target = sum(g.total_target for g in ind.location_goals)
 
@@ -2110,6 +2122,8 @@ def get_project_progress(project_id):
                 "global_achieved": round(global_achieved, 2),
                 "total_men": round(final_men, 2),
                 "total_women": round(final_women, 2),
+                "total_attended": total_ind_att if is_independent_outcome else 0,
+                "total_approved": total_ind_app if is_independent_outcome else 0,
                 "provinces": provincias_data
             })
 

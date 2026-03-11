@@ -48,7 +48,7 @@ const ProgressSummary = ({ data }) => {
                 const isDep = indicator.is_dependent;
 
                 // 1. Lógica de Porcentaje Global
-                const globalPercentage = isOutcome ? (indicator.global_achieved || 0) : 
+                const globalPercentage = isOutcome ? (indicator.global_achieved || 0) :
                     (indicator.global_target > 0 ? (indicator.global_achieved / indicator.global_target) * 100 : 0);
 
                 // 2. Cálculos para Tooltips Globales (Solo para Outputs/No dependientes)
@@ -86,7 +86,7 @@ const ProgressSummary = ({ data }) => {
                                         )}
                                     </div>
 
-                                    <div 
+                                    <div
                                         className={`bg-dark bg-opacity-25 p-2 rounded-3 border border-success ${(!isDep && !isOutcome) ? 'custom-tooltip' : ''}`}
                                         style={{ minWidth: '150px' }}
                                         data-tooltip={(!isDep && !isOutcome) ? `Faltan ${Math.max(0, missingTotal)} (${Math.max(0, missingMenGlobal)}H y ${Math.max(0, missingWomenGlobal)}M)` : undefined}
@@ -96,7 +96,13 @@ const ProgressSummary = ({ data }) => {
                                             {indicator.global_achieved}{isOutcome && isDep ? '%' : ''}
                                         </span>
                                         <div className="opacity-50" style={{ fontSize: '10px' }}>
-                                            {indicator.total_men}{isOutcome && isDep ? '%' : ''} H / {indicator.total_women}{isOutcome && isDep ? '%' : ''} M
+                                            {isOutcome && !isDep ? (
+                                                // Punto 4: Mostrar totales sumados de población
+                                                `${indicator.total_approved} Aprob. / ${indicator.total_attended} Tot.`
+                                            ) : (
+                                                // Mantener género para los demás
+                                                `${indicator.total_men}${isDep ? '%' : ''} H / ${indicator.total_women}${isDep ? '%' : ''} M`
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -110,10 +116,10 @@ const ProgressSummary = ({ data }) => {
                                 {indicator.provinces?.filter(p => p.target > 0).map((prov) => {
                                     // 3. Progreso por provincia
                                     const provProgress = isOutcome ? (prov.achieved || 0) : (prov.target > 0 ? (prov.achieved / prov.target) * 100 : 0);
-                                    
+
                                     // 4. Lógica de Alerta Amarilla (Crítico < 10%)
                                     const isCritical = !isDep && !isOutcome && provProgress < 10 && prov.target > 0;
-                                    
+
                                     const mProv = (prov.target_men || 0) - (prov.men || 0);
                                     const wProv = (prov.target_women || 0) - (prov.women || 0);
 
@@ -127,7 +133,7 @@ const ProgressSummary = ({ data }) => {
                                                             <h5 className="fw-black m-0 text-dark">{prov.province_name}</h5>
                                                             {isCritical && (
                                                                 <i className="fas fa-exclamation-triangle text-warning custom-tooltip"
-                                                                   data-tooltip={`¡Atención! Pendiente: ${Math.max(0, prov.target - prov.achieved)} (${Math.max(0, mProv)}H / ${Math.max(0, wProv)}M)`}></i>
+                                                                    data-tooltip={`¡Atención! Pendiente: ${Math.max(0, prov.target - prov.achieved)} (${Math.max(0, mProv)}H / ${Math.max(0, wProv)}M)`}></i>
                                                             )}
                                                         </div>
                                                     </div>
@@ -150,13 +156,13 @@ const ProgressSummary = ({ data }) => {
                                                             {provProgress.toFixed(2)}%
                                                         </small>
                                                     </div>
-                                                    <div 
+                                                    <div
                                                         className={`progress ${(!isDep && !isOutcome) ? 'custom-tooltip' : ''}`}
                                                         style={{ height: '8px', borderRadius: '10px' }}
                                                         data-tooltip={(!isDep && !isOutcome) ? `Pendiente: ${Math.max(0, prov.target - prov.achieved)}` : undefined}
                                                     >
-                                                        <div className={`progress-bar ${isCritical ? 'bg-warning' : 'bg-success'}`} 
-                                                             style={{ width: `${Math.min(provProgress, 100)}%` }}></div>
+                                                        <div className={`progress-bar ${isCritical ? 'bg-warning' : 'bg-success'}`}
+                                                            style={{ width: `${Math.min(provProgress, 100)}%` }}></div>
                                                     </div>
                                                 </div>
 
@@ -166,8 +172,19 @@ const ProgressSummary = ({ data }) => {
                                                         <span className="fw-bold text-dark">{prov.achieved}{isOutcome && isDep ? '%' : ''}</span>
                                                     </div>
                                                     <div className="d-flex gap-3">
-                                                        <span><i className="fas fa-mars text-primary"></i> <small className="fw-bold">{prov.men}{isOutcome && isDep ? '%' : ''}</small></span>
-                                                        <span><i className="fas fa-venus text-danger"></i> <small className="fw-bold">{prov.women}{isOutcome && isDep ? '%' : ''}</small></span>
+                                                        {isOutcome && !isDep ? (
+                                                            // Punto 3: Eliminar géneros y poner población
+                                                            <>
+                                                                <span title="Aprobados"><i className="fas fa-user-check text-success"></i> <small className="fw-bold">{prov.approved}</small></span>
+                                                                <span title="Población Total"><i className="fas fa-users text-primary"></i> <small className="fw-bold">{prov.attended}</small></span>
+                                                            </>
+                                                        ) : (
+                                                            // Mantener lo anterior para lo que ya funciona
+                                                            <>
+                                                                <span><i className="fas fa-mars text-primary"></i> <small className="fw-bold">{prov.men}{isDep ? '%' : ''}</small></span>
+                                                                <span><i className="fas fa-venus text-danger"></i> <small className="fw-bold">{prov.women}{isDep ? '%' : ''}</small></span>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
