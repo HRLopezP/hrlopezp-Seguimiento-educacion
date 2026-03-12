@@ -61,3 +61,80 @@
     animation: pulse-warning 2s infinite ease-in-out;
     filter: drop-shadow(0 0 5px rgba(241, 196, 15, 0.4));
 }
+
+
+/* Contenedor del acordeón */
+.accordion-collapse-custom {
+    display: grid;
+    grid-template-rows: 0fr; /* Cerrado por defecto */
+    transition: grid-template-rows 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+    opacity: 0;
+    visibility: hidden;
+}
+
+/* Estado Expandido */
+.accordion-collapse-custom.is-expanded {
+    grid-template-rows: 1fr; /* Abre hacia el tamaño del contenido */
+    opacity: 1;
+    visibility: visible;
+    margin-top: 10px; /* Un pequeño respiro visual al abrir */
+}
+
+/* Contenedor interno necesario para que el grid funcione */
+.accordion-content-wrapper {
+    overflow: hidden;
+}
+
+/* Rotación del icono suave */
+.rotate-icon {
+    transition: transform 0.3s ease;
+}
+
+.rotate-icon.is-expanded {
+    transform: rotate(180deg);
+}
+
+/* Mejora al pasar el mouse por el header */
+.accordion-header-clickable:hover {
+    background-color: #3d566e !important;
+}
+
+/* Efecto de Elevación y Brillo para la Tarjeta Expandida */
+.card.indicator-card {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 2px solid transparent !important;
+}
+
+.card.indicator-card.is-active {
+    transform: translateY(-5px); /* Pequeña elevación */
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2) !important;
+    border: 2px solid #2ecc71 !important; /* Brillo verde sutil en el borde */
+}
+
+/* Brillo sutil en el header cuando está activo */
+.is-active .accordion-header-clickable {
+    background-color: #2c3e50 !important; /* Un tono más oscuro y sólido */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Animación de entrada para las mini-tarjetas internas */
+.is-expanded .col-12 {
+    animation: fadeInUp 0.5s ease forwards;
+    opacity: 0;
+}
+
+/* Retraso escalonado para las provincias (stagger effect) */
+.is-expanded .col-12:nth-child(1) { animation-delay: 0.1s; }
+.is-expanded .col-12:nth-child(2) { animation-delay: 0.2s; }
+.is-expanded .col-12:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
