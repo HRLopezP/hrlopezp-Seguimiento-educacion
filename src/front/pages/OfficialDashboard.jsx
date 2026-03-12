@@ -9,19 +9,14 @@ import ProgressSummary from "../components/ProgressSummary";
 import { toast } from "sonner";
 
 export const OfficialDashboard = () => {
-    // --- ESTADOS ---
     const [activeTab, setActiveTab] = useState('planning');
     const [context, setContext] = useState(null);
     const [activities, setActivities] = useState([]);
     const [summaryData, setSummaryData] = useState([]);
-
-    // UI States
     const [loading, setLoading] = useState({ activities: false, summary: false });
     const [selectedDate, setSelectedDate] = useState(null);
     const [selectedActivity, setSelectedActivity] = useState(null);
     const [modals, setModals] = useState({ manager: false, wizard: false, tracker: false });
-
-    // --- CARGA DE DATOS ---
     const loadActivities = useCallback(async () => {
         setLoading(prev => ({ ...prev, activities: true }));
         try {
@@ -54,13 +49,11 @@ export const OfficialDashboard = () => {
         if (activeTab === 'summary') loadProgressSummary();
     }, [activeTab, context]);
 
-    // --- LÓGICA DE NEGOCIO (MEMOIZADA) ---
-    // Filtramos actividades por fecha seleccionada para el Gestor del Día
     const activitiesInSelectedDate = useMemo(() => {
         return activities.filter(act => act.period?.start === selectedDate);
     }, [activities, selectedDate]);
 
-    // --- HANDLERS ---
+
     const handleDateSelect = (dateStr) => {
         if (!context?.proyectoId) return toast.warning("Selecciona primero un proyecto.");
 
@@ -83,22 +76,16 @@ export const OfficialDashboard = () => {
             });
 
             if (res && res.ok) {
-                // 1. FEEDBACK VISUAL INMEDIATO
                 toast.success("Actividad cancelada correctamente");
 
-                // 2. ACTUALIZACIÓN "QUIRÚRGICA" DEL ESTADO (Sin recargar todo)
-                // Buscamos la actividad en nuestra lista local y le cambiamos el estatus
                 setActivities(prev => prev.map(act =>
                     act.id === actId
                         ? { ...act, status: 'Cancelada', cancellation_reason: reason }
                         : act
                 ));
 
-                // 3. CIERRE TOTAL DE MODALES (Limpiamos el ruido)
                 closeModals();
 
-                // 4. RECARGA SILENCIOSA (Opcional, para asegurar que todo esté sincro)
-                // loadActivities(); 
             } else {
                 const errorData = await res.json();
                 toast.error(errorData.msg || "Error al cancelar");
@@ -109,7 +96,6 @@ export const OfficialDashboard = () => {
         }
     };
 
-    // Auxiliar para cerrar todos los modales
     const closeModals = () => {
         setModals({ manager: false, wizard: false, tracker: false });
         setSelectedActivity(null);
@@ -217,7 +203,6 @@ export const OfficialDashboard = () => {
     );
 };
 
-// Componente auxiliar para no repetir código de modales
 const ModalWrapper = ({ children, size = "md", onClose }) => (
     <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1050 }} onClick={onClose}>
         <div className={`modal-dialog modal-${size} modal-dialog-centered`} onClick={e => e.stopPropagation()}>

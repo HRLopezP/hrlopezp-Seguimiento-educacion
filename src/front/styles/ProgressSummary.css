@@ -1,0 +1,164 @@
+/* Estilos para el Tooltip del Sistema SIGSSEP */
+.custom-tooltip {
+    position: relative;
+    cursor: help;
+}
+
+.custom-tooltip:before {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 14px;
+    background-color: #2c3e50;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 8px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+    z-index: 1000;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.custom-tooltip:after {
+    content: '';
+    position: absolute;
+    bottom: 115%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #2c3e50;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.custom-tooltip:hover:before, 
+.custom-tooltip:hover:after {
+    opacity: 1;
+    visibility: visible;
+    bottom: 130%;
+}
+
+.progress.custom-tooltip {
+    overflow: visible !important;
+}
+
+/* Animación para alertas críticas (< 10%) */
+@keyframes pulse-warning {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.warning-icon {
+    color: #f1c40f; /* Amarillo vibrante */
+    animation: pulse-warning 2s infinite ease-in-out;
+    filter: drop-shadow(0 0 5px rgba(241, 196, 15, 0.4));
+}
+
+
+/* Contenedor del acordeón */
+.accordion-collapse-custom {
+    display: grid;
+    grid-template-rows: 0fr; /* Cerrado por defecto */
+    transition: grid-template-rows 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+    opacity: 0;
+    visibility: hidden;
+}
+
+/* Estado Expandido */
+.accordion-collapse-custom.is-expanded {
+    grid-template-rows: 1fr; /* Abre hacia el tamaño del contenido */
+    opacity: 1;
+    visibility: visible;
+    margin-top: 10px; /* Un pequeño respiro visual al abrir */
+}
+
+/* Contenedor interno necesario para que el grid funcione */
+.accordion-content-wrapper {
+    overflow: hidden;
+}
+
+/* Rotación del icono suave */
+.rotate-icon {
+    transition: transform 0.3s ease;
+}
+
+.rotate-icon.is-expanded {
+    transform: rotate(180deg);
+}
+
+/* Mejora al pasar el mouse por el header */
+.accordion-header-clickable:hover {
+    background-color: #3d566e !important;
+}
+
+/* Efecto de Elevación y Brillo para la Tarjeta Expandida */
+.card.indicator-card {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 2px solid transparent !important;
+}
+
+.card.indicator-card.is-active {
+    transform: translateY(-5px); /* Pequeña elevación */
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2) !important;
+    border: 2px solid #2ecc71 !important; /* Brillo verde sutil en el borde */
+}
+
+/* Brillo sutil en el header cuando está activo */
+.is-active .accordion-header-clickable {
+    background-color: #2c3e50 !important; /* Un tono más oscuro y sólido */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Animación de entrada para las mini-tarjetas internas */
+.is-expanded .col-12 {
+    animation: fadeInUp 0.5s ease forwards;
+    opacity: 0;
+}
+
+/* Retraso escalonado para las provincias (stagger effect) */
+.is-expanded .col-12:nth-child(1) { animation-delay: 0.1s; }
+.is-expanded .col-12:nth-child(2) { animation-delay: 0.2s; }
+.is-expanded .col-12:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Animación de pulso para el círculo al llegar al 100% */
+@keyframes pulse-glow {
+  0% { transform: scale(1); box-shadow: 0 0 5px rgba(52, 152, 219, 0.4); }
+  50% { transform: scale(1.05); box-shadow: 0 0 20px rgba(52, 152, 219, 0.7); }
+  100% { transform: scale(1); box-shadow: 0 0 5px rgba(52, 152, 219, 0.4); }
+}
+
+.goal-reached-pulse {
+  animation: pulse-glow 2s infinite ease-in-out;
+}
+
+/* Animación de rebote para el trofeo */
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+  40% {transform: translateY(-5px);}
+  60% {transform: translateY(-3px);}
+}
+
+/* Mejora sutil para el fondo de la meta alcanzada en el select */
+select option[value="100+"] {
+    background-color: #3498db;
+    color: white;
+}

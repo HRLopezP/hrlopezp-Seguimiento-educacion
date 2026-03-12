@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: b1f4d73d46a7
+Revision ID: 84ba57f77f59
 Revises: 
-Create Date: 2026-02-25 19:22:13.445391
+Create Date: 2026-03-06 23:31:39.765514
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'b1f4d73d46a7'
+revision = '84ba57f77f59'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -100,6 +100,7 @@ def upgrade():
     sa.Column('lastname', sa.String(length=100), nullable=False),
     sa.Column('password', sa.String(length=255), nullable=False),
     sa.Column('profile', sa.String(length=255), nullable=True),
+    sa.Column('profile_public_id', sa.String(length=100), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
@@ -200,6 +201,8 @@ def upgrade():
     sa.Column('project_result_id', sa.Integer(), nullable=True),
     sa.Column('verification_means', sa.Text(), nullable=True),
     sa.Column('observations', sa.Text(), nullable=True),
+    sa.Column('measurement_unit', sa.String(length=20), nullable=False),
+    sa.Column('calculation_type', sa.String(length=50), nullable=False),
     sa.Column('target_total', sa.Float(), nullable=False),
     sa.Column('target_men', sa.Float(), nullable=True),
     sa.Column('target_women', sa.Float(), nullable=True),
@@ -217,6 +220,7 @@ def upgrade():
     sa.Column('planned_men', sa.Float(), nullable=False),
     sa.Column('planned_women', sa.Float(), nullable=False),
     sa.Column('status', sa.Enum('PLANIFICADA', 'EN_PROGRESO', 'COMPLETADA', 'VENCIDA', 'CANCELADA', name='activitystatus'), nullable=False),
+    sa.Column('cancellation_reason', sa.Text(), nullable=True),
     sa.Column('indicator_id', sa.Integer(), nullable=False),
     sa.Column('project_id', sa.Integer(), nullable=False),
     sa.Column('location_id', sa.Integer(), nullable=False),
@@ -264,7 +268,10 @@ def upgrade():
     sa.Column('men_reached', sa.Float(), nullable=False),
     sa.Column('women_reached', sa.Float(), nullable=False),
     sa.Column('disability_reached', sa.Float(), nullable=False),
+    sa.Column('attended_count', sa.Float(), nullable=False),
+    sa.Column('approved_count', sa.Float(), nullable=False),
     sa.Column('evidence_url', sa.Text(), nullable=True),
+    sa.Column('evidence_public_id', sa.String(length=100), nullable=True),
     sa.Column('observations', sa.Text(), nullable=True),
     sa.Column('execution_date', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),

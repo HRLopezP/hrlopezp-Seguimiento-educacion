@@ -1,77 +1,100 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiFetch } from "../../utils/api";
 import Swal from 'sweetalert2';
+import { invalidateGapCache } from "./ActivityWizard";
 
 const AchievementTracker = ({ activity, onClose, onRefresh }) => {
-    // 1. ESTADOS: Siempre van al principio
+    // 1. ESTADOS (Inicializados en 0 numérico)
     const [loading, setLoading] = useState(false);
     const [achievedMen, setAchievedMen] = useState(0);
     const [achievedWomen, setAchievedWomen] = useState(0);
-    const [totalAchieved, setTotalAchieved] = useState(0);
+    const [totalAttended, setTotalAttended] = useState(0);
+    const [totalApproved, setTotalApproved] = useState(0);
     const [observations, setObservations] = useState("");
     const [file, setFile] = useState(null);
     const [existingRecordId, setExistingRecordId] = useState(null);
 
-    // 2. LÓGICA DE DERIVACIÓN
+    // 2. LÓGICA DERIVADA
+    // Ahora 'type' viene como 'Outcome' o 'Output' desde el backend
+    const isOutcome = activity.indicator?.type === 'Outcome';
     const isEditing = !!existingRecordId;
 
-    // IMPORTANTE: Aquí usamos 'last_evidence_url' porque así viene de tu consola (image_b80820.png)
+    // Calculamos el total real según el tipo de indicador
+    const totalAchieved = useMemo(() => {
+        return isOutcome
+            ? Number(totalApproved)
+            : (Number(achievedMen) + Number(achievedWomen));
+    }, [isOutcome, totalApproved, achievedMen, achievedWomen]);
+
+    // Validación de evidencia (Mejorada para no ser "creepy")
     const hasEvidence = useMemo(() => {
-        const previousEvidence = activity?.last_evidence_url || activity?.real_progress?.evidence_url;
+        const previousEvidence = activity?.last_evidence_url;
         return !!file || !!previousEvidence;
     }, [file, activity]);
 
     const plannedTotal = activity.planned?.total || 0;
     const progressPercent = plannedTotal > 0 ? Math.min((totalAchieved / plannedTotal) * 100, 100) : 0;
 
-    // 3. EFECTOS
+    // 3. EFECTO DE CARGA INICIAL (Sincronización con el Backend)
+    // 3. EFECTO DE CARGA INICIAL (Sincronización con el Backend)
     useEffect(() => {
-        setTotalAchieved(Number(achievedMen) + Number(achievedWomen));
-    }, [achievedMen, achievedWomen]);
+        // Buscamos el último logro registrado en el historial
+        const history = activity?.achievements_history || [];
+        const lastRecord = history.length > 0 ? history[history.length - 1] : null;
 
-    useEffect(() => {
-        if (activity?.last_achievement_id) {
-            setExistingRecordId(activity.last_achievement_id);
-            setAchievedMen(activity.real_progress?.men || 0);
-            setAchievedWomen(activity.real_progress?.women || 0);
-            setObservations(activity.last_observations || "");
+        if (lastRecord) {
+            setExistingRecordId(lastRecord.id);
+
+            // Extraemos los datos del último registro individual
+            const prog = lastRecord.real_progress;
+            setAchievedMen(prog?.men || 0);
+            setAchievedWomen(prog?.women || 0);
+            setTotalAttended(prog?.attended || 0);
+            setTotalApproved(prog?.approved || 0);
+            setObservations(lastRecord.observations || "");
         }
     }, [activity]);
 
     // 4. ACCIONES
     const handleSave = async () => {
-        if (totalAchieved <= 0 || !hasEvidence) {
-            return Swal.fire('Atención', 'Logros en 0 o falta evidencia.', 'warning');
+        if (totalAchieved <= 0) {
+            return Swal.fire('Atención', 'El logro debe ser mayor a 0 para poder descontar de la meta.', 'warning');
+        }
+
+        if (isOutcome && totalApproved > totalAttended) {
+            return Swal.fire('Error de Lógica', 'Los aprobados no pueden superar a los evaluados.', 'error');
+        }
+
+        if (!hasEvidence) {
+            return Swal.fire('Falta Evidencia', 'Es obligatorio subir un respaldo (Kobo/Excel) para registrar el avance.', 'warning');
         }
 
         setLoading(true);
         try {
-            // Variables para los datos finales
-            let finalEvidenceUrl = activity?.last_evidence_url || activity?.real_progress?.evidence_url || "";
-            let finalPublicId = activity?.last_evidence_public_id || ""; // <-- NUEVO: Recuperamos el ID previo si existe
+            let finalEvidenceUrl = activity?.last_evidence_url || "";
+            let finalPublicId = activity?.last_evidence_public_id || "";
 
             if (file) {
                 const formData = new FormData();
                 formData.append('file', file);
-                formData.append('folder', 'sigssep_evidences'); // Organizar por carpetas es pro
-
+                formData.append('folder', 'sigssep_evidences');
                 const uploadRes = await apiFetch("/upload-evidence", { method: 'POST', body: formData });
+                if (!uploadRes.ok) throw new Error("Error al subir la evidencia al servidor.");
                 const uploadData = await uploadRes.json();
-
-                if (!uploadRes.ok) throw new Error("Error al subir evidencia");
-
-                // Ahora capturamos ambos campos del JSON que devuelve el backend
                 finalEvidenceUrl = uploadData.url;
-                finalPublicId = uploadData.public_id; // <-- NUEVO
+                finalPublicId = uploadData.public_id;
             }
 
             const payload = {
                 activity_id: activity.id,
-                men_reached: Number(achievedMen),
-                women_reached: Number(achievedWomen),
                 observations: observations.trim(),
                 evidence_url: finalEvidenceUrl,
-                evidence_public_id: finalPublicId // <-- NUEVO: Enviamos el ID al backend
+                evidence_public_id: finalPublicId,
+                // Si es Outcome, enviamos conteos de aprobación, si no, género
+                men_reached: isOutcome ? 0 : Number(achievedMen),
+                women_reached: isOutcome ? 0 : Number(achievedWomen),
+                attended_count: isOutcome ? Number(totalAttended) : 0,
+                approved_count: isOutcome ? Number(totalApproved) : 0
             };
 
             const method = isEditing ? 'PATCH' : 'POST';
@@ -83,44 +106,40 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
             });
 
             if (res?.ok) {
-                Swal.fire('¡Éxito!', isEditing ? 'Logro actualizado' : 'Logro registrado', 'success');
+                invalidateGapCache(activity.location_id);
+                await Swal.fire('¡Logrado!', isEditing ? 'El registro ha sido actualizado.' : 'El logro se ha descontado de la meta global.', 'success');
                 onRefresh();
                 onClose();
             }
         } catch (error) {
-            Swal.fire('Error', error.message, 'error');
+            Swal.fire('Error de Sistema', error.message, 'error');
         } finally {
             setLoading(false);
         }
     };
-    
-    // 5. RENDER (EL "DIBUJO")
+
     return (
         <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '15px' }}>
             <div className="modal-header text-white" style={{ backgroundColor: '#10b981' }}>
                 <h5 className="modal-title fw-bold">
-                    <i className="fas fa-chart-line me-2"></i> Registrar Avance Real
+                    <i className="fas fa-bullseye me-2"></i>
+                    {isEditing ? 'Editar Avance' : 'Registrar Avance Real'}
                 </h5>
                 <button type="button" className="btn-close btn-close-white" onClick={onClose}></button>
             </div>
 
             <div className="modal-body p-4 bg-light">
                 {/* Resumen de planificación */}
-                <div className="card mb-4 border-0 shadow-sm" style={{ backgroundColor: '#f1f5f9' }}>
-                    <div className="card-body">
-                        <h6 className="text-oxford fw-bold small mb-3 text-uppercase">Resumen de Planificación</h6>
+                <div className="card mb-4 border-0 shadow-sm" style={{ backgroundColor: '#f8fafc', borderLeft: '5px solid #334155' }}>
+                    <div className="card-body py-2">
                         <div className="row text-center">
                             <div className="col-4 border-end">
-                                <p className="mb-0 small text-muted">Meta Total</p>
-                                <h4 className="fw-bold text-oxford">{plannedTotal}</h4>
+                                <p className="mb-0 x-small text-muted">META</p>
+                                <h5 className="fw-bold mb-0">{plannedTotal}</h5>
                             </div>
-                            <div className="col-4 border-end">
-                                <p className="mb-0 small text-muted">Hombres</p>
-                                <h4 className="fw-bold text-primary">{activity.planned?.men || 0}</h4>
-                            </div>
-                            <div className="col-4">
-                                <p className="mb-0 small text-muted">Mujeres</p>
-                                <h4 className="fw-bold text-danger">{activity.planned?.women || 0}</h4>
+                            <div className="col-8">
+                                <p className="mb-0 x-small text-muted text-uppercase">Indicador ({activity.indicator?.type})</p>
+                                <p className="mb-0 small fw-bold text-truncate">{activity.indicator?.code}</p>
                             </div>
                         </div>
                     </div>
@@ -143,20 +162,80 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
 
                 {/* Formulario */}
                 <div className="row g-3">
-                    <div className="col-md-6">
-                        <label className="form-label fw-bold small text-oxford">HOMBRES LOGRADOS</label>
-                        <input type="number" className="form-control border-emerald"
-                            value={achievedMen} onChange={(e) => setAchievedMen(e.target.value)} />
-                    </div>
-                    <div className="col-md-6">
-                        <label className="form-label fw-bold small text-oxford">MUJERES LOGRADAS</label>
-                        <input type="number" className="form-control border-emerald"
-                            value={achievedWomen} onChange={(e) => setAchievedWomen(e.target.value)} />
-                    </div>
-                    <div className="col-12 text-center">
-                        <div className="p-3 bg-white border rounded shadow-sm">
-                            <span className="text-muted small">TOTAL LOGRADO EN CAMPO:</span>
-                            <h2 className="fw-bold text-emerald mb-0">{totalAchieved}</h2>
+                    {isOutcome ? (
+                        <>
+                            <div className="col-md-6">
+                                <label className="form-label fw-bold small">PERSONAS EVALUADAS</label>
+                                <input
+                                    type="number"
+                                    className="form-control form-control-lg border-primary"
+                                    value={totalAttended === 0 ? '' : totalAttended}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        const numVal = val === '' ? 0 : Math.max(0, parseInt(val));
+                                        setTotalAttended(numVal);
+
+                                        // NUEVO: Si los evaluados bajan de los aprobados, ajustamos aprobados
+                                        if (numVal < totalApproved) {
+                                            setTotalApproved(numVal);
+                                        }
+                                    }}
+                                />
+                            </div>
+                            <div className="col-md-6">
+                                <label className="form-label fw-bold small">PERSONAS APROBADAS</label>
+                                <input
+                                    type="number"
+                                    className="form-control form-control-lg border-emerald"
+                                    value={totalApproved === 0 ? '' : totalApproved}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        const numVal = val === '' ? 0 : Math.max(0, parseInt(val));
+
+                                        // NUEVO: No permitir que aprobados superen a los evaluados
+                                        if (numVal > totalAttended) {
+                                            // Si intenta poner más, lo bloqueamos en el máximo actual
+                                            setTotalApproved(totalAttended);
+                                            // Opcional: Podrías lanzar un Sonner/Toast aquí avisando
+                                        } else {
+                                            setTotalApproved(numVal);
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="col-md-6">
+                                <label className="form-label fw-bold small">HOMBRES</label>
+                                <input
+                                    type="number"
+                                    className="form-control form-control-lg"
+                                    value={achievedMen === 0 ? '' : achievedMen}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setAchievedMen(val === '' ? 0 : Math.max(0, parseInt(val)));
+                                    }}
+                                />
+                            </div>
+                            <div className="col-md-6">
+                                <label className="form-label fw-bold small">MUJERES</label>
+                                <input
+                                    type="number"
+                                    className="form-control form-control-lg"
+                                    value={achievedWomen === 0 ? '' : achievedWomen}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setAchievedWomen(val === '' ? 0 : Math.max(0, parseInt(val)));
+                                    }}
+                                />
+                            </div>
+                        </>
+                    )}
+                    <div className="col-12 mt-4 text-center">
+                        <div className="p-3 bg-white border rounded-3 shadow-sm">
+                            <span className="text-muted small text-uppercase fw-bold">Total a descontar de la meta:</span>
+                            <h1 className="display-5 fw-bold text-emerald mb-0">{totalAchieved}</h1>
                         </div>
                     </div>
                     <div className="col-12">
@@ -172,8 +251,6 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                     {/* --- SECCIÓN DE EVIDENCIA --- */}
                     <div className="col-12">
                         <label className="form-label fw-bold small text-oxford">ARCHIVO DE RESPALDO (KOBO)</label>
-
-                        {/* AQUÍ UBICAMOS EL CÓDIGO QUE BUSCABAS: Muestra evidencia previa si existe */}
                         {activity?.last_evidence_url && !file && (
                             <div className="alert alert-info d-flex align-items-center p-2 mb-2" style={{ fontSize: '0.85rem' }}>
                                 <i className="fas fa-check-circle me-2"></i>

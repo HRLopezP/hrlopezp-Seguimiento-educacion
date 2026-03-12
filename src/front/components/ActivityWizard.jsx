@@ -4,6 +4,11 @@ import Swal from 'sweetalert2';
 
 const gapCache = {};
 
+export const invalidateGapCache = () => {
+    Object.keys(gapCache).forEach(key => delete gapCache[key]);
+    console.log("Memoria de indicadores refrescada");
+};
+
 const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSaveSuccess }) => {
     const [indicadores, setIndicadores] = useState([]);
     const [lugares, setLugares] = useState([]);
@@ -16,6 +21,10 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
     const [loadingLugares, setLoadingLugares] = useState(false);
     const [gapData, setGapData] = useState(null);
     const [loadingGap, setLoadingGap] = useState(false);
+
+    const isOutcome = useMemo(() => {
+        return gapData?.indicator_type === 'outcome';
+    }, [gapData]);
 
     const [form, setForm] = useState({
         indicator_id: '',
@@ -30,10 +39,15 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
     });
 
     const filteredIndicators = useMemo(() => {
-        return indicadores.filter(ind =>
-            ind.indicator_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            ind.indicator_name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        return indicadores.filter(ind => {
+            const matchesSearch = ind.indicator_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                ind.indicator_name.toLowerCase().includes(searchTerm.toLowerCase());
+
+            const isPlanificable = ind.result_type === 'output' ||
+                (ind.result_type === 'outcome' && ind.calculation_type === 'independent');
+
+            return matchesSearch && isPlanificable;
+        });
     }, [indicadores, searchTerm]);
 
     const groupedIndicators = useMemo(() => {
@@ -51,62 +65,51 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
         }, {});
     }, [filteredIndicators]);
 
+    const selectedIndicatorDetails = useMemo(() => {
+        return indicadores.find(ind => String(ind.id) === String(form.indicator_id));
+    }, [indicadores, form.indicator_id]);
+
+
 
     useEffect(() => {
         const total = (parseInt(form.planned_men) || 0) + (parseInt(form.planned_women) || 0);
         setForm(prev => ({ ...prev, planned_total: total }));
     }, [form.planned_men, form.planned_women]);
 
+
     useEffect(() => {
         const loadInitialData = async () => {
             try {
                 setLoading(true);
+                const resInd = await apiFetch(`/official/projects/${proyectoId}/indicators`);
 
-                const promesas = [apiFetch(`/official/projects/${proyectoId}/indicators`)];
-
-                if (initialData?.indicator_id) {
-                    promesas.push(apiFetch(`/official/indicators/${initialData.indicator_id}/locations`));
-                }
-
-                const respuestas = await Promise.all(promesas);
-                const resInd = respuestas[0];
-                const resLoc = respuestas[1];
-
-                let listaIndicadores = [];
                 if (resInd?.ok) {
-                    listaIndicadores = await resInd.json();
+                    const listaIndicadores = await resInd.json();
                     setIndicadores(listaIndicadores);
-                }
 
-                if (initialData) {
-                    if (resLoc?.ok) {
-                        const todasLasLoc = await resLoc.json();
-                        const indSeleccionado = listaIndicadores.find(i => String(i.id) === String(initialData.indicator_id));
+                    if (initialData) {
+                        const currentIndicatorId = initialData.indicator?.id || initialData.indicator_id;
+                        const indSeleccionado = listaIndicadores.find(i => String(i.id) === String(currentIndicatorId));
+                        // CARGA CRÍTICA: Esperamos a que los lugares se carguen y filtren
+                        if (currentIndicatorId) {
+                            await cargarLugares(currentIndicatorId, indSeleccionado);
+                        }
 
-                        const provinciasPermitidas = indSeleccionado?.goals_by_province
-                            ?.filter(g => g.target > 0)
-                            ?.map(g => g.province_name.trim().toLowerCase()) || [];
+                        setForm({
+                            indicator_id: String(currentIndicatorId || ''),
+                            location_id: String(initialData.location_id || ''),
+                            planned_total: initialData.planned?.total || 0,
+                            planned_men: initialData.planned?.men || 0,
+                            planned_women: initialData.planned?.women || 0,
+                            start_date: initialData.period?.start || selectedDate,
+                            end_date: initialData.period?.end || selectedDate,
+                            project_id: proyectoId,
+                            project_competence_id: initialData.project_competence_id || ''
+                        });
 
-                        const filtradas = todasLasLoc.filter(loc =>
-                            provinciasPermitidas.includes(loc.province_name?.trim().toLowerCase())
-                        );
-                        setLugares(filtradas);
-                    }
-
-                    setForm({
-                        indicator_id: initialData.indicator_id || '',
-                        location_id: initialData.location_id || '',
-                        planned_total: initialData.planned?.total || 0,
-                        planned_men: initialData.planned?.men || 0,
-                        planned_women: initialData.planned?.women || 0,
-                        start_date: initialData.period?.start || selectedDate,
-                        end_date: initialData.period?.end || selectedDate,
-                        project_id: proyectoId,
-                        project_competence_id: initialData.project_competence_id || ''
-                    });
-
-                    if (initialData.description) {
-                        setSelectedActivities(initialData.description.split(", "));
+                        if (initialData.description) {
+                            setSelectedActivities(initialData.description.split(", "));
+                        }
                     }
                 }
             } catch (err) {
@@ -121,13 +124,21 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
 
 
     const cargarLugares = async (indicatorId, indicadorDirecto = null) => {
+        if (!indicatorId) return [];
+
         try {
             setLoadingLugares(true);
             const ind = indicadorDirecto || indicadores.find(i => String(i.id) === String(indicatorId));
 
-            const provinciasPermitidasNombres = ind?.goals_by_province
+            if (!ind) {
+                console.warn("CargarLugares: No se encontró el indicador", indicatorId);
+                setLugares([]);
+                return [];
+            }
+
+            const provinciasPermitidasNombres = ind.goals_by_province
                 ?.filter(g => g.target > 0)
-                ?.map(g => g.province_name.trim().toLowerCase()) || [];
+                ?.map(g => g.province_name?.trim().toLowerCase()) || [];
 
             const res = await apiFetch(`/official/indicators/${indicatorId}/locations`);
             if (res?.ok) {
@@ -149,18 +160,24 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
     };
 
     const selectIndicator = (ind) => {
+        // El nuevo resumen usa 'id', pero tu lista de indicadores inicial puede usar 'id_indicator'
+        // Forzamos a que siempre usemos el mismo nombre de propiedad
+        const idLimpio = ind.id || ind.id_indicator;
+
         setForm(prev => ({
             ...prev,
-            indicator_id: ind.id,
+            indicator_id: String(idLimpio),
             location_id: '',
             project_competence_id: ind.project_competence_id || ''
         }));
-        cargarLugares(ind.id, ind);
+
+        cargarLugares(idLimpio, ind);
     };
 
     const handleSave = async () => {
         const finalDescription = selectedActivities.join(", ");
 
+        // Validaciones iniciales
         if (parseInt(form.planned_total) <= 0) {
             Swal.fire('Atención', 'Debes asignar al menos un beneficiario (hombre o mujer) para guardar.', 'warning');
             return;
@@ -182,23 +199,22 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
             });
 
             if (res?.ok) {
-                // ✨ LIMPIEZA DE CACHÉ: Obligamos a recalcular brechas en la siguiente consulta
-                delete gapCache[form.location_id];
-
-                // Opcional: Si tienes una caché global de indicadores, también podrías limpiarla aquí
+                // --- CAMBIO CRÍTICO AQUÍ ---
+                // Invalidados la caché global para que al volver a abrir o cambiar de indicador
+                // se descargue el progreso real time actualizado desde el backend.
+                invalidateGapCache();
 
                 await Swal.fire('¡Éxito!', 'Planificación guardada correctamente.', 'success');
 
-                // Resetear estados críticos antes de salir
                 setSelectedActivities([]);
 
+                // Notificamos al padre que hubo un cambio (esto refresca el calendario/dashboard)
                 if (typeof onSaveSuccess === 'function') {
                     onSaveSuccess();
                 } else {
                     onClose();
                 }
             } else {
-                // 💡 MEJORA: Intentar capturar el mensaje de error del servidor
                 const errorData = await res.json().catch(() => ({}));
                 Swal.fire('Error', errorData.message || 'No se pudo procesar la solicitud.', 'error');
             }
@@ -214,51 +230,78 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
         const controller = new AbortController();
 
         const fetchGap = async () => {
-            // Solo actuamos si tenemos indicador y lugar
-            if (form.indicator_id && form.location_id) {
+            // Validación: Solo actuamos si hay ambos IDs
+            if (!form.indicator_id || !form.location_id) {
+                setGapData(null);
+                return;
+            }
 
-                // --- ESTRATEGIA DE CACHÉ ---
-                // ¿Ya consultamos esta ubicación antes?
-                if (gapCache[form.location_id]) {
-                    const data = gapCache[form.location_id];
-                    // Buscamos el indicador específico dentro de los datos guardados
-                    const currentGap = data.find(d => String(d.indicator_id) === String(form.indicator_id));
-                    setGapData(currentGap);
-                    return; // ¡LISTO! Salimos sin ir al servidor.
-                }
+            let projectData = gapCache["current_project"];
 
+            if (!projectData) {
                 setLoadingGap(true);
                 try {
-                    const res = await apiFetch(
-                        `/project/${proyectoId}/progress-summary?location_id=${form.location_id}`,
-                        { signal: controller.signal }
-                    );
-
+                    const res = await apiFetch(`/project/${proyectoId}/progress-summary`, { signal: controller.signal });
                     if (res?.ok) {
-                        const data = await res.json();
-
-                        // Guardamos en nuestra "memoria fotográfica"
-                        gapCache[form.location_id] = data;
-
-                        const currentGap = data.find(d => String(d.indicator_id) === String(form.indicator_id));
-                        setGapData(currentGap);
+                        projectData = await res.json();
+                        gapCache["current_project"] = projectData;
                     }
                 } catch (err) {
-                    if (err.name !== 'AbortError') {
-                        console.error("Error real cargando brecha:", err);
-                    }
+                    if (err.name !== 'AbortError') console.error("Error cargando brecha:", err);
                 } finally {
-                    // AJUSTE VITAL: Siempre quitamos el loading para que no se quede pegado
                     setLoadingGap(false);
                 }
-            } else {
-                setGapData(null);
+            }
+
+            if (projectData) {
+                const indInfo = projectData.find(d => String(d.id) === String(form.indicator_id));
+                const ubicacionSeleccionada = lugares.find(l => String(l.id_location) === String(form.location_id));
+                let provId = ubicacionSeleccionada?.province_id;
+
+                if (!provId && ubicacionSeleccionada?.province_name) {
+                    const metaProvincia = selectedIndicatorDetails?.goals_by_province?.find(
+                        g => g.province_name === ubicacionSeleccionada.province_name
+                    );
+                    provId = metaProvincia?.province_id;
+                }
+
+                console.log("Ubicación objeto completo:", ubicacionSeleccionada);
+                console.log("Provincia ID final:", provId);
+
+                if (indInfo && provId) {
+                    const statsProv = indInfo.provinces?.find(p => String(p.province_id) === String(provId));
+
+                    if (statsProv) {
+                        setGapData({
+                            indicator_id: indInfo.id,
+                            indicator_type: indInfo.type, // Asegúrate que el JSON diga 'type'
+                            target: {
+                                total: statsProv.target,
+                                men: statsProv.target_men || 0,
+                                women: statsProv.target_women || 0
+                            },
+                            achieved: {
+                                total: statsProv.achieved,
+                                men: statsProv.men,
+                                women: statsProv.women
+                            },
+                            gap: {
+                                total: Math.max(0, statsProv.target - statsProv.achieved),
+                                men: Math.max(0, (statsProv.target_men || 0) - statsProv.men),
+                                women: Math.max(0, (statsProv.target_women || 0) - statsProv.women)
+                            }
+                        });
+                    } else {
+                        console.warn("No se encontraron estadísticas para la provincia:", provId);
+                        setGapData(null);
+                    }
+                }
             }
         };
 
         fetchGap();
         return () => controller.abort();
-    }, [form.indicator_id, form.location_id, proyectoId]);
+    }, [form.indicator_id, form.location_id, proyectoId, lugares]);
 
 
     useEffect(() => {
@@ -266,8 +309,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
             if (!form.indicator_id) return;
 
             const ind = indicadores.find(i => String(i.id) === String(form.indicator_id));
-
-            // Usamos el ID de la competencia maestra para el catálogo
             const compId = ind?.competence_id;
 
             if (!compId) return;
@@ -284,7 +325,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
         };
 
         fetchCatalogo();
-    }, [form.indicator_id]); // Solo se ejecuta cuando cambias el indicador
+    }, [form.indicator_id]);
 
     return (
         <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '15px' }}>
@@ -317,7 +358,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                         <div className="accordion accordion-flush shadow-sm" id="wizardIndicatorsAccordion">
                             {Object.keys(groupedIndicators).map((theoryName) => (
                                 <React.Fragment key={theoryName}>
-                                    {/* Iteramos por tipos (output/outcome) para mantener el orden de tus imágenes */}
                                     {['output', 'outcome'].map(type => (
                                         groupedIndicators[theoryName][type] && Object.keys(groupedIndicators[theoryName][type]).map((resultName) => {
                                             const indicatorsInGroup = groupedIndicators[theoryName][type][resultName];
@@ -388,7 +428,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                                 {!form.indicator_id
                                     ? "Seleccione primero un indicador"
                                     : loadingLugares
-                                        ? "Cargando ubicaciones válidas..." // Mensaje mientras la API responde
+                                        ? "Cargando ubicaciones válidas..."
                                         : "Seleccione ubicación..."}
                             </option>
                             {lugares.map(loc => (
@@ -457,41 +497,59 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                                     <div className="d-flex justify-content-between align-items-center">
                                         <span className="small fw-bold text-oxford">
                                             <i className="fas fa-chart-line me-2 text-emerald"></i>
-                                            ESTADO ACTUAL EN ESTA PROVINCIA
+                                            FALTA EN ESTA PROVINCIA
+                                        </span>
+                                        <span className={`badge bg-white ${isOutcome ? 'text-info border-info' : 'text-emerald border-emerald'} border`}>
+                                            {isOutcome ? 'Meta de Impacto' : 'Pendiente'}
                                         </span>
                                         <span className="badge bg-white text-emerald border border-emerald">Pendiente</span>
                                     </div>
                                 </div>
                                 <div className="card-body py-3 bg-white">
-                                    <div className="row text-center g-0">
-                                        <div className="col-4 border-end">
-                                            <p className="text-muted mb-0" style={{ fontSize: '0.65rem' }}>HOMBRES</p>
-                                            <h5 className={`fw-bold mb-0 ${gapData.gap.men > 0 ? 'text-primary' : 'text-success'}`}>
-                                                {gapData.gap.men}
-                                            </h5>
+                                    {!isOutcome ? (
+                                        <div className="row text-center g-0">
+                                            <div className="col-4 border-end">
+                                                <p className="text-muted mb-0" style={{ fontSize: '0.65rem' }}>HOMBRES</p>
+                                                <h5 className={`fw-bold mb-0 ${gapData.gap.men > 0 ? 'text-primary' : 'text-success'}`}>
+                                                    {gapData.gap.men}
+                                                </h5>
+                                            </div>
+                                            <div className="col-4 border-end">
+                                                <p className="text-muted mb-0" style={{ fontSize: '0.65rem' }}>MUJERES</p>
+                                                <h5 className={`fw-bold mb-0 ${gapData.gap.women > 0 ? 'text-primary' : 'text-success'}`}>
+                                                    {gapData.gap.women}
+                                                </h5>
+                                            </div>
+                                            <div className="col-4">
+                                                <p className="text-muted mb-0" style={{ fontSize: '0.65rem' }}>TOTAL PENDIENTE</p>
+                                                <h5 className={`fw-bold mb-0 ${gapData.gap.total > 0 ? 'text-danger' : 'text-success'}`}>
+                                                    {gapData.gap.total}
+                                                </h5>
+                                            </div>
                                         </div>
-                                        <div className="col-4 border-end">
-                                            <p className="text-muted mb-0" style={{ fontSize: '0.65rem' }}>MUJERES</p>
-                                            <h5 className={`fw-bold mb-0 ${gapData.gap.women > 0 ? 'text-primary' : 'text-success'}`}>
-                                                {gapData.gap.women}
-                                            </h5>
+                                    ) : (
+                                        /* VISTA PARA OUTCOMES (Personalizada) */
+                                        <div className="text-center">
+                                            <p className="text-muted mb-1" style={{ fontSize: '0.75rem' }}>OBJETIVO DEL INDICADOR</p>
+                                            <h4 className="fw-bold text-info mb-0">
+                                                {gapData.target.total}% <span className="text-muted fs-6 fw-normal">esperado</span>
+                                            </h4>
+                                            <p className="small text-muted mt-1 mb-0">
+                                                Este valor representa la calidad o impacto esperado en la provincia.
+                                            </p>
                                         </div>
-                                        <div className="col-4">
-                                            <p className="text-muted mb-0" style={{ fontSize: '0.65rem' }}>TOTAL PENDIENTE</p>
-                                            <h5 className={`fw-bold mb-0 ${gapData.gap.total > 0 ? 'text-danger' : 'text-success'}`}>
-                                                {gapData.gap.total}
-                                            </h5>
-                                        </div>
-                                    </div>
-                                    {/* Barra de progreso visual */}
+                                    )}
+                                    {/* Barra de progreso común */}
                                     <div className="mt-3">
                                         <div className="d-flex justify-content-between small mb-1" style={{ fontSize: '0.7rem' }}>
-                                            <span className="text-muted">Meta: {gapData.target.total}</span>
-                                            <span className="fw-bold text-emerald">Logrado: {gapData.achieved.total}</span>
+                                            <span className="text-muted">Meta: {gapData.target.total}{isOutcome ? '%' : ''}</span>
+                                            <span className={`fw-bold ${isOutcome ? 'text-info' : 'text-emerald'}`}>
+                                                Logrado: {gapData.achieved.total}{isOutcome ? '%' : ''}
+                                            </span>
                                         </div>
                                         <div className="progress" style={{ height: '6px' }}>
                                             <div
-                                                className="progress-bar bg-emerald"
+                                                className={`progress-bar ${isOutcome ? 'bg-info' : 'bg-emerald'}`}
                                                 style={{ width: `${Math.min(100, (gapData.achieved.total / gapData.target.total) * 100)}%` }}
                                             ></div>
                                         </div>
@@ -503,10 +561,12 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                     {/* Metas con Autocompletado */}
                     <div className="col-12 mt-3">
                         <div className="p-3 rounded border-start border-4 border-emerald bg-white shadow-sm">
-                            <p className="fw-bold small text-oxford mb-2">METAS DE BENEFICIARIOS</p>
+                            <p className="fw-bold small text-oxford mb-2">
+                                {isOutcome ? 'POBLACIÓN OBJETIVO PARA MEDICIÓN' : 'METAS DE BENEFICIARIOS'}
+                            </p>
                             <div className="row g-2">
                                 <div className="col-md-4">
-                                    <label className="small fw-bold">Hombres</label>
+                                    <label className="small fw-bold">{isOutcome ? 'Hombres a medir' : 'Hombres'}</label>
                                     <input
                                         type="number"
                                         className="form-control"
@@ -522,7 +582,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                                         }} />
                                 </div>
                                 <div className="col-md-4">
-                                    <label className="small fw-bold">Mujeres</label>
+                                    <label className="small fw-bold">{isOutcome ? 'Mujeres a medir' : 'Mujeres'}</label>
                                     <input
                                         type="number"
                                         className="form-control"

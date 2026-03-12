@@ -9,7 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from .manager_decorator import manager_required
 from flask_mail import Message
-from datetime import datetime
+from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
 from api.extensions import mail
 from sqlalchemy import func, or_
@@ -19,7 +19,6 @@ from .CloudinaryService import CloudinaryService
 
 api = Blueprint('api', __name__)
 
-# Allow CORS requests to this API
 CORS(api)
 
 
@@ -54,7 +53,6 @@ def register_user():
         return jsonify({"message": "The email address is already registered."}), 422
 
     # 2. Lógica de "Excepción de Administrador"
-    # Usamos constantes para evitar errores de dedo
     ADMIN_EMAIL = "sigssep@gmail.com"
 
     if email == ADMIN_EMAIL:
@@ -78,7 +76,7 @@ def register_user():
         password=hashed_password,
         name=name,
         lastname=lastname,
-        rol_id=target_rol.id_rol,  # Asignamos el ID encontrado
+        rol_id=target_rol.id_rol,
         is_active=is_active_status
     )
 
@@ -95,46 +93,42 @@ def register_user():
 def login():
     data = request.get_json(silent=True)
 
-    # 1. Primero verificamos si hay datos, para evitar errores al intentar leerlos
+    # 1. Primero verificamos si hay datos.
     if data is None:
         return jsonify({"message": "No data was provided"}), 400
 
-    # 2. Obtenemos los datos y usamos .strip() para limpiar espacios accidentales
+    # 2. Obtenemos los datos-
     email = data.get("email", "").strip()
     password = data.get("password", "").strip()
 
-    # 3. Verificamos que vengan los datos básicos
+    # 3. Verificar que vengan los datos básicos
     if not email or not password:
         return jsonify({"message": "Email and password are required"}), 400
 
-    # 4. Buscamos al usuario por su email
+    # 4. Buscar al usuario por su email
     user = User.query.filter_by(email=email).first()
 
     # 5. Validaciones de seguridad (Credenciales)
     if not user or not check_password_hash(user.password, password):
         return jsonify({"message": "Incorrect email or password"}), 401
 
-    # 6. Verificamos si el usuario está activo (Estrategia SIGSSEP)
-    # - Todos los usuarios entran inactivos por defecto excepto la gerente.
+    # 6. Verificar si el usuario está activo.
     if not user.is_active:
         return jsonify({"message": "Your account is pending activation by a manager."}), 403
 
-    # 7. Preparamos las "Additional Claims" mejoradas
+    # 7. Preparar las "Additional Claims"
     user_role_name = user.rol.name_rol if user.rol else "Oficial"
     is_admin = user_role_name == "Administrador"
-
-    # Extraemos solo los nombres (o IDs) de las competencias asignadas
-    # Esto crea una lista simple: ["Educación", "Salud"]
     user_competences = [{"id": c.id_competence, "name": c.name}
                         for c in user.competences]
 
     additional_claims = {
         "is_administrator": is_admin,
         "rol": user_role_name,
-        "competences": user_competences  # <--- ¡Aquí está la magia!
+        "competences": user_competences
     }
 
-    # 8. Creamos el token de acceso con la identidad y los nuevos claims
+    # 8. Crear el token de acceso con la identidad y los claims
     access_token = create_access_token(
         identity=str(user.id_user),
         additional_claims=additional_claims
@@ -159,7 +153,6 @@ def request_password_reset():
             frontend_url = os.getenv("FRONTEND_URL").rstrip('/')
             reset_url = f"{frontend_url}/reset-password?token={token}"
 
-            # Definimos el nombre del usuario para personalizar
             user_name = f"{user.name} {user.lastname}"
 
             msg = Message("Recuperación de Contraseña - SIGSSEP",
@@ -207,7 +200,6 @@ def request_password_reset():
         return jsonify({"message": "Usuario no encontrado"}), 404
 
     except Exception as e:
-        # Esto nos dirá en la terminal de Gitpod qué falló exactamente
         print(f"ERROR ENVIANDO CORREO: {str(e)}")
         return jsonify({"message": "Error interno al enviar el correo", "error": str(e)}), 500
 
@@ -222,21 +214,19 @@ def reset_password():
     if not token or not new_password:
         return jsonify({"message": "Token y contraseña son requeridos"}), 400
 
-    # 2. Validar que la contraseña sea segura (usando tu función de utils)
+    # 2. Validar que la contraseña sea segura
     if not val_password(new_password):
         return jsonify({"message": "La contraseña no cumple con los requisitos de seguridad (8+ caracteres, mayúsculas, números y caracteres especiales)."}), 400
 
-    # 3. Validar el token (Aquí el "notario" confirma si el email es real y no expiró)
+    # 3. Validar el token
     email = confirm_reset_token(token)
     if not email:
         return jsonify({"message": "El enlace ha expirado o es inválido. Por favor, solicita uno nuevo."}), 400
 
-    # 4. Buscar al usuario por el email que venía dentro del token
     user = User.query.filter_by(email=email).first()
     if not user:
         return jsonify({"message": "Usuario no encontrado en el sistema"}), 404
 
-    # 5. Cambiar la contraseña (siempre hasheada, ¡nunca en texto plano!)
     user.password = generate_password_hash(new_password)
 
     try:
@@ -252,39 +242,30 @@ def reset_password():
 @jwt_required()
 @manager_required
 def get_all_users():
-    # Buscamos a todos los usuarios en la base de datos
     users = User.query.all()
-    # Los devolvemos serializados para que React los pueda listar
     return jsonify([user.serialize() for user in users]), 200
 
 
-# 2. Activar o desactivar un usuario (El "Visto Bueno" del Administrador)
+# 2. Activar o desactivar un usuario
 @api.route("/manager/users/<int:user_id>/status", methods=["PATCH"])
 @jwt_required()
 @manager_required
 def toggle_user_status(user_id):
-    # 1. Obtenemos el ID del manager actual (por si lo necesitas para logs)
     current_manager_id = get_jwt_identity()
-
-    # 2. Buscamos al usuario una sola vez
     user = User.query.get(user_id)
 
     if not user:
         return jsonify({"message": "Usuario no encontrado"}), 404
 
-    # 3. PROTECCIÓN SIGSSEP: No tocar al Administrador
-    # Protegemos tanto por rol como por ID para que sea blindado
     if user.rol.name_rol == "Administrador" or int(current_manager_id) == user_id:
         return jsonify({
             "message": "Acción denegada. No se puede desactivar una cuenta de Administrador por seguridad."
         }), 403
-
-    # 4. Cambiamos el estado (solo una vez)
+    # Cambiamos el estado
     user.is_active = not user.is_active
 
     try:
         db.session.commit()
-        # Usamos Emerald Green mentalmente para este éxito:
         status_text = "activado" if user.is_active else "desactivado"
         return jsonify({"message": f"Usuario {user.name} {status_text} con éxito"}), 200
     except Exception as e:
@@ -306,7 +287,6 @@ def delete_user(user_id):
     if user.rol.name_rol == "Administrador" or int(current_manager_id) == user_id:
         return jsonify({"message": "Acción denegada por seguridad"}), 403
 
-    # 2. VALIDACIÓN DE INTEGRIDAD: ¿Tiene actividades?
     if len(user.activities) > 0:
         return jsonify({
             "message": f"No se puede eliminar a {user.name} porque tiene actividades asignadas. Primero desactívalo o reasigna sus tareas."
@@ -326,13 +306,12 @@ def delete_user(user_id):
 @manager_required
 def get_roles():
     roles = Rol.query.all()
-    # Serializamos los roles (asegúrate de tener el método serialize en tu modelo Rol)
     return jsonify([role.serialize() for role in roles]), 200
 
 
 @api.route('/roles', methods=['POST'])
-@jwt_required()  # Primero verifica que esté logueado
-@manager_required  # Luego verifica que sea Administrador
+@jwt_required() 
+@manager_required
 def create_role():
     data = request.get_json()
     new_role_name = data.get("name_rol")
@@ -344,7 +323,6 @@ def create_role():
     if exists:
         return jsonify({"message": "Este rol ya existe"}), 400
 
-    # Lógica para guardar en la DB...
     new_role = Rol(name_rol=new_role_name)
     db.session.add(new_role)
     db.session.commit()
@@ -352,7 +330,6 @@ def create_role():
     return jsonify({"message": f"Rol '{new_role_name}' creado exitosamente"}), 201
 
 
-# 3. Editar un rol (UPDATE)
 @api.route('/roles/<int:role_id>', methods=['PUT'])
 @jwt_required()
 @manager_required
@@ -372,8 +349,6 @@ def update_role(role_id):
 
     return jsonify({"message": "Rol actualizado correctamente"}), 200
 
-# 4. Eliminar un rol (DELETE)
-
 
 @api.route('/roles/<int:role_id>', methods=['DELETE'])
 @jwt_required()
@@ -382,8 +357,6 @@ def delete_role(role_id):
     role = Rol.query.get(role_id)
     if not role:
         return jsonify({"message": "Rol no encontrado"}), 404
-
-    # IMPORTANTE: Validar si hay usuarios usando este rol antes de borrar
     user_with_role = User.query.filter_by(rol_id=role_id).first()
     if user_with_role:
         return jsonify({"message": "No se puede eliminar un rol que está asignado a usuarios"}), 400
@@ -404,22 +377,18 @@ def update_user_role(user_id):
     if not new_role_id:
         return jsonify({"message": "El ID del rol es requerido"}), 400
 
-    # Buscamos al usuario
     user = User.query.get(user_id)
     if not user:
         return jsonify({"message": "Usuario no encontrado"}), 404
 
-    # PROTECCIÓN: Si el usuario ya es Administrador, no se le toca el rol
     if user.rol.name_rol == "Administrador":
         return jsonify({
             "message": "Seguridad de SIGSSEP: El rol de Administrador no puede ser modificado."
         }), 403
 
-    # Buscamos el nuevo rol
     role = Rol.query.get(new_role_id)
     if not role:
         return jsonify({"message": "El rol especificado no existe"}), 404
-
     try:
         user.rol_id = new_role_id
         db.session.commit()
@@ -453,12 +422,10 @@ def update_photo():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
     data = request.json
-    new_url = data.get("profile_picture")  # Lo que viene de React
+    new_url = data.get("profile_picture")
 
     if not new_url:
         return jsonify({"message": "URL no válida"}), 400
-
-    # Guardamos en la columna 'profile' del modelo User
     user.profile = new_url
     db.session.commit()
 
@@ -476,7 +443,6 @@ def update_profile_data():
             return jsonify({"message": "Usuario no encontrado"}), 404
 
         data = request.json
-        # Solo actualizamos si nos envían el dato, si no, dejamos el que estaba
         user.name = data.get("name", user.name)
         user.lastname = data.get("lastname", user.lastname)
 
@@ -503,11 +469,9 @@ def change_password():
     current_password = data.get("current_password")
     new_password = data.get("new_password")
 
-    # 1. Verificar contraseña actual (asumiendo que usas check_password_hash)
     if not check_password_hash(user.password, current_password):
         return jsonify({"message": "La contraseña actual es incorrecta"}), 400
 
-    # 2. Guardar la nueva (hasheada)
     user.password = generate_password_hash(new_password)
     db.session.commit()
 
@@ -522,23 +486,17 @@ def update_avatar():
 
     data = request.json
     new_image_url = data.get("image_url") 
-    new_public_id = data.get("public_id") # <--- React debe enviar esto ahora
+    new_public_id = data.get("public_id")
 
     if not new_image_url:
         return jsonify({"msg": "URL de imagen requerida"}), 400
-
-    # 1. Validar URL (Sigue funcionando igual)
     if not CloudinaryService.validate_cloudinary_url(new_image_url):
         return jsonify({"msg": "URL de imagen no válida"}), 400
 
-    # 2. LIMPIEZA: Borrar la foto anterior de la nube
-    # Usamos el public_id guardado en la DB, que es lo más seguro
     if user.profile_public_id:
-        # Solo borramos si el nuevo archivo es realmente distinto
         if user.profile_public_id != new_public_id:
             CloudinaryService.delete_file(user.profile_public_id)
 
-    # 3. Guardar en la base de datos
     user.profile = new_image_url
     user.profile_public_id = new_public_id
     
@@ -569,8 +527,7 @@ def create_competence():
 
     if not name:
         return jsonify({"message": "El nombre de la competencia es obligatorio"}), 400
-
-    # Verificamos si ya existe para evitar errores de base de datos
+    
     if Competence.query.filter_by(name=name).first():
         return jsonify({"message": "Esta competencia ya está registrada"}), 400
 
@@ -602,8 +559,6 @@ def delete_competence(id):
     if not competence:
         return jsonify({"message": "Competencia no encontrada"}), 404
 
-    # Ojo amiguito: Si la competencia ya está en un proyecto,
-    # SQLAlchemy lanzará un error de integridad.
     try:
         db.session.delete(competence)
         db.session.commit()
@@ -621,34 +576,24 @@ def assign_user_competences(user_id):
     if data is None:
         return jsonify({"message": "No data provided"}), 400
 
-    # 1. Buscamos al usuario
     user = User.query.get(user_id)
     if not user:
         return jsonify({"message": "User not found"}), 404
 
-    # 2. Obtenemos la lista de IDs de competencias desde el frontend
-    # Esperamos algo como: {"competence_ids": [1, 3]}
     competence_ids = data.get("competence_ids", [])
 
     if not isinstance(competence_ids, list):
         return jsonify({"message": "competence_ids must be a list"}), 400
 
     try:
-        # 3. Buscamos los objetos de competencia reales en la DB
-        # Esto asegura que no intentemos asignar un ID que no existe
         selected_competences = Competence.query.filter(
             Competence.id_competence.in_(competence_ids)).all()
-
-        # 4. SINCRONIZACIÓN:
-        # Al asignar la lista de objetos directamente, SQLAlchemy maneja
-        # la tabla 'user_competence' por nosotros (borra lo viejo, añade lo nuevo)
         user.competences = selected_competences
 
         db.session.commit()
 
         return jsonify({
             "message": f"Competences updated for user {user.name}",
-            # Esto ya incluye las nuevas competencias gracias a tu serialize
             "user": user.serialize()
         }), 200
 
@@ -661,7 +606,6 @@ def assign_user_competences(user_id):
 @jwt_required()
 def get_theories():
     theories = TheoryTemplate.query.all()
-    # Al serializar, ya incluimos el nombre de la competencia gracias al modelo
     return jsonify([t.serialize() for t in theories]), 200
 
 
@@ -674,8 +618,6 @@ def create_theory():
 
     if not name or not competence_id:
         return jsonify({"message": "Nombre y ID de competencia son obligatorios"}), 400
-
-    # Verificamos que la competencia exista
     if not Competence.query.get(competence_id):
         return jsonify({"message": "La competencia especificada no existe"}), 404
 
@@ -718,7 +660,7 @@ def delete_theory(id):
 def create_result():
     data = request.json
     name = data.get("name")
-    result_type = data.get("type")  # 'outcome' o 'output'
+    result_type = data.get("type")
     theory_id = data.get("theory_id")
 
     if not all([name, result_type, theory_id]):
@@ -751,8 +693,6 @@ def update_result(id):
         return jsonify({"message": "Resultado no encontrado"}), 404
 
     data = request.json
-    # Permitimos editar el nombre. El tipo (outcome/output) usualmente no se cambia
-    # para evitar errores de lógica, pero si quieres puedes añadirlo.
     result.name = data.get("name", result.name)
 
     db.session.commit()
@@ -771,7 +711,6 @@ def create_indicator():
     if not all([code, description, result_id]):
         return jsonify({"message": "Código, nombre, descripción y ID de resultado son obligatorios"}), 400
 
-    # Verificamos si el código ya existe (es unique en el modelo)
     if IndicatorTemplate.query.filter_by(code=code).first():
         return jsonify({"message": f"El código de indicador {code} ya está en uso"}), 400
 
@@ -796,7 +735,6 @@ def update_indicator(id):
     data = request.json
     new_code = data.get("code")
 
-    # Si cambia el código, verificamos que no choque con otro existente
     if new_code and new_code != indicator.code:
         if IndicatorTemplate.query.filter_by(code=new_code).first():
             return jsonify({"message": f"El código {new_code} ya existe"}), 400
@@ -827,8 +765,6 @@ def get_theory_full_details(id):
     if not theory:
         return jsonify({"message": "Teoría no encontrada"}), 404
 
-    # Gracias a que mejoramos el serialize() en el modelo,
-    # este objeto ya incluirá sus outcomes, outputs e indicadores anidados.
     return jsonify(theory.serialize()), 200
 
 
@@ -838,25 +774,21 @@ def get_theory_full_details(id):
 def create_project():
     data = request.json
 
-    # 1. Validación de seguridad mínima
     if not data or not data.get("code"):
         return jsonify({"msg": "El código único del proyecto es obligatorio"}), 400
-
     try:
         targets = data.get("unique_targets", {})
 
         new_project = Project(
             code=data.get("code"),
-            donor_name=data.get("donor_name"),      # CAMBIADO
-            project_name=data.get("project_name"),   # CAMBIADO
-            main_objective=data.get("main_objective"),  # CAMBIADO
-            results_summary=data.get("results_summary"),  # CAMBIADO
-            # Beneficiarios Únicos Totales
+            donor_name=data.get("donor_name"),      
+            project_name=data.get("project_name"),  
+            main_objective=data.get("main_objective"),  
+            results_summary=data.get("results_summary"),
             target_total=float(targets.get("total", 0)),
             target_men=float(targets.get("men", 0)),
             target_women=float(targets.get("women", 0)),
             target_disability=float(targets.get("disability", 0)),
-            # Manejo seguro de fechas
             start_date=datetime.strptime(
                 data['start_date'], '%Y-%m-%d') if data.get('start_date') else None,
             end_date=datetime.strptime(
@@ -867,10 +799,8 @@ def create_project():
         db.session.add(new_project)
         db.session.flush()
 
-        # --- PASO 2: UBICACIONES (GEOGRAFÍA DEL PROYECTO) ---
         if data.get("locations"):
             for loc in data["locations"]:
-                # Verificamos IDs obligatorios antes de crear
                 if not loc.get('province_id') or not loc.get('municipality_id'):
                     continue
 
@@ -883,7 +813,6 @@ def create_project():
                 )
                 db.session.add(new_loc)
 
-        # --- PASO 3: BENEFICIARIOS ÚNICOS POR PROVINCIA ---
         province_targets = data.get("province_unique_targets", [])
         for p_target in province_targets:
             new_p_goal = ProjectProvinceGoal(
@@ -895,10 +824,8 @@ def create_project():
             )
             db.session.add(new_p_goal)
 
-        # --- PASO 4: INDICADORES Y SUS METAS PROPIAS ---
         if data.get("indicators"):
             for ind_data in data["indicators"]:
-                # El 'id' aquí se refiere al ID del Template (el catálogo)
                 t_id = ind_data.get('id') or ind_data.get('template_id')
                 if not t_id:
                     continue
@@ -912,8 +839,6 @@ def create_project():
                 )
                 db.session.add(new_indicator)
                 db.session.flush()
-
-                # Metas de este indicador desglosadas por estado
                 loc_targets = ind_data.get("location_targets", [])
                 for loc_t in loc_targets:
                     new_goal = IndicatorLocationGoal(
@@ -924,11 +849,8 @@ def create_project():
                         women=float(loc_t.get('women', 0))
                     )
                     db.session.add(new_goal)
-
-        # --- PASO 5: ESTRUCTURA DE GESTIÓN (COMPETENCIAS Y GERENTES) ---
         if data.get("competences"):
             for comp in data["competences"]:
-                # Validamos que vengan ambos IDs necesarios
                 c_id = comp.get('competence_id')
                 m_id = comp.get('manager_id')
 
@@ -939,8 +861,6 @@ def create_project():
                         manager_id=int(m_id)
                     )
                     db.session.add(new_pc)
-
-        # --- FINALIZACIÓN ---
         db.session.commit()
         return jsonify({
             "msg": "Proyecto y metas guardados con éxito",
@@ -963,7 +883,6 @@ def get_manager_projects():
     results = []
 
     for project in projects:
-        # Lógica de progreso...
         total_goal = sum(ind.target_total for ind in project.indicators) or 1
         total_achieved = 0
 
@@ -999,11 +918,8 @@ def get_manager_projects():
 def get_project_detail_manager(id):
     try:
         project = Project.query.get_or_404(id)
-
-        # Usamos tu propio método serialize del modelo Project
         data = project.serialize()
 
-        # Agregamos el cálculo detallado de tiempo para el cronómetro del frontend
         if project.end_date:
             now = datetime.now()
             if project.end_date > now:
@@ -1056,8 +972,6 @@ def update_project(id):
             except ValueError:
                 return jsonify({"msg": f"Estado {data['status']} no es válido"}), 400
 
-        # 2. Beneficiarios Únicos Globales (Actualizamos la tabla Project)
-        # Tu frontend envía esto dentro de 'unique_targets'
         if 'unique_targets' in data:
             targets = data['unique_targets']
             project.target_total = float(
@@ -1068,14 +982,12 @@ def update_project(id):
             project.target_disability = float(targets.get(
                 'disability', project.target_disability))
 
-        # 3. Fechas
         if data.get('start_date'):
             project.start_date = datetime.strptime(
                 data['start_date'], '%Y-%m-%d')
         if data.get('end_date'):
             project.end_date = datetime.strptime(data['end_date'], '%Y-%m-%d')
 
-        # 4. Localizaciones (Limpieza y Carga)
         if 'locations' in data:
             Location.query.filter_by(project_id=id).delete(
                 synchronize_session=False)
@@ -1090,9 +1002,7 @@ def update_project(id):
                 )
                 db.session.add(new_loc)
 
-        # 5. Metas por Provincia (Beneficiarios desglosados)
         if 'province_unique_targets' in data:
-            # Borramos las metas anteriores para evitar duplicados o basura
             ProjectProvinceGoal.query.filter_by(project_id=id).delete()
             for p_goal in data['province_unique_targets']:
                 new_p_goal = ProjectProvinceGoal(
@@ -1104,7 +1014,6 @@ def update_project(id):
                 )
                 db.session.add(new_p_goal)
 
-        # 6. COMPETENCIAS
         if 'competences' in data:
             ProjectCompetence.query.filter_by(project_id=id).delete()
             for comp in data['competences']:
@@ -1140,39 +1049,40 @@ def bulk_indicators():
 
     try:
         # --- PASO 1: ELIMINACIÓN DE INDICADORES OMITIDOS ---
-        received_template_ids = [item['template_id']
-                                 for item in indicators_list]
+        # Si el gerente quita un indicador de la lista en el frontend, lo borramos de la DB.
+        received_template_ids = [item['template_id'] for item in indicators_list]
         to_delete = Indicator.query.filter(
             Indicator.project_id == project_id,
             ~Indicator.template_id.in_(received_template_ids)
         ).all()
 
         for ind in to_delete:
-            IndicatorLocationGoal.query.filter_by(
-                indicator_id=ind.id_indicator).delete()
+            # Borramos metas geográficas primero por la integridad referencial
+            IndicatorLocationGoal.query.filter_by(indicator_id=ind.id_indicator).delete()
             ind.selected_means_list = []
             db.session.delete(ind)
 
-        # --- PASO 2: PROCESAR CADA INDICADOR (UPSERT) ---
+        # --- PASO 2: PRIMERA PASADA (UPSERT DE DATOS BÁSICOS) ---
+        # Creamos o actualizamos el indicador, pero sin tocar 'depends_on' todavía.
         for item in indicators_list:
-            from api.models import IndicatorTemplate, ProjectResult, ProjectTheory
+            from api.models import IndicatorTemplate, ProjectResult, ProjectTheory, MasterVerificationMean
 
-            # A. Buscamos la "llave maestra": el ProjectResult real para este proyecto
             template_info = IndicatorTemplate.query.get(item['template_id'])
-            is_outcome = template_info.result.type == 'outcome' if template_info and template_info.result else False
+            if not template_info:
+                continue
 
-            # Buscamos el ID real uniendo ProjectResult con ProjectTheory para filtrar por este proyecto
+            # Determinamos si es outcome para manejar nulos en hombres/mujeres (según tu lógica de %)
+            is_outcome = template_info.result.type == 'outcome' if template_info.result else False
+
+            # Buscamos el resultado relacionado en este proyecto específico
             real_project_result = ProjectResult.query.join(ProjectTheory).filter(
                 ProjectTheory.project_id == project_id,
                 ProjectResult.result_template_id == template_info.result_id
             ).first()
 
             project_res_id = real_project_result.id if real_project_result else None
-            if not project_res_id:
-                print(
-                    f"⚠️ Alerta SIGSSEP: No se encontró ProjectResult para template_id {item['template_id']}")
 
-            # B. Buscamos si el indicador ya existe en la base de datos
+            # Buscamos si ya existe para actualizarlo, sino lo creamos
             indicator = Indicator.query.filter_by(
                 project_id=project_id,
                 template_id=item['template_id']
@@ -1183,61 +1093,88 @@ def bulk_indicators():
             t_women = item.get('target_women', 0) if not is_outcome else None
 
             if indicator:
+                # Actualización de campos existentes
                 indicator.target_total = t_total
                 indicator.target_men = t_men
                 indicator.target_women = t_women
-                indicator.verification_means = item.get(
-                    'verification_means', indicator.verification_means)
-                indicator.observations = item.get(
-                    'observations', indicator.observations)
+                indicator.calculation_type = item.get('calculation_type', 'direct')
+                indicator.measurement_unit = item.get('measurement_unit', 'absolute')
+                indicator.verification_means = item.get('verification_means', indicator.verification_means)
+                indicator.observations = item.get('observations', indicator.observations)
                 indicator.project_result_id = project_res_id
             else:
+                # Creación de nuevo registro
                 indicator = Indicator(
                     project_id=project_id,
                     template_id=item['template_id'],
                     target_total=t_total,
                     target_men=t_men,
                     target_women=t_women,
+                    calculation_type=item.get('calculation_type', 'direct'),
+                    measurement_unit=item.get('measurement_unit', 'absolute'),
                     verification_means=item.get('verification_means', ""),
                     observations=item.get('observations', ""),
                     project_result_id=project_res_id,
                 )
                 db.session.add(indicator)
 
-            # C. Sincronizar Medios de Verificación (Catálogo maestro)
+            # Sincronizar Medios de Verificación (Relación Many-to-Many)
             if 'means_ids' in item:
-                from api.models import MasterVerificationMean
                 selected_means = MasterVerificationMean.query.filter(
                     MasterVerificationMean.id.in_(item['means_ids'])
                 ).all()
                 indicator.selected_means_list = selected_means
 
+            # Flush para asegurar que el indicador tenga ID (especialmente si es nuevo)
             db.session.flush()
 
-            # D. METAS POR PROVINCIA
+            # --- Sincronizar Metas Geográficas ---
             if 'goals_by_province' in item:
-                IndicatorLocationGoal.query.filter_by(
-                    indicator_id=indicator.id_indicator).delete()
+                # Borramos las viejas y recreamos (más simple para asegurar consistencia)
+                IndicatorLocationGoal.query.filter_by(indicator_id=indicator.id_indicator).delete()
                 for goal in item['goals_by_province']:
                     new_goal = IndicatorLocationGoal(
                         indicator_id=indicator.id_indicator,
                         province_id=goal['province_id'],
                         total_target=goal.get('target', 0),
-                        men=goal.get(
-                            'target_men', 0) if not is_outcome else None,
-                        women=goal.get(
-                            'target_women', 0) if not is_outcome else None
+                        men=goal.get('target_men', 0) if not is_outcome else None,
+                        women=goal.get('target_women', 0) if not is_outcome else None
                     )
                     db.session.add(new_goal)
 
-        # --- FINALIZAR ---
+        # --- PASO 3: SEGUNDA PASADA (VINCULACIÓN DE DEPENDENCIAS) ---
+        # Ahora que TODOS los indicadores están en la DB, conectamos los hilos.
+        for item in indicators_list:
+            # CLAVE: Solo entramos si la llave existe para evitar borrados accidentales
+            if 'depends_on_ids' in item:
+                current_indicator = Indicator.query.filter_by(
+                    project_id=project_id,
+                    template_id=item['template_id']
+                ).first()
+
+                if current_indicator:
+                    ids_a_conectar = item.get('depends_on_ids')
+                    
+                    # Si es None (null), el frontend no envió info, NO TOCAMOS NADA.
+                    # Si es [] (lista vacía), el gerente quiere quitar las dependencias.
+                    if ids_a_conectar is not None:
+                        parent_indicators = Indicator.query.filter(
+                            Indicator.project_id == project_id,
+                            Indicator.template_id.in_(ids_a_conectar)
+                        ).all()
+                        
+                        # Actualizamos la relación Many-to-Many recursiva
+                        current_indicator.depends_on = parent_indicators
+
         db.session.commit()
-        return jsonify({"msg": "SIGSSEP: Configuración sincronizada con éxito"}), 200
+        return jsonify({
+            "msg": "SIGSSEP: Configuración de indicadores sincronizada con éxito",
+            "status": "success"
+        }), 200
 
     except Exception as e:
         db.session.rollback()
-        # Esto ayuda a ver el error en la terminal
-        print(f"Error en SIGSSEP: {str(e)}")
+        print(f"Error crítico en SIGSSEP: {str(e)}")
         return jsonify({"msg": f"Error en la base de datos: {str(e)}"}), 500
 
 
@@ -1252,8 +1189,6 @@ def get_project_summary(id):
         "project_name": project.project_name,
         "total_locations": len(project.locations),
         "status": project.status.value if hasattr(project.status, 'value') else project.status,
-        # --- AQUÍ ESTÁ EL CAMBIO CLAVE ---
-        # Enviamos todos los indicadores usando el método serialize que mejoraste
         "indicators": [ind.serialize() for ind in project.indicators]
     }), 200
 
@@ -1267,20 +1202,16 @@ def delete_project(id):
         return jsonify({"msg": "Proyecto no encontrado"}), 404
 
     try:
-        # 1. Limpiamos las dependencias manualmente (si no definiste cascade en SQLAlchemy)
-        # Esto asegura que no queden registros huérfanos
         Location.query.filter_by(project_id=id).delete()
         ProjectProvinceGoal.query.filter_by(project_id=id).delete()
         ProjectCompetence.query.filter_by(project_id=id).delete()
 
-        # Para los indicadores, hay que borrar primero sus metas
         indicators = Indicator.query.filter_by(project_id=id).all()
         for ind in indicators:
             IndicatorLocationGoal.query.filter_by(
                 indicator_id=ind.id_indicator).delete()
             db.session.delete(ind)
 
-        # 2. Finalmente borramos el proyecto
         db.session.delete(project)
         db.session.commit()
 
@@ -1295,7 +1226,6 @@ def delete_project(id):
 @api.route('/competence-templates', methods=['GET'])
 @jwt_required()
 def get_templates():
-    # Para que el gerente vea qué Teorías e Indicadores puede elegir
     competences = Competence.query.all()
     return jsonify([c.serialize() for c in competences]), 200
 
@@ -1351,7 +1281,6 @@ def delete_province(id):
 @api.route('/provinces/<int:province_id>/municipalities', methods=['GET'])
 @jwt_required()
 def get_municipalities_by_province(province_id):
-    """Obtiene municipios filtrados por una provincia específica"""
     municipalities = Municipality.query.filter_by(
         province_id=province_id).all()
     return jsonify([m.serialize() for m in municipalities]), 200
@@ -1361,9 +1290,7 @@ def get_municipalities_by_province(province_id):
 @jwt_required()
 @manager_required
 def add_municipality():
-    """Crea un nuevo municipio vinculado a una provincia"""
     data = request.json
-    # Validación básica
     if not data.get("name") or not data.get("province_id"):
         return jsonify({"msg": "Faltan datos requeridos (name, province_id)"}), 400
 
@@ -1380,7 +1307,6 @@ def add_municipality():
 @api.route('/municipalities/<int:municipality_id>/parishes', methods=['GET'])
 @jwt_required()
 def get_parishes_by_municipality(municipality_id):
-    """Obtiene parroquias filtradas por municipio"""
     parishes = Parish.query.filter_by(municipality_id=municipality_id).all()
     return jsonify([p.serialize() for p in parishes]), 200
 
@@ -1389,7 +1315,6 @@ def get_parishes_by_municipality(municipality_id):
 @jwt_required()
 @manager_required
 def add_parish():
-    """Crea una nueva parroquia vinculada a un municipio"""
     data = request.json
     if not data.get("name") or not data.get("municipality_id"):
         return jsonify({"msg": "Faltan datos requeridos"}), 400
@@ -1403,7 +1328,6 @@ def add_parish():
     return jsonify(new_parish.serialize()), 201
 
 
-# --- ENDPOINTS PARA MUNICIPIOS (CRUD RESTANTE) ---
 @api.route('/municipalities/<int:id>', methods=['PUT'])
 @jwt_required()
 @manager_required
@@ -1413,7 +1337,6 @@ def update_municipality(id):
         return jsonify({"msg": "Municipio no encontrado"}), 404
 
     data = request.json
-    # Podemos actualizar el nombre o incluso moverlo de provincia si hubo un error
     municipality.name = data.get("name", municipality.name)
     municipality.province_id = data.get(
         "province_id", municipality.province_id)
@@ -1429,7 +1352,6 @@ def delete_municipality(id):
     municipality = Municipality.query.get(id)
     if not municipality:
         return jsonify({"msg": "Municipio no encontrado"}), 404
-
     try:
         db.session.delete(municipality)
         db.session.commit()
@@ -1439,7 +1361,7 @@ def delete_municipality(id):
         return jsonify({"msg": "Error al eliminar", "error": str(e)}), 500
 
 
-# --- ENDPOINTS PARA PARROQUIAS (CRUD RESTANTE) ---
+# --- ENDPOINTS PARA PARROQUIAS ---
 @api.route('/parishes/<int:id>', methods=['PUT'])
 @jwt_required()
 @manager_required
@@ -1488,7 +1410,6 @@ def assign_technical_data(proj_id):
     theory_temp_id = data.get("theory_id")
     selected_ind_ids = data.get("indicator_ids", [])
 
-    # 1. Validación de permiso
     pc = ProjectCompetence.query.filter_by(
         project_id=proj_id,
         competence_id=comp_id,
@@ -1499,7 +1420,6 @@ def assign_technical_data(proj_id):
         return jsonify({"message": "No tienes permiso para esta competencia"}), 403
 
     try:
-        # 2. Manejo de ProjectTheory
         proj_theory = ProjectTheory.query.filter_by(
             project_id=proj_id,
             theory_template_id=theory_temp_id
@@ -1512,20 +1432,16 @@ def assign_technical_data(proj_id):
                 theory_template_id=theory_temp_id
             )
             db.session.add(proj_theory)
-            db.session.flush()  # Para obtener el ID de proj_theory
-
-        # 3. Traer moldes de indicadores
+            db.session.flush()  
         ind_templates = IndicatorTemplate.query.filter(
             IndicatorTemplate.id.in_(selected_ind_ids)).all()
 
-        # Obtenemos los IDs únicos de los resultados (moldes)
         result_template_ids = set([it.result_id for it in ind_templates])
 
         for r_temp_id in result_template_ids:
-            # !! CAMBIO AQUÍ: Buscar por result_template_id (según tu modelo)
             p_res = ProjectResult.query.filter_by(
                 project_theory_id=proj_theory.id,
-                result_template_id=r_temp_id  # Nombre correcto según tu clase ProjectResult
+                result_template_id=r_temp_id
             ).first()
 
             if not p_res:
@@ -1535,8 +1451,6 @@ def assign_technical_data(proj_id):
                 )
                 db.session.add(p_res)
                 db.session.flush()
-
-            # 4. Vincular indicadores reales
             for it in ind_templates:
                 if it.result_id == r_temp_id:
                     exists = Indicator.query.filter_by(
@@ -1548,7 +1462,6 @@ def assign_technical_data(proj_id):
                         new_ind = Indicator(
                             project_id=proj_id,
                             template_id=it.id,
-                            # !! REVISIÓN: Tu modelo Indicator tiene project_result_id como ForeignKey
                             project_result_id=p_res.id,
                             target_total=0.0
                         )
@@ -1559,7 +1472,6 @@ def assign_technical_data(proj_id):
 
     except Exception as e:
         db.session.rollback()
-        # Imprime el error en la consola de Flask para que lo veamos claro
         print(f"ERROR EN BACKEND: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
@@ -1567,14 +1479,10 @@ def assign_technical_data(proj_id):
 @api.route('/competence/<int:comp_id>/theories', methods=['GET'])
 @jwt_required()
 def get_competence_theories(comp_id):
-    # Buscamos la competencia en la base de datos
     competence = Competence.query.get(comp_id)
 
     if not competence:
         return jsonify({"message": "Competencia no encontrada"}), 404
-
-    # Esto devuelve la lista de teorías asociadas a esa competencia
-    # Cada teoría ya trae sus resultados e indicadores gracias al .serialize() que definiste
     return jsonify([theory.serialize() for theory in competence.theories]), 200
 
 
@@ -1584,12 +1492,9 @@ def get_competence_theories(comp_id):
 @manager_required
 def get_my_assignments():
     current_user_id = get_jwt_identity()
-
-    # Buscamos en ProjectCompetence todas las asignaciones de este usuario
     assignments = ProjectCompetence.query.filter_by(
         manager_id=current_user_id).all()
 
-    # Devolvemos los proyectos únicos asociados a esas asignaciones
     results = []
     for asig in assignments:
         results.append({
@@ -1615,13 +1520,10 @@ def complete_indicator_data(ind_id):
     if not indicator:
         return jsonify({"message": "Indicador no encontrado"}), 404
 
-    # Actualizamos los campos de texto (Asegúrate de haberlos añadido al modelo)
-    # Si no los has añadido, puedes usar target_total por ahora
     indicator.target_total = data.get("target_total", indicator.target_total)
     indicator.target_men = data.get("target_men", indicator.target_men)
     indicator.target_women = data.get("target_women", indicator.target_women)
 
-    # Si añadiste verification_means y observations al modelo:
     if hasattr(indicator, 'verification_means'):
         indicator.verification_means = data.get(
             "verification_means", indicator.verification_means)
@@ -1629,10 +1531,7 @@ def complete_indicator_data(ind_id):
         indicator.observations = data.get(
             "observations", indicator.observations)
 
-    # --- MANEJO DE METAS POR ESTADO/PROVINCIA ---
-    # Si vienen metas por provincia, las actualizamos
     if 'province_goals' in data:
-        # Borramos las anteriores para este indicador y creamos las nuevas (Upsert)
         IndicatorLocationGoal.query.filter_by(indicator_id=ind_id).delete()
 
         for pg in data['province_goals']:
@@ -1657,15 +1556,12 @@ def complete_indicator_data(ind_id):
 @api.route('/project/<int:proj_id>/competence/<int:comp_id>/technical-status', methods=['GET'])
 @jwt_required()
 def get_technical_status(proj_id, comp_id):
-    # Buscamos la teoría asignada para este proyecto y esta competencia
-    # Primero buscamos la asignación de competencia para obtener el ID de ProjectCompetence
     pc = ProjectCompetence.query.filter_by(
         project_id=proj_id, competence_id=comp_id).first()
 
     if not pc:
         return jsonify({"message": "No hay datos para esta competencia en este proyecto"}), 404
 
-    # Buscamos las teorías asignadas a través de esa competencia
     theories = ProjectTheory.query.filter_by(
         project_competence_id=pc.id_pc).all()
 
@@ -1676,24 +1572,20 @@ def get_technical_status(proj_id, comp_id):
 @api.route('/projects/<int:project_id>/indicators', methods=['GET'])
 @jwt_required()
 def get_project_indicatores(project_id):
-    # Buscamos todos los indicadores que ya pertenecen a este proyecto
     indicators = Indicator.query.filter_by(project_id=project_id).all()
 
-    # Usamos el serialize() que revisamos antes para enviar toda la info técnica
     return jsonify([ind.serialize() for ind in indicators]), 200
 
 
-# 1. OBTENER TODOS LOS MEDIOS (Para el catálogo y para el selector de indicadores)
+# 1. OBTENER TODOS LOS MEDIOS
 @api.route('/verification-means', methods=['GET'])
 @jwt_required()
 def get_verification_means():
-    """Cualquier usuario logueado puede ver el catálogo para llenar indicadores"""
     means = MasterVerificationMean.query.all()
     return jsonify([m.serialize() for m in means]), 200
 
+
 # 2. CREAR NUEVO MEDIO (Solo Gerente)
-
-
 @api.route('/verification-means', methods=['POST'])
 @manager_required
 def create_verification_mean():
@@ -1702,8 +1594,6 @@ def create_verification_mean():
 
     if not name:
         return jsonify({"message": "El nombre del medio es obligatorio"}), 400
-
-    # Evitamos duplicados para mantener la base de datos limpia
     if MasterVerificationMean.query.filter_by(name=name).first():
         return jsonify({"message": "Este medio de verificación ya existe"}), 400
 
@@ -1714,8 +1604,6 @@ def create_verification_mean():
     return jsonify(new_mean.serialize()), 201
 
 # 3. ACTUALIZAR UN MEDIO (Solo Gerente)
-
-
 @api.route('/verification-means/<int:id>', methods=['PUT'])
 @manager_required
 def update_verification_mean(id):
@@ -1724,29 +1612,23 @@ def update_verification_mean(id):
         return jsonify({"message": "Medio de verificación no encontrado"}), 404
 
     data = request.json
-    # Si el gerente cambia "Fotos" por "Registro Fotográfico", se actualiza en todo el sistema
     mean.name = data.get("name", mean.name)
-
     db.session.commit()
     return jsonify(mean.serialize()), 200
 
 # 4. ELIMINAR UN MEDIO (Solo Gerente)
-
-
 @api.route('/verification-means/<int:id>', methods=['DELETE'])
 @manager_required
 def delete_verification_mean(id):
     mean = MasterVerificationMean.query.get(id)
     if not mean:
         return jsonify({"message": "Medio de verificación no encontrado"}), 404
-
     try:
         db.session.delete(mean)
         db.session.commit()
         return jsonify({"message": "Medio de verificación eliminado exitosamente"}), 200
     except Exception as e:
         db.session.rollback()
-        # Esto pasará si el medio ya está siendo usado por algún indicador
         return jsonify({
             "message": "No se puede eliminar: este medio está siendo utilizado en indicadores activos"
         }), 400
@@ -1761,23 +1643,17 @@ def patch_indicator(id):
 
     data = request.json
 
-    # 1. Actualización de campos de texto simple (Mantenemos tus originales)
     if "verification_means" in data:
         indicator.verification_means = data.get("verification_means")
 
     if "observations" in data:
         indicator.observations = data.get("observations")
 
-    # 2. GESTIÓN PROFESIONAL: Sincronización de Medios (IDs)
-    # Esperamos un array de IDs, ej: [1, 3, 5]
     if "means_ids" in data:
         new_means_ids = data.get("means_ids")
-        # Buscamos los objetos reales en la base de datos
         selected_means = MasterVerificationMean.query.filter(
             MasterVerificationMean.id.in_(new_means_ids)
         ).all()
-
-        # SQLAlchemy hace la magia: vacía la relación vieja y pone la nueva
         indicator.selected_means_list = selected_means
 
     try:
@@ -1819,17 +1695,13 @@ def get_my_indicators(project_id):
 def create_activity():
     user_id = get_jwt_identity()
     data = request.json
-
-    # Validaciones rápidas de campos obligatorios
     required = ["description", "start_date", "end_date", "planned_target",
                 "indicator_id", "project_id", "location_id", "project_competence_id"]
     if not all(field in data for field in required):
         return jsonify({"message": "Faltan datos obligatorios para la planificación"}), 400
-
     try:
         new_activity = Activity(
             description=data['description'],
-            # Convertimos strings a objetos datetime
             start_date=datetime.strptime(data['start_date'], '%Y-%m-%d'),
             end_date=datetime.strptime(data['end_date'], '%Y-%m-%d'),
             planned_target=data['planned_target'],
@@ -1860,14 +1732,12 @@ def patch_activity(id):
         return jsonify({"message": "No encontrada"}), 404
 
     data = request.json
-    # Campos que queremos vigilar
     for field in ["description", "planned_target", "status", "start_date", "end_date"]:
         if field in data:
             old_val = str(getattr(activity, field))
             new_val = str(data[field])
 
             if old_val != new_val:
-                # GUARDAMOS EL "CHISME" EN EL LOG
                 log = SystemChangeLog(
                     entity_type="Activity",
                     entity_id=activity.id_activity,
@@ -1877,8 +1747,6 @@ def patch_activity(id):
                     new_value=new_val
                 )
                 db.session.add(log)
-
-                # Actualizamos el valor real
                 if "date" in field:
                     setattr(activity, field, datetime.strptime(
                         data[field], '%Y-%m-%d'))
@@ -1892,12 +1760,11 @@ def patch_activity(id):
 
 @api.route('/activities/<int:id>', methods=['DELETE'])
 @jwt_required()
-@manager_required  # <--- Tu guardia de seguridad VIP
+@manager_required
 def delete_activity(id):
     activity = Activity.query.get(id)
     if not activity:
         return jsonify({"message": "Actividad no encontrada"}), 404
-
     try:
         db.session.delete(activity)
         db.session.commit()
@@ -1913,7 +1780,6 @@ def delete_activity(id):
 def create_achievement():
     user_id = get_jwt_identity()
     data = request.json
-
     activity = Activity.query.get_or_404(data.get('activity_id'))
 
     try:
@@ -1922,17 +1788,19 @@ def create_achievement():
             men_reached=float(data.get('men_reached', 0)),
             women_reached=float(data.get('women_reached', 0)),
             disability_reached=float(data.get('disability_reached', 0)),
+            attended_count=float(data.get('attended_count', 0)), 
+            approved_count=float(data.get('approved_count', 0)), 
             evidence_url=data.get('evidence_url'),
-            # ESTA ES LA LÍNEA QUE DEBES AGREGAR:
             evidence_public_id=data.get('evidence_public_id'), 
             observations=data.get('observations'),
             user_id=user_id
         )
 
-        activity.status = ActivityStatus.COMPLETADA
-
+        activity.status = 'COMPLETADA' 
         db.session.add(new_record)
         db.session.commit()
+
+        db.session.refresh(new_record)
 
         return jsonify({
             "message": "Logro registrado exitosamente",
@@ -1941,41 +1809,34 @@ def create_achievement():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": str(e)}), 500
+        print(f"DEBUG SIGSSEP ERROR: {str(e)}") 
+        return jsonify({"message": f"Error en el servidor: {str(e)}"}), 500
 
 
 @api.route('/achievements/<int:id>', methods=['PATCH'])
 @jwt_required()
 def patch_achievement(id):
-    user_id = get_jwt_identity()
+    user_id = get_jwt_identity() 
     record = AchievementRecord.query.get_or_404(id)
     data = request.json
     
-    # 1. ACTUALIZACIÓN DE DATOS (Mantenemos tu lógica sólida)
     if 'men_reached' in data: record.men_reached = float(data['men_reached'])
     if 'women_reached' in data: record.women_reached = float(data['women_reached'])
     if 'disability_reached' in data: record.disability_reached = float(data['disability_reached'])
+    if 'attended_count' in data: record.attended_count = float(data['attended_count'])
+    if 'approved_count' in data: record.approved_count = float(data['approved_count'])
     if 'observations' in data: record.observations = data['observations']
-
-    # 2. LÓGICA DE REEMPLAZO DE EVIDENCIA (Refactorizada)
     if 'evidence_url' in data:
         new_url = data.get('evidence_url')
         new_public_id = data.get('evidence_public_id')
 
-        # Si el usuario mandó una URL nueva y es distinta a la vieja...
         if new_url and new_url != record.evidence_url:
-            
-            # Si teníamos un archivo anterior, usamos el SERVICIO para borrar
             if record.evidence_public_id:
-                # LLAMADA PROFESIONAL AL SERVICIO
                 CloudinaryService.delete_file(record.evidence_public_id)
                 print(f"DEBUG: Solicitado borrado de ID: {record.evidence_public_id}")
-
-            # ACTUALIZACIÓN DE AMBOS CAMPOS (Lo que me consultaste)
             record.evidence_url = new_url
-            record.evidence_public_id = new_public_id # <--- Clave para futuras limpiezas
+            record.evidence_public_id = new_public_id 
 
-    # 3. AUDITORÍA Y GUARDADO
     record.updated_by_id = user_id
 
     try:
@@ -2040,77 +1901,154 @@ def upload_evidence():
 @api.route('/project/<int:project_id>/progress-summary', methods=['GET'])
 @jwt_required()
 def get_project_progress(project_id):
-    location_id = request.args.get('location_id')
-    
-    # 1. Obtener la provincia una sola vez
-    target_province_id = None
-    if location_id and location_id != 'undefined':
-        loc = Location.query.get(location_id)
-        if loc: target_province_id = loc.province_id
+    try:
+        # 1. Carga inicial de datos maestros
+        indicators = Indicator.query.filter_by(project_id=project_id).all()
+        if not indicators:
+            return jsonify([]), 200
 
-    # 2. Traer todos los indicadores del proyecto
-    indicators = Indicator.query.filter_by(project_id=project_id).all()
-    indicator_ids = [ind.id_indicator for ind in indicators]
+        # 2. Consultamos logros agrupados por indicador y provincia
+        results = db.session.query(
+            Indicator.id_indicator,
+            Province.id.label("province_id"),
+            Province.name.label("province_name"),
+            func.sum(func.coalesce(AchievementRecord.men_reached, 0)).label("men"),
+            func.sum(func.coalesce(AchievementRecord.women_reached, 0)).label("women"),
+            func.sum(func.coalesce(AchievementRecord.attended_count, 0)).label("attended"),
+            func.sum(func.coalesce(AchievementRecord.approved_count, 0)).label("approved")
+        ).select_from(Indicator)\
+         .join(Activity, Activity.indicator_id == Indicator.id_indicator)\
+         .join(Location, Activity.location_id == Location.id_location)\
+         .join(Province, Location.province_id == Province.id)\
+         .join(AchievementRecord, AchievementRecord.activity_id == Activity.id_activity)\
+         .filter(Indicator.project_id == project_id)\
+         .group_by(Indicator.id_indicator, Province.id, Province.name).all()
 
-    # 3. CONSULTA OPTIMIZADA: Sumamos TODO de una sola vez agrupado por indicador
-    query_achieved = db.session.query(
-        Indicator.id_indicator,
-        func.sum(AchievementRecord.men_reached).label("men"),
-        func.sum(AchievementRecord.women_reached).label("women")
-    ).select_from(Indicator)\
-     .outerjoin(Activity, Activity.indicator_id == Indicator.id_indicator)\
-     .outerjoin(AchievementRecord, AchievementRecord.activity_id == Activity.id_activity)\
-     .filter(Indicator.id_indicator.in_(indicator_ids))\
-     .filter(Activity.status.in_([ActivityStatus.COMPLETADA, ActivityStatus.EN_PROGRESO]))
+        achievements_map = {}
+        for r in results:
+            if r.id_indicator not in achievements_map:
+                achievements_map[r.id_indicator] = {}
+            achievements_map[r.id_indicator][r.province_id] = r
 
-    if target_province_id:
-        query_achieved = query_achieved.join(Location, Activity.location_id == Location.id_location)\
-                                       .filter(Location.province_id == target_province_id)
-    
-    # Agrupamos por ID para que la DB nos de los totales por indicador
-    achieved_totals = {res.id_indicator: res for res in query_achieved.group_by(Indicator.id_indicator).all()}
+        summary = []
 
-    # 4. Obtener metas por provincia de una sola vez
-    goals_dict = {}
-    if target_province_id:
-        goals = IndicatorLocationGoal.query.filter(
-            IndicatorLocationGoal.indicator_id.in_(indicator_ids),
-            IndicatorLocationGoal.province_id == target_province_id
-        ).all()
-        goals_dict = {g.indicator_id: g for g in goals}
+        for ind in indicators:
+            is_outcome = ind.type == 'outcome'
+            is_dependent = ind.calculation_type == 'dependent'
+            is_independent_outcome = is_outcome and not is_dependent
+            
+            provincias_data = []
+            total_ind_men, total_ind_women, total_ind_att, total_ind_app = 0.0, 0.0, 0.0, 0.0
 
-    # 5. Armar el resumen (ahora solo es procesar datos en memoria, no más DB)
-    summary = []
-    for ind in indicators:
-        res_achieved = achieved_totals.get(ind.id_indicator)
-        men_done = res_achieved.men if res_achieved else 0
-        women_done = res_achieved.women if res_achieved else 0
-        
-        goal = goals_dict.get(ind.id_indicator) if target_province_id else None
-        t_total = goal.total_target if goal else (ind.target_total or 0)
-        t_men = goal.men if goal else (ind.target_men or 0)
-        t_women = goal.women if goal else (ind.target_women or 0)
+            final_men, final_women = 0.0, 0.0
+            
+            # --- LÓGICA ESPECIAL PARA OUTCOMES DEPENDIENTES ---
+            parent_goals_by_prov = {}
+            global_parent_men_goal = 0.0
+            global_parent_women_goal = 0.0
+            
+            if is_dependent:
+                for parent in ind.depends_on:
+                    for g in parent.location_goals:
+                        p_id = g.province_id
+                        if p_id not in parent_goals_by_prov:
+                            parent_goals_by_prov[p_id] = {'men': 0, 'women': 0, 'total': 0}
+                        parent_goals_by_prov[p_id]['men'] += g.men
+                        parent_goals_by_prov[p_id]['women'] += g.women
+                        parent_goals_by_prov[p_id]['total'] += g.total_target
+                        global_parent_men_goal += g.men
+                        global_parent_women_goal += g.women
 
-        summary.append({
-            "indicator_id": ind.id_indicator,
-            "target": {"total": t_total, "men": t_men, "women": t_women},
-            "achieved": {"men": men_done, "women": women_done, "total": men_done + women_done},
-            "gap": {
-                "men": max(0, t_men - men_done),
-                "women": max(0, t_women - women_done),
-                "total": max(0, t_total - (men_done + women_done))
-            }
-        })
+            # --- PROCESAR CADA PROVINCIA DEL INDICADOR ACTUAL ---
+            for goal in ind.location_goals:
+                p_id = goal.province_id
+                p_men, p_women, p_att, p_app = 0.0, 0.0, 0.0, 0.0
+                
+                # Obtener logros (si es dependiente, sumamos los de sus hijos/dependencias)
+                if is_dependent:
+                    for child in ind.depends_on:
+                        c_res = achievements_map.get(child.id_indicator, {}).get(p_id)
+                        if c_res:
+                            p_men += float(c_res.men); p_women += float(c_res.women)
+                            p_att += float(c_res.attended); p_app += float(c_res.approved)
+                else:
+                    res = achievements_map.get(ind.id_indicator, {}).get(p_id)
+                    if res:
+                        p_men, p_women = float(res.men), float(res.women)
+                        p_att, p_app = float(res.attended), float(res.approved)
 
-    return jsonify(summary), 200
+                if is_outcome and is_dependent:
+                    p_target = parent_goals_by_prov.get(p_id, {}).get('total', 0)
+                    p_advance = ((p_men + p_women) / p_target * 100) if p_target > 0 else 0
+                    p_men_val = (p_men / parent_goals_by_prov[p_id]['men'] * 100) if parent_goals_by_prov.get(p_id, {}).get('men', 0) > 0 else 0
+                    p_women_val = (p_women / parent_goals_by_prov[p_id]['women'] * 100) if parent_goals_by_prov.get(p_id, {}).get('women', 0) > 0 else 0
+                else:
+                    p_advance = (p_app / p_att * 100) if is_outcome and p_att > 0 else (p_men + p_women)
+                    p_men_val, p_women_val = p_men, p_women
+
+                provincias_data.append({
+                    "province_id": p_id,
+                    "province_name": goal.province.name,
+                    "target": goal.total_target,
+                    "target_men": goal.men,
+                    "target_women": goal.women,
+                    "achieved": round(p_advance, 2),
+                    "men": round(p_men_val, 2),
+                    "women": round(p_women_val, 2),
+                    "attended": p_att,
+                    "approved": p_app
+                })
+
+                total_ind_men += p_men; total_ind_women += p_women
+                total_ind_att += p_att; total_ind_app += p_app
+
+            # --- CÁLCULO GLOBAL ---
+            if is_outcome:
+                provincias_con_meta = [g.total_target for g in ind.location_goals if g.total_target > 0]
+                display_target = sum(provincias_con_meta) / len(provincias_con_meta) if provincias_con_meta else 0
+                
+                if is_dependent:
+                    g_target_total = global_parent_men_goal + global_parent_women_goal
+                    global_achieved = ((total_ind_men + total_ind_women) / g_target_total * 100) if g_target_total > 0 else 0
+                    final_men = (total_ind_men / global_parent_men_goal * 100) if global_parent_men_goal > 0 else 0
+                    final_women = (total_ind_women / global_parent_women_goal * 100) if global_parent_women_goal > 0 else 0
+                else:
+                    global_achieved = (total_ind_app / total_ind_att * 100) if total_ind_att > 0 else 0
+                    final_men, final_women = total_ind_men, total_ind_women
+
+            else:
+                global_achieved = (total_ind_men + total_ind_women)
+                final_men, final_women = total_ind_men, total_ind_women
+                display_target = sum(g.total_target for g in ind.location_goals)
+
+            summary.append({
+                "id": ind.id_indicator,
+                "code": ind.template.code if ind.template else "N/A",
+                "name": ind.template.name if ind.template else "Sin nombre",
+                "description": ind.template.description if ind.template else "",
+                "type": ind.type,
+                "is_dependent": is_dependent,
+                "global_target": round(display_target, 2),
+                "global_target_men": sum(g.men for g in ind.location_goals),
+                "global_target_women": sum(g.women for g in ind.location_goals), 
+                "global_achieved": round(global_achieved, 2),
+                "total_men": round(final_men, 2),
+                "total_women": round(final_women, 2),
+                "total_attended": total_ind_att if is_independent_outcome else 0,
+                "total_approved": total_ind_app if is_independent_outcome else 0,
+                "provinces": provincias_data
+            })
+
+        return jsonify(summary), 200
+    except Exception as e:
+        print(f"Error en progress-summary: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 @api.route('/audit-logs', methods=['GET'])
 @jwt_required()
-@manager_required  # Solo el jefe tiene acceso a la bitácora
+@manager_required
 def get_audit_logs():
-    # Podemos filtrar por tipo de entidad si el Gerente quiere algo específico
-    # Ejemplo: /audit-logs?type=Activity o /audit-logs?user_id=5
     entity_type = request.args.get('type')
     entity_id = request.args.get('id')
     user_id = request.args.get('user_id')
@@ -2124,7 +2062,6 @@ def get_audit_logs():
     if user_id:
         query = query.filter_by(user_id=user_id)
 
-    # Ordenamos por fecha para ver lo más reciente primero
     logs = query.order_by(SystemChangeLog.change_date.desc()).all()
 
     results = []
@@ -2151,8 +2088,6 @@ def get_oficial_competencias():
 
     if not user:
         return jsonify({"msg": "Usuario no encontrado"}), 404
-
-    # Ajustado a id_competence y name según tu modelo Competence
     competencias = [
         {"id": comp.id_competence, "name": comp.name}
         for comp in user.competences
@@ -2169,52 +2104,44 @@ def get_proyectos_por_competencia():
     if not competencia_id:
         return jsonify({"msg": "Falta el ID de la competencia"}), 400
 
-    # Usamos ProjectCompetence para filtrar
     proyectos_ids = ProjectCompetence.query.filter_by(
         competence_id=competencia_id).all()
 
     proyectos_data = []
     for rel in proyectos_ids:
-        # p es el objeto Project relacionado
-        p = rel.project  # Asumiendo que ProjectCompetence tiene la relación 'project'
+        p = rel.project 
         if p:
             proyectos_data.append({
-                "id": p.id_project,  # Ojo aquí, verifica si es id o id_project en tu modelo Project
+                "id": p.id_project,
                 "project_name": p.project_name,
                 "code": p.code
             })
 
     return jsonify(proyectos_data), 200
 
-# Oficial crea, edita y ve actividades/planificar
 
+# Oficial crea, edita y ve actividades/planificar
 @api.route('/official/activities', methods=['POST'])
 @jwt_required()
 def create_activitys():
     user_id = get_jwt_identity()
     data = request.json
 
-    # Campos que el Wizard de React está enviando ahora
-    # Nota: Aceptamos 'planned_target' o 'planned_total' para mayor flexibilidad
     required_fields = ['description', 'indicator_id',
                        'location_id', 'project_id', 'start_date', 'end_date']
     if not all(field in data for field in required_fields):
         return jsonify({"msg": "Faltan campos obligatorios para la planificación"}), 400
 
     try:
-        # Extraemos la meta total (intentando ambos nombres)
         total_meta = data.get('planned_target') or data.get(
             'planned_total') or 0
 
         new_activity = Activity(
             description=data.get('description', ''),
-            # El .split('T')[0] es excelente para limpiar fechas de calendarios JS
             start_date=datetime.strptime(
                 data['start_date'].split('T')[0], '%Y-%m-%d'),
             end_date=datetime.strptime(
                 data['end_date'].split('T')[0], '%Y-%m-%d'),
-
-            # Nuevos campos de metas desagregadas
             planned_target=float(total_meta),
             planned_men=float(data.get('planned_men', 0)),
             planned_women=float(data.get('planned_women', 0)),
@@ -2223,7 +2150,6 @@ def create_activitys():
             indicator_id=int(data['indicator_id']),
             project_id=int(data['project_id']),
             location_id=int(data['location_id']),
-            # Manejamos el ID de competencia (puede ser nulo si no se seleccionó)
             project_competence_id=int(data['project_competence_id']) if data.get(
                 'project_competence_id') else None,
             created_by_id=user_id
@@ -2255,28 +2181,22 @@ def update_activity(activity_id):
     if not activity:
         return jsonify({"msg": "Actividad no encontrada"}), 404
 
-    # Mantenemos tu lógica de aviso para oficiales
     if activity.created_by_id != user_id:
         print(f"Aviso: Usuario {user_id} editando actividad ajena")
 
     try:
-        # Actualización de campos básicos
         if 'description' in data:
             activity.description = data['description']
-
-        # Soportamos ambos nombres para la meta total
         if 'planned_target' in data:
             activity.planned_target = float(data['planned_target'])
         elif 'planned_total' in data:
             activity.planned_target = float(data['planned_total'])
 
-        # Actualización de metas por género
         if 'planned_men' in data:
             activity.planned_men = float(data['planned_men'])
         if 'planned_women' in data:
             activity.planned_women = float(data['planned_women'])
 
-        # Fechas
         if 'start_date' in data:
             activity.start_date = datetime.strptime(
                 data['start_date'].split('T')[0], '%Y-%m-%d')
@@ -2284,7 +2204,6 @@ def update_activity(activity_id):
             activity.end_date = datetime.strptime(
                 data['end_date'].split('T')[0], '%Y-%m-%d')
 
-        # Relaciones
         if 'indicator_id' in data:
             activity.indicator_id = int(data['indicator_id'])
         if 'location_id' in data:
@@ -2304,34 +2223,26 @@ def update_activity(activity_id):
 @api.route('/official/indicators/<int:indicator_id>/locations', methods=['GET'])
 @jwt_required()
 def get_indicator_locations(indicator_id):
-    # 1. Buscamos el indicador para saber a qué proyecto pertenece
     indicador = Indicator.query.get(indicator_id)
     if not indicador:
         return jsonify({"msg": "Indicador no encontrado"}), 404
-
-    # 2. Obtenemos las metas por provincia de este indicador
     goals = IndicatorLocationGoal.query.filter_by(
         indicator_id=indicator_id).all()
 
-    # Creamos una lista de IDs de provincias donde este indicador tiene metas
     allowed_province_ids = [g.province_id for g in goals]
 
-    # 3. Buscamos las UBICACIONES (Location) del proyecto que están en esas provincias
-    # Esto es lo que el oficial realmente necesita para el formulario de la actividad
     locations = Location.query.filter(
         Location.project_id == indicador.project_id,
         Location.province_id.in_(allowed_province_ids)
     ).all()
 
-    # 4. Cruzamos la info: enviamos la ubicación detallada + la meta de esa provincia
     results = []
     for loc in locations:
-        # Buscamos la meta específica de la provincia de esta ubicación
         goal_info = next(
             (g for g in goals if g.province_id == loc.province_id), None)
 
         results.append({
-            "id_location": loc.id_location,  # ID real para el combo/select del form
+            "id_location": loc.id_location, 
             "province_name": loc.province_ref.name,
             "municipality_name": loc.municipality_ref.name,
             "parish_name": loc.parish_ref.name if loc.parish_ref else "N/A",
@@ -2346,15 +2257,28 @@ def get_indicator_locations(indicator_id):
 @jwt_required()
 def get_activities():
     user_id = get_jwt_identity()
-    
-    activities = Activity.query.filter_by(created_by_id=user_id)\
-        .options(
-            joinedload(Activity.location).joinedload(Location.province_ref),
-            joinedload(Activity.location).joinedload(Location.municipality_ref),
-            joinedload(Activity.indicator).joinedload(Indicator.template)
-        ).all()
+    hoy_venezuela = datetime.utcnow() - timedelta(hours=4)
+    today = hoy_venezuela.date()
+    activities = Activity.query.filter_by(created_by_id=user_id).all()
 
-    return jsonify([act.serialize() for act in activities]), 200
+    results = []
+    for act in activities:
+        data = act.serialize()
+
+        if data.get('status') not in ['Completada', 'Cancelada']:
+            start_dt = act.start_date.date() if hasattr(act.start_date, 'date') else act.start_date
+            end_dt = act.end_date.date() if hasattr(act.end_date, 'date') else act.end_date
+
+            if end_dt < today:
+                data['status'] = 'Vencida'
+            elif start_dt <= today <= end_dt:
+                data['status'] = 'En Progreso'
+            else:
+                data['status'] = 'Planificada'
+        
+        results.append(data)
+
+    return jsonify(results), 200
 
 
 # Para cancelar una actividad planificada y cambiar su estatus
@@ -2368,14 +2292,13 @@ def cancel_activity(activity_id):
     if not activity:
         return jsonify({"msg": "Actividad no encontrada"}), 404
 
-    # VALIDACIÓN CLAVE
     reason = data.get('cancellation_reason')
     if not reason or len(reason.strip()) < 5:
         return jsonify({"msg": "Es obligatorio incluir una observación válida (mín. 5 caracteres)"}), 400
 
     activity.status = ActivityStatus.CANCELADA
     activity.cancellation_reason = reason
-    activity.updated_by_id = user_id # Guardamos quién lo hizo
+    activity.updated_by_id = user_id 
 
     db.session.commit()
     return jsonify({
@@ -2384,7 +2307,7 @@ def cancel_activity(activity_id):
     }), 200
 
 
-# Buscar todos los indicadores que pertenecen a este proyecto
+# Buscar todos los indicadores que pertenecen a un proyecto
 @api.route('/official/projects/<int:project_id>/indicators', methods=['GET'])
 @jwt_required()
 def get_project_indicators(project_id):
@@ -2397,13 +2320,10 @@ def get_project_indicators(project_id):
 @api.route('/activity-catalog', methods=['GET'])
 @jwt_required()
 def get_activity_catalog():
-    # Leemos el ID de la competencia desde la URL, ej: /activity-catalog?competence_id=1
     competence_id = request.args.get('competence_id')
-    
     query = ActivityCatalog.query
     
     if competence_id:
-        # Filtramos: (Es de mi competencia) O (Es General/None)
         query = query.filter(
             or_(
                 ActivityCatalog.competence_id == competence_id,
@@ -2419,7 +2339,6 @@ def get_activity_catalog():
 @jwt_required()
 @manager_required
 def create_catalog_activity():
-    """Solo el Gerente crea nuevas opciones de actividades"""
     data = request.json
     description = data.get("description")
     comp_id = data.get("competence_id")
@@ -2460,7 +2379,6 @@ def delete_catalog_activity(id):
 
     if not item:
         return jsonify({"msg": "La actividad no existe en el catálogo"}), 404
-
     try:
         db.session.delete(item)
         db.session.commit()
@@ -2468,11 +2386,9 @@ def delete_catalog_activity(id):
 
     except Exception as e:
         db.session.rollback()
-        # Si el error es de base de datos (como una llave foránea activa)
-        # devolvemos un mensaje amigable al usuario
         return jsonify({
             "msg": "No se puede eliminar: Esta actividad está siendo utilizada en proyectos actuales.",
-            "error": str(e)  # Opcional: solo para depuración
+            "error": str(e)
         }), 400
 
 
@@ -2481,9 +2397,6 @@ def delete_catalog_activity(id):
 @jwt_required()
 def get_activity_achievements(activity_id):
     activity = Activity.query.get_or_404(activity_id)
-    
-    # Retornamos la lista de logros serializados
-    # Esto incluye la URL de evidencia y observaciones que te faltaban
     return jsonify({
         "activity_id": activity_id,
         "achievements": [a.serialize() for a in activity.achievements]

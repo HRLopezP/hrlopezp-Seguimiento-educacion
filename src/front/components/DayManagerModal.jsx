@@ -65,7 +65,7 @@ const DayManagerModal = ({
                                         <div className="d-flex justify-content-between align-items-start mb-2">
                                             <div>
                                                 <span className="badge mb-1 bg-dark text-white border">
-                                                    {act.indicator_code || 'IND'}
+                                                    {act.indicator?.code || 'IND'}
                                                 </span>
                                                 <h6 className="fw-bold text-dark mb-1">{act.description}</h6>
 
