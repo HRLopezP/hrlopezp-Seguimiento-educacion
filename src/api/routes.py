@@ -2049,8 +2049,6 @@ def get_project_progress(project_id):
 @jwt_required()
 @manager_required
 def get_audit_logs():
-    # Podemos filtrar por tipo de entidad si el Gerente quiere algo específico
-    # Ejemplo: /audit-logs?type=Activity o /audit-logs?user_id=5
     entity_type = request.args.get('type')
     entity_id = request.args.get('id')
     user_id = request.args.get('user_id')
@@ -2064,7 +2062,6 @@ def get_audit_logs():
     if user_id:
         query = query.filter_by(user_id=user_id)
 
-    # Ordenamos por fecha para ver lo más reciente primero
     logs = query.order_by(SystemChangeLog.change_date.desc()).all()
 
     results = []
@@ -2091,8 +2088,6 @@ def get_oficial_competencias():
 
     if not user:
         return jsonify({"msg": "Usuario no encontrado"}), 404
-
-    # Ajustado a id_competence y name según tu modelo Competence
     competencias = [
         {"id": comp.id_competence, "name": comp.name}
         for comp in user.competences
@@ -2109,52 +2104,44 @@ def get_proyectos_por_competencia():
     if not competencia_id:
         return jsonify({"msg": "Falta el ID de la competencia"}), 400
 
-    # Usamos ProjectCompetence para filtrar
     proyectos_ids = ProjectCompetence.query.filter_by(
         competence_id=competencia_id).all()
 
     proyectos_data = []
     for rel in proyectos_ids:
-        # p es el objeto Project relacionado
-        p = rel.project  # Asumiendo que ProjectCompetence tiene la relación 'project'
+        p = rel.project 
         if p:
             proyectos_data.append({
-                "id": p.id_project,  # Ojo aquí, verifica si es id o id_project en tu modelo Project
+                "id": p.id_project,
                 "project_name": p.project_name,
                 "code": p.code
             })
 
     return jsonify(proyectos_data), 200
 
-# Oficial crea, edita y ve actividades/planificar
 
+# Oficial crea, edita y ve actividades/planificar
 @api.route('/official/activities', methods=['POST'])
 @jwt_required()
 def create_activitys():
     user_id = get_jwt_identity()
     data = request.json
 
-    # Campos que el Wizard de React está enviando ahora
-    # Nota: Aceptamos 'planned_target' o 'planned_total' para mayor flexibilidad
     required_fields = ['description', 'indicator_id',
                        'location_id', 'project_id', 'start_date', 'end_date']
     if not all(field in data for field in required_fields):
         return jsonify({"msg": "Faltan campos obligatorios para la planificación"}), 400
 
     try:
-        # Extraemos la meta total (intentando ambos nombres)
         total_meta = data.get('planned_target') or data.get(
             'planned_total') or 0
 
         new_activity = Activity(
             description=data.get('description', ''),
-            # El .split('T')[0] es excelente para limpiar fechas de calendarios JS
             start_date=datetime.strptime(
                 data['start_date'].split('T')[0], '%Y-%m-%d'),
             end_date=datetime.strptime(
                 data['end_date'].split('T')[0], '%Y-%m-%d'),
-
-            # Nuevos campos de metas desagregadas
             planned_target=float(total_meta),
             planned_men=float(data.get('planned_men', 0)),
             planned_women=float(data.get('planned_women', 0)),
@@ -2163,7 +2150,6 @@ def create_activitys():
             indicator_id=int(data['indicator_id']),
             project_id=int(data['project_id']),
             location_id=int(data['location_id']),
-            # Manejamos el ID de competencia (puede ser nulo si no se seleccionó)
             project_competence_id=int(data['project_competence_id']) if data.get(
                 'project_competence_id') else None,
             created_by_id=user_id
@@ -2195,28 +2181,22 @@ def update_activity(activity_id):
     if not activity:
         return jsonify({"msg": "Actividad no encontrada"}), 404
 
-    # Mantenemos tu lógica de aviso para oficiales
     if activity.created_by_id != user_id:
         print(f"Aviso: Usuario {user_id} editando actividad ajena")
 
     try:
-        # Actualización de campos básicos
         if 'description' in data:
             activity.description = data['description']
-
-        # Soportamos ambos nombres para la meta total
         if 'planned_target' in data:
             activity.planned_target = float(data['planned_target'])
         elif 'planned_total' in data:
             activity.planned_target = float(data['planned_total'])
 
-        # Actualización de metas por género
         if 'planned_men' in data:
             activity.planned_men = float(data['planned_men'])
         if 'planned_women' in data:
             activity.planned_women = float(data['planned_women'])
 
-        # Fechas
         if 'start_date' in data:
             activity.start_date = datetime.strptime(
                 data['start_date'].split('T')[0], '%Y-%m-%d')
@@ -2224,7 +2204,6 @@ def update_activity(activity_id):
             activity.end_date = datetime.strptime(
                 data['end_date'].split('T')[0], '%Y-%m-%d')
 
-        # Relaciones
         if 'indicator_id' in data:
             activity.indicator_id = int(data['indicator_id'])
         if 'location_id' in data:
@@ -2244,34 +2223,26 @@ def update_activity(activity_id):
 @api.route('/official/indicators/<int:indicator_id>/locations', methods=['GET'])
 @jwt_required()
 def get_indicator_locations(indicator_id):
-    # 1. Buscamos el indicador para saber a qué proyecto pertenece
     indicador = Indicator.query.get(indicator_id)
     if not indicador:
         return jsonify({"msg": "Indicador no encontrado"}), 404
-
-    # 2. Obtenemos las metas por provincia de este indicador
     goals = IndicatorLocationGoal.query.filter_by(
         indicator_id=indicator_id).all()
 
-    # Creamos una lista de IDs de provincias donde este indicador tiene metas
     allowed_province_ids = [g.province_id for g in goals]
 
-    # 3. Buscamos las UBICACIONES (Location) del proyecto que están en esas provincias
-    # Esto es lo que el oficial realmente necesita para el formulario de la actividad
     locations = Location.query.filter(
         Location.project_id == indicador.project_id,
         Location.province_id.in_(allowed_province_ids)
     ).all()
 
-    # 4. Cruzamos la info: enviamos la ubicación detallada + la meta de esa provincia
     results = []
     for loc in locations:
-        # Buscamos la meta específica de la provincia de esta ubicación
         goal_info = next(
             (g for g in goals if g.province_id == loc.province_id), None)
 
         results.append({
-            "id_location": loc.id_location,  # ID real para el combo/select del form
+            "id_location": loc.id_location, 
             "province_name": loc.province_ref.name,
             "municipality_name": loc.municipality_ref.name,
             "parish_name": loc.parish_ref.name if loc.parish_ref else "N/A",
@@ -2286,12 +2257,8 @@ def get_indicator_locations(indicator_id):
 @jwt_required()
 def get_activities():
     user_id = get_jwt_identity()
-    
-    # En lugar de pytz, restamos 4 horas al tiempo UTC del servidor (Codespaces)
-    # para obtener la hora real de Venezuela.
     hoy_venezuela = datetime.utcnow() - timedelta(hours=4)
     today = hoy_venezuela.date()
-
     activities = Activity.query.filter_by(created_by_id=user_id).all()
 
     results = []
@@ -2299,21 +2266,20 @@ def get_activities():
         data = act.serialize()
 
         if data.get('status') not in ['Completada', 'Cancelada']:
-            # Extraemos fechas de forma segura
             start_dt = act.start_date.date() if hasattr(act.start_date, 'date') else act.start_date
             end_dt = act.end_date.date() if hasattr(act.end_date, 'date') else act.end_date
 
-            # Ahora la comparación será justa
             if end_dt < today:
                 data['status'] = 'Vencida'
             elif start_dt <= today <= end_dt:
-                data['status'] = 'En Progreso' # ¡Verás el Emerald Green ahora!
+                data['status'] = 'En Progreso'
             else:
                 data['status'] = 'Planificada'
         
         results.append(data)
 
     return jsonify(results), 200
+
 
 # Para cancelar una actividad planificada y cambiar su estatus
 @api.route('/official/activities/<int:activity_id>/cancel', methods=['PATCH'])
@@ -2326,14 +2292,13 @@ def cancel_activity(activity_id):
     if not activity:
         return jsonify({"msg": "Actividad no encontrada"}), 404
 
-    # VALIDACIÓN CLAVE
     reason = data.get('cancellation_reason')
     if not reason or len(reason.strip()) < 5:
         return jsonify({"msg": "Es obligatorio incluir una observación válida (mín. 5 caracteres)"}), 400
 
     activity.status = ActivityStatus.CANCELADA
     activity.cancellation_reason = reason
-    activity.updated_by_id = user_id # Guardamos quién lo hizo
+    activity.updated_by_id = user_id 
 
     db.session.commit()
     return jsonify({
@@ -2342,7 +2307,7 @@ def cancel_activity(activity_id):
     }), 200
 
 
-# Buscar todos los indicadores que pertenecen a este proyecto
+# Buscar todos los indicadores que pertenecen a un proyecto
 @api.route('/official/projects/<int:project_id>/indicators', methods=['GET'])
 @jwt_required()
 def get_project_indicators(project_id):
@@ -2355,13 +2320,10 @@ def get_project_indicators(project_id):
 @api.route('/activity-catalog', methods=['GET'])
 @jwt_required()
 def get_activity_catalog():
-    # Leemos el ID de la competencia desde la URL, ej: /activity-catalog?competence_id=1
     competence_id = request.args.get('competence_id')
-    
     query = ActivityCatalog.query
     
     if competence_id:
-        # Filtramos: (Es de mi competencia) O (Es General/None)
         query = query.filter(
             or_(
                 ActivityCatalog.competence_id == competence_id,
@@ -2377,7 +2339,6 @@ def get_activity_catalog():
 @jwt_required()
 @manager_required
 def create_catalog_activity():
-    """Solo el Gerente crea nuevas opciones de actividades"""
     data = request.json
     description = data.get("description")
     comp_id = data.get("competence_id")
@@ -2418,7 +2379,6 @@ def delete_catalog_activity(id):
 
     if not item:
         return jsonify({"msg": "La actividad no existe en el catálogo"}), 404
-
     try:
         db.session.delete(item)
         db.session.commit()
@@ -2426,11 +2386,9 @@ def delete_catalog_activity(id):
 
     except Exception as e:
         db.session.rollback()
-        # Si el error es de base de datos (como una llave foránea activa)
-        # devolvemos un mensaje amigable al usuario
         return jsonify({
             "msg": "No se puede eliminar: Esta actividad está siendo utilizada en proyectos actuales.",
-            "error": str(e)  # Opcional: solo para depuración
+            "error": str(e)
         }), 400
 
 
@@ -2439,9 +2397,6 @@ def delete_catalog_activity(id):
 @jwt_required()
 def get_activity_achievements(activity_id):
     activity = Activity.query.get_or_404(activity_id)
-    
-    # Retornamos la lista de logros serializados
-    # Esto incluye la URL de evidencia y observaciones que te faltaban
     return jsonify({
         "activity_id": activity_id,
         "achievements": [a.serialize() for a in activity.achievements]

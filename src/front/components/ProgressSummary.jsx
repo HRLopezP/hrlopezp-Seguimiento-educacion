@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
 import "../styles/ProgressSummary.css";
 
-// 1. LÓGICA CENTRALIZADA
 const getStatusColor = (percentage) => {
-    if (percentage <= 25) return "#e74c3c"; // Rojo crítico
-    if (percentage <= 50) return "#f39c12"; // Naranja bajo
-    if (percentage <= 75) return "#f1c40f"; // Amarillo en proceso
-    if (percentage < 100) return "#2ecc71"; // Verde éxito
-    return "#3498db"; // Azul meta superada
+    if (percentage <= 25) return "#e74c3c"; 
+    if (percentage <= 50) return "#f39c12";
+    if (percentage <= 75) return "#3498db";
+    if (percentage < 100) return "#2ecc71";
+    return "#c444ff";
 };
 
-// Componente circular actualizado
 const CircularImpact = ({ percentage, isGoalReached }) => {
     const radius = 36;
     const dash = 2 * Math.PI * radius;
@@ -30,7 +28,6 @@ const CircularImpact = ({ percentage, isGoalReached }) => {
                 transition: 'all 0.5s ease'
             }}
         >
-            {/* El trofeo ahora depende de la prop isGoalReached */}
             {isGoalReached && (
                 <div style={{
                     position: 'absolute', top: '-10px', right: '-5px',
@@ -76,7 +73,6 @@ const ProgressSummary = ({ data }) => {
 
     const calcPct = (indicator) => {
         const isOutcome = indicator.type?.toLowerCase() === 'outcome';
-        // Si es outcome y dependiente, el valor ya es un porcentaje (ej: 92.3)
         return isOutcome ? (indicator.global_achieved || 0) :
             (indicator.global_target > 0 ? (indicator.global_achieved / indicator.global_target) * 100 : 0);
     };
@@ -105,7 +101,6 @@ const ProgressSummary = ({ data }) => {
 
     return (
         <div className="container-fluid py-4">
-            {/* Filtros omitidos por brevedad, se mantienen igual que tu código original */}
             <div className="row mb-4 g-3">
                 <div className="col-12 col-md-6">
                     <div className="input-group shadow-sm" style={{ borderRadius: '15px', overflow: 'hidden' }}>
@@ -151,7 +146,6 @@ const ProgressSummary = ({ data }) => {
                     const isExpanded = expandedId === indicator.id;
                     const globalPercentage = calcPct(indicator);
                     
-                    // LÓGICA DE TROFEO GLOBAL: Si es outcome, comparamos logro vs meta global. Si es output, comparamos porcentaje vs 100.
                     const globalGoalReached = isOutcome 
                         ? (indicator.global_achieved >= indicator.global_target)
                         : (globalPercentage >= 100);
@@ -181,7 +175,7 @@ const ProgressSummary = ({ data }) => {
                                             <span className="fw-bold">{indicator.global_target}{isOutcome && isDep ? '%' : ''}</span>
                                             {!isDep && !isOutcome && (
                                                 <div className="opacity-50" style={{ fontSize: '10px' }}>
-                                                    {indicator.global_target_men}H/{indicator.global_target_women}M
+                                                    {indicator.global_target_men} H/ {indicator.global_target_women} M
                                                 </div>
                                             )}
                                         </div>
@@ -197,12 +191,11 @@ const ProgressSummary = ({ data }) => {
                                             <div className="opacity-50" style={{ fontSize: '10px' }}>
                                                 {isOutcome && !isDep ? 
                                                     `${indicator.total_approved} Ap. / ${indicator.total_attended} Tot.` : 
-                                                    `${indicator.total_men}${isDep ? '%' : ''}H/${indicator.total_women}${isDep ? '%' : ''}M`
+                                                    `${indicator.total_men} ${isDep ? '%' : ''} H/ ${indicator.total_women} ${isDep ? '%' : ''} M`
                                                 }
                                             </div>
                                         </div>
                                     </div>
-                                    {/* Pasamos la condición de éxito al componente circular */}
                                     <CircularImpact percentage={globalPercentage} isGoalReached={globalGoalReached} />
                                 </div>
                             </div>
@@ -215,7 +208,6 @@ const ProgressSummary = ({ data }) => {
                                                 const provProgress = isOutcome ? (prov.achieved || 0) : (prov.target > 0 ? (prov.achieved / prov.target) * 100 : 0);
                                                 const provColor = getStatusColor(provProgress);
                                                 
-                                                // LÓGICA DE TROFEO PARA PROVINCIA
                                                 const provGoalReached = isOutcome 
                                                     ? (prov.achieved >= prov.target)
                                                     : (provProgress >= 100);
@@ -233,7 +225,6 @@ const ProgressSummary = ({ data }) => {
                                                                     <small className="fw-bold text-uppercase" style={{ fontSize: '9px', color: provColor }}>Provincia</small>
                                                                     <h5 className="fw-black m-0 text-dark">
                                                                         {prov.province_name}
-                                                                        {/* Pequeño trofeo discreto en la provincia */}
                                                                         {provGoalReached && <i className="fas fa-trophy ms-2" style={{ color: '#f1c40f', fontSize: '14px' }}></i>}
                                                                     </h5>
                                                                 </div>
@@ -242,7 +233,7 @@ const ProgressSummary = ({ data }) => {
                                                                     <div className="fw-bold text-dark fs-5">{prov.target}{isOutcome && isDep ? '%' : ''}</div>
                                                                     {!isDep && !isOutcome && (
                                                                         <div className="text-muted" style={{ fontSize: '10px' }}>
-                                                                            {prov.target_men || 0}H | {prov.target_women || 0}M
+                                                                            {prov.target_men || 0} H | {prov.target_women || 0} M
                                                                         </div>
                                                                     )}
                                                                 </div>
