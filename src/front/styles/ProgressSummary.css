@@ -138,3 +138,27 @@
         transform: translateY(0);
     }
 }
+
+/* Animación de pulso para el círculo al llegar al 100% */
+@keyframes pulse-glow {
+  0% { transform: scale(1); box-shadow: 0 0 5px rgba(52, 152, 219, 0.4); }
+  50% { transform: scale(1.05); box-shadow: 0 0 20px rgba(52, 152, 219, 0.7); }
+  100% { transform: scale(1); box-shadow: 0 0 5px rgba(52, 152, 219, 0.4); }
+}
+
+.goal-reached-pulse {
+  animation: pulse-glow 2s infinite ease-in-out;
+}
+
+/* Animación de rebote para el trofeo */
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+  40% {transform: translateY(-5px);}
+  60% {transform: translateY(-3px);}
+}
+
+/* Mejora sutil para el fondo de la meta alcanzada en el select */
+select option[value="100+"] {
+    background-color: #3498db;
+    color: white;
+}
