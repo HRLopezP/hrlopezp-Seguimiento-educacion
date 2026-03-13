@@ -553,6 +553,7 @@ class Activity(db.Model):
     planned_women: Mapped[float] = mapped_column(Float, default=0.0)
     status: Mapped[ActivityStatus] = mapped_column(db.Enum(ActivityStatus), default=ActivityStatus.PLANIFICADA)
     cancellation_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    observations: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     indicator_id: Mapped[int] = mapped_column(ForeignKey('indicator.id_indicator'), nullable=False)
     project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
@@ -619,6 +620,7 @@ class Activity(db.Model):
         return {
             "id": self.id_activity,
             "description": self.description,
+            "observations": self.observations,
             "indicator_id": self.indicator_id,
             "indicator": {
                 "id": self.indicator_id,

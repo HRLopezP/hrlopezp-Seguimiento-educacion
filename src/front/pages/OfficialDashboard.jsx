@@ -204,9 +204,10 @@ export const OfficialDashboard = () => {
                                 <ActivityWizard
                                     selectedDate={selectedDate}
                                     proyectoId={context.proyectoId}
+                                    competenciaId={context.competenciaId}
                                     initialData={selectedActivity}
                                     onClose={closeModals}
-                                    onSaveSuccess={() => { closeModals(); loadActivities(); }}
+                                    onSaveSuccess={() => { closeModals(); loadActivities(context.proyectoId, context.competenciaId); }}
                                 />
                             </ModalWrapper>
                         )}
@@ -216,7 +217,10 @@ export const OfficialDashboard = () => {
                                 <AchievementTracker
                                     activity={selectedActivity}
                                     onClose={closeModals}
-                                    onRefresh={() => { loadActivities(); }}
+                                    onRefresh={() => {
+                                        loadActivities(context.proyectoId, context.competenciaId);
+                                        loadProgressSummary(context.proyectoId, context.competenciaId);
+                                    }}
                                 />
                             </ModalWrapper>
                         )}

@@ -1910,22 +1910,23 @@ def get_project_progress(project_id):
         query = Indicator.query.filter_by(project_id=project_id)
         
         if competence_id:
-            from api.models import ProjectResult, ProjectTheory, ProjectCompetence, IndicatorTemplate, ResultTemplate
+            from api.models import ProjectResult, IndicatorTemplate, ResultTemplate, TheoryTemplate
             query = query.join(IndicatorTemplate, Indicator.template_id == IndicatorTemplate.id)\
                          .join(ResultTemplate, IndicatorTemplate.result_id == ResultTemplate.id)\
                          .join(TheoryTemplate, ResultTemplate.theory_id == TheoryTemplate.id)\
                          .outerjoin(ProjectResult, Indicator.project_result_id == ProjectResult.id)\
                          .filter(
                              db.or_(
-                                 # Ahora buscamos la competencia en la Teoría de Cambio
                                  TheoryTemplate.competence_id == competence_id,
-                                 # Red de seguridad por si el resultado del proyecto existe
                                  ProjectResult.id != None
                              )
                          )
             
-            indicators = query.all()
-            print(f"DEBUG: Indicadores tras el join corregido: {len(indicators)}")
+        indicators = query.all()
+        print(f"DEBUG: Indicadores tras el join corregido: {len(indicators)}")
+
+        if not indicators:
+            return jsonify([]), 200
 
         # 2. Consultamos logros agrupados por indicador y provincia
         results = db.session.query(
@@ -2158,6 +2159,7 @@ def create_activitys():
 
         new_activity = Activity(
             description=data.get('description', ''),
+            observations=data.get('observations', ''),
             start_date=datetime.strptime(
                 data['start_date'].split('T')[0], '%Y-%m-%d'),
             end_date=datetime.strptime(
@@ -2207,6 +2209,8 @@ def update_activity(activity_id):
     try:
         if 'description' in data:
             activity.description = data['description']
+        if 'observations' in data:
+            activity.observations = data['observations']
         if 'planned_target' in data:
             activity.planned_target = float(data['planned_target'])
         elif 'planned_total' in data:

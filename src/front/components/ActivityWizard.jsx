@@ -9,7 +9,7 @@ export const invalidateGapCache = () => {
     console.log("Memoria de indicadores refrescada");
 };
 
-const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSaveSuccess }) => {
+const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, onClose, onSaveSuccess }) => {
     const [indicadores, setIndicadores] = useState([]);
     const [lugares, setLugares] = useState([]);
     const [catalogo, setCatalogo] = useState([]);
@@ -35,20 +35,22 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
         start_date: selectedDate || '',
         end_date: selectedDate || '',
         project_id: proyectoId,
-        project_competence_id: ''
+        project_competence_id: '',
+        observations: ''
     });
 
     const filteredIndicators = useMemo(() => {
         return indicadores.filter(ind => {
+            const isSameCompetence = String(ind.project_competence_id) === String(competenciaId);
             const matchesSearch = ind.indicator_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 ind.indicator_name.toLowerCase().includes(searchTerm.toLowerCase());
 
             const isPlanificable = ind.result_type === 'output' ||
                 (ind.result_type === 'outcome' && ind.calculation_type === 'independent');
 
-            return matchesSearch && isPlanificable;
+            return isSameCompetence && matchesSearch && isPlanificable;
         });
-    }, [indicadores, searchTerm]);
+    }, [indicadores, searchTerm, competenciaId]);
 
     const groupedIndicators = useMemo(() => {
         return filteredIndicators.reduce((acc, curr) => {
@@ -104,7 +106,8 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                             start_date: initialData.period?.start || selectedDate,
                             end_date: initialData.period?.end || selectedDate,
                             project_id: proyectoId,
-                            project_competence_id: initialData.project_competence_id || ''
+                            project_competence_id: initialData.project_competence_id || '',
+                            observations: initialData.observations || ''
                         });
 
                         if (initialData.description) {
@@ -177,7 +180,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
     const handleSave = async () => {
         const finalDescription = selectedActivities.join(", ");
 
-        // Validaciones iniciales
         if (parseInt(form.planned_total) <= 0) {
             Swal.fire('Atención', 'Debes asignar al menos un beneficiario (hombre o mujer) para guardar.', 'warning');
             return;
@@ -241,7 +243,8 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
             if (!projectData) {
                 setLoadingGap(true);
                 try {
-                    const res = await apiFetch(`/project/${proyectoId}/progress-summary`, { signal: controller.signal });
+                    const competenceParam = form.project_competence_id ? `?competence_id=${form.project_competence_id}` : '';
+                    const res = await apiFetch(`/project/${proyectoId}/progress-summary${competenceParam}`, { signal: controller.signal });
                     if (res?.ok) {
                         projectData = await res.json();
                         gapCache["current_project"] = projectData;
@@ -483,6 +486,21 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                     <div className="col-md-6">
                         <label className="form-label fw-bold small text-oxford">FECHA FIN</label>
                         <input type="date" className="form-control" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} />
+                    </div>
+                    {/* OBSERVACIONES */}
+                    <div className="col-12 mt-2">
+                        <label className="form-label fw-bold small text-oxford">OBSERVACIONES / JUSTIFICACIÓN</label>
+                        <textarea
+                            className="form-control border-emerald"
+                            rows="3"
+                            placeholder="Escriba aquí detalles adicionales, justificaciones o notas relevantes para esta planificación..."
+                            value={form.observations || ''}
+                            onChange={(e) => setForm({ ...form, observations: e.target.value })}
+                            style={{ fontSize: '0.85rem', resize: 'none' }}
+                        ></textarea>
+                        <div className="form-text small">
+                            Detalle cualquier información relevante que ayude a entender el alcance de esta actividad.
+                        </div>
                     </div>
                     {/* PANEL DE BRECHA PROFESIONAL */}
                     {loadingGap ? (
