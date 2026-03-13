@@ -57,14 +57,13 @@ const ContextSelector = ({ onContextChange }) => {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        const newSelection = { ...selection, [name]: value };
+        const numericValue = value ? parseInt(value, 10) : '';
+        const newSelection = { ...selection, [name]: numericValue };
 
-        // Si cambia la competencia, reseteamos el proyecto
         if (name === 'competenciaId') newSelection.proyectoId = '';
 
         setSelection(newSelection);
 
-        // Notificamos al componente padre (Dashboard) para actualizar el estado global
         if (newSelection.competenciaId && newSelection.proyectoId) {
             onContextChange(newSelection);
         }

@@ -17,10 +17,15 @@ export const OfficialDashboard = () => {
     const [selectedDate, setSelectedDate] = useState(null);
     const [selectedActivity, setSelectedActivity] = useState(null);
     const [modals, setModals] = useState({ manager: false, wizard: false, tracker: false });
-    const loadActivities = useCallback(async () => {
+
+    const loadActivities = useCallback(async (proyectoId, competenciaId) => {
+        if (!proyectoId || !competenciaId) {
+            setActivities([]);
+            return;
+        }
         setLoading(prev => ({ ...prev, activities: true }));
         try {
-            const res = await apiFetch("/official/activities");
+            const res = await apiFetch(`/official/activities?project_id=${proyectoId}&competence_id=${competenciaId}`);
             if (res?.ok) {
                 const data = await res.json();
                 setActivities(data);
@@ -32,22 +37,42 @@ export const OfficialDashboard = () => {
         }
     }, []);
 
-    const loadProgressSummary = async () => {
-        if (!context?.proyectoId) return;
-        setLoading(prev => ({ ...prev, summary: true }));
-        const res = await apiFetch(`/project/${context.proyectoId}/progress-summary`);
-        if (res?.ok) {
-            const data = await res.json();
-            setSummaryData(data);
-        }
-        setLoading(prev => ({ ...prev, summary: false }));
-    };
+    const loadProgressSummary = useCallback(async (proyectoId, competenciaId) => {
+        if (!proyectoId || !competenciaId) return;
+        console.log("Enviando a summary:", { proyectoId, competenciaId });
 
-    useEffect(() => { loadActivities(); }, [loadActivities]);
+        setLoading(prev => ({ ...prev, summary: true }));
+        try {
+            const res = await apiFetch(`/project/${proyectoId}/progress-summary?competence_id=${competenciaId}`);
+            if (res?.ok) {
+                const data = await res.json();
+                setSummaryData(data);
+            }
+        } catch (error) {
+            toast.error("Error al cargar el resumen de progreso");
+        } finally {
+            setLoading(prev => ({ ...prev, summary: false }));
+        }
+    }, []);
 
     useEffect(() => {
-        if (activeTab === 'summary') loadProgressSummary();
-    }, [activeTab, context]);
+        if (context?.proyectoId && context?.competenciaId) {
+            loadActivities(context.proyectoId, context.competenciaId);
+        } else {
+            setActivities([]);
+        }
+    }, [context?.proyectoId, context?.competenciaId, loadActivities]);
+
+
+    useEffect(() => {
+        if (activeTab === 'summary') {
+            if (context?.proyectoId && context?.competenciaId) {
+                loadProgressSummary(context.proyectoId, context.competenciaId);
+            } else {
+                setSummaryData([]);
+            }
+        }
+    }, [activeTab, context?.proyectoId, context?.competenciaId, loadProgressSummary]);
 
     const activitiesInSelectedDate = useMemo(() => {
         return activities.filter(act => act.period?.start === selectedDate);
@@ -126,7 +151,11 @@ export const OfficialDashboard = () => {
                 <ContextSelector onContextChange={setContext} />
 
                 {context ? (
-                    <div className="mt-4">
+                    <div className="mt-4" style={{
+                        opacity: loading.activities ? 0.5 : 1,
+                        transition: 'opacity 0.3s ease',
+                        pointerEvents: loading.activities ? 'none' : 'auto'
+                    }}>
                         {activeTab === 'planning' ? (
                             <ExecutionCalendar
                                 onDateSelect={handleDateSelect}

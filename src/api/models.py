@@ -334,11 +334,16 @@ class Indicator(db.Model):
         return "output"
 
     def serialize(self):
-        res_temp = self.project_result.result_template if self.project_result else None
-        theo_temp = res_temp.theory if res_temp else None
+        res_info = self.project_result if self.project_result else (self.template.result if self.template else None)
+        # res_temp = self.project_result.result_template if self.project_result else (self.template.result if self.template else None)
+        theo_temp = None
+        if self.project_result and self.project_result.project_theory:
+            theo_temp = self.project_result.project_theory
+        elif res_info and hasattr(res_info, 'theory'):
+            theo_temp = res_info.theory
 
-        if not theo_temp and self.template and self.template.result:
-            theo_temp = self.template.result.theory
+        # if not theo_temp and self.template and self.template.result:
+        #     theo_temp = self.template.result.theory
         
         comp_id = theo_temp.competence_id if theo_temp else None
         pc_id = None
@@ -357,19 +362,22 @@ class Indicator(db.Model):
 
         comp_temp = theo_temp.competence if theo_temp else None
 
-        final_type = "output"
-        if res_temp:
-            final_type = res_temp.type
-        elif self.template and self.template.result:
-            final_type = self.template.result.type
+        # final_type = "output"
+        # if res_temp:
+        #     final_type = res_temp.type
+        # elif self.template and self.template.result:
+        #     final_type = self.template.result.type
 
-        if not comp_temp and self.template and self.template.result:
-            res_temp = self.template.result
-            theo_temp = res_temp.theory
-            comp_temp = theo_temp.competence
+        # if not comp_temp and self.template and self.template.result:
+        #     res_temp = self.template.result
+        #     theo_temp = res_temp.theory
+        #     comp_temp = theo_temp.competence
         
-        nombre_resultado = "General"
-        tipo_resultado = "output"
+        # nombre_resultado = "General"
+        # tipo_resultado = "output"
+
+        nombre_resultado = res_info.name if res_info else "General"
+        tipo_resultado = (res_info.type or "output") if res_info else "output"
 
         if self.project_result:
             nombre_resultado = self.project_result.name
@@ -382,9 +390,9 @@ class Indicator(db.Model):
             "id": self.id_indicator,
             "competence_id": comp_temp.id_competence if comp_temp else None,
             "template_id": self.template_id,
-            "indicator_code": self.template.code,
-            "indicator_name": self.template.name,
-            "description": self.template.description,
+            "indicator_code": self.template.code if self.template else "N/A",
+            "indicator_name": self.template.name if self.template else "Sin nombre",
+            "description": self.template.description if self.template else "",
             "verification_means": self.verification_means or "", 
             "observations": self.observations or "",
             "project_competence_id": pc_id,

@@ -1080,6 +1080,9 @@ def bulk_indicators():
                 ProjectResult.result_template_id == template_info.result_id
             ).first()
 
+            if not real_project_result:
+                print(f"⚠️ Alerta: El indicador {template_info.name} no encontró un ProjectResult coincidente.")
+
             project_res_id = real_project_result.id if real_project_result else None
 
             # Buscamos si ya existe para actualizarlo, sino lo creamos
@@ -1901,11 +1904,28 @@ def upload_evidence():
 @api.route('/project/<int:project_id>/progress-summary', methods=['GET'])
 @jwt_required()
 def get_project_progress(project_id):
+    print(f"DEBUG: Total indicadores en DB para este proyecto: {Indicator.query.filter_by(project_id=project_id).count()}")
     try:
-        # 1. Carga inicial de datos maestros
-        indicators = Indicator.query.filter_by(project_id=project_id).all()
-        if not indicators:
-            return jsonify([]), 200
+        competence_id = request.args.get('competence_id')
+        query = Indicator.query.filter_by(project_id=project_id)
+        
+        if competence_id:
+            from api.models import ProjectResult, ProjectTheory, ProjectCompetence, IndicatorTemplate, ResultTemplate
+            query = query.join(IndicatorTemplate, Indicator.template_id == IndicatorTemplate.id)\
+                         .join(ResultTemplate, IndicatorTemplate.result_id == ResultTemplate.id)\
+                         .join(TheoryTemplate, ResultTemplate.theory_id == TheoryTemplate.id)\
+                         .outerjoin(ProjectResult, Indicator.project_result_id == ProjectResult.id)\
+                         .filter(
+                             db.or_(
+                                 # Ahora buscamos la competencia en la Teoría de Cambio
+                                 TheoryTemplate.competence_id == competence_id,
+                                 # Red de seguridad por si el resultado del proyecto existe
+                                 ProjectResult.id != None
+                             )
+                         )
+            
+            indicators = query.all()
+            print(f"DEBUG: Indicadores tras el join corregido: {len(indicators)}")
 
         # 2. Consultamos logros agrupados por indicador y provincia
         results = db.session.query(
@@ -2257,9 +2277,24 @@ def get_indicator_locations(indicator_id):
 @jwt_required()
 def get_activities():
     user_id = get_jwt_identity()
+    # 1. Capturamos el project_id de la URL (query params)
+    project_id = request.args.get('project_id')
+    competence_id = request.args.get('competence_id')
+    
     hoy_venezuela = datetime.utcnow() - timedelta(hours=4)
     today = hoy_venezuela.date()
-    activities = Activity.query.filter_by(created_by_id=user_id).all()
+
+    # 2. Iniciamos la consulta filtrando por usuario
+    query = Activity.query.filter_by(created_by_id=user_id)
+
+    # 3. Si el usuario mandó un proyecto específico, filtramos por ese proyecto
+    if project_id:
+        query = query.filter_by(project_id=project_id)
+
+    if competence_id:
+        query = query.filter_by(project_competence_id=competence_id)
+
+    activities = query.all()
 
     results = []
     for act in activities:
