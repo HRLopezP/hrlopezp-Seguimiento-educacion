@@ -11,15 +11,13 @@ const ContextSelector = ({ onContextChange }) => {
         proyectoId: ''
     });
 
-    // 1. Cargar competencias
     useEffect(() => {
         const loadInitialData = async () => {
             try {
                 const response = await apiFetch("/official/competences");
 
-                // Verificamos si la respuesta es exitosa (caja abierta con éxito)
                 if (response && response.ok) {
-                    const data = await response.json(); // <--- Aquí abrimos la caja localmente
+                    const data = await response.json();
                     setCompetencias(Array.isArray(data) ? data : []);
                 }
             } catch (error) {
@@ -30,7 +28,6 @@ const ContextSelector = ({ onContextChange }) => {
         loadInitialData();
     }, []);
 
-    // 2. Cargar proyectos
     useEffect(() => {
         if (!selection.competenciaId) {
             setProyectos([]);
@@ -42,7 +39,7 @@ const ContextSelector = ({ onContextChange }) => {
                 const response = await apiFetch(`/official/projects?competencia_id=${id}`);
 
                 if (response && response.ok) {
-                    const data = await response.json(); // <--- Abrimos la caja localmente
+                    const data = await response.json(); 
                     setProyectos(Array.isArray(data) ? data : []);
                 }
             } catch (error) {
@@ -123,7 +120,6 @@ const ContextSelector = ({ onContextChange }) => {
                     </div>
                 </div>
 
-                {/* Feedback Visual de Conexión */}
                 {selection.proyectoId && (
                     <div className="mt-3 fade-in">
                         <span className="badge-sigssep">

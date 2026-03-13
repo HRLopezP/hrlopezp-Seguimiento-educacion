@@ -1,9 +1,9 @@
-import React, { useState } from 'react'; // Usamos desestructuración para React.useState
+import React, { useState } from 'react';
 import { getStatusData } from "../../utils/statusHelper";
 
 const DayManagerModal = ({
     selectedDate,
-    activities = [], // Valor por defecto para evitar errores
+    activities = [], 
     onEditActivity,
     onAddActivity,
     onRegisterAchievement,
@@ -120,13 +120,12 @@ const DayManagerModal = ({
                                                     <div className="btn-group">
                                                         {act.status !== 'Cancelada' && (
                                                             <>
-                                                                {/* Solo mostrar cancelar si NO está completada */}
                                                                 {act.status !== 'Completada' && (
                                                                     <button className="btn btn-sm btn-outline-danger border-0" onClick={() => setCancellingId(act.id)} title="Cancelar">
                                                                         <i className="fas fa-ban"></i>
                                                                     </button>
                                                                 )}
-                                                                {/* 2. EDITAR PLANIFICACIÓN: Se oculta si ya se completó */}
+                                                                {/* 2. EDITAR PLANIFICACIÓN*/}
                                                                 {act.status !== 'Completada' && (
                                                                     <button className="btn btn-sm btn-outline-secondary border-0" onClick={() => onEditActivity(act)} title="Editar Planificación">
                                                                         <i className="fas fa-edit"></i>

@@ -92,7 +92,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, 
                     if (initialData) {
                         const currentIndicatorId = initialData.indicator?.id || initialData.indicator_id;
                         const indSeleccionado = listaIndicadores.find(i => String(i.id) === String(currentIndicatorId));
-                        // CARGA CRÍTICA: Esperamos a que los lugares se carguen y filtren
                         if (currentIndicatorId) {
                             await cargarLugares(currentIndicatorId, indSeleccionado);
                         }
@@ -163,8 +162,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, 
     };
 
     const selectIndicator = (ind) => {
-        // El nuevo resumen usa 'id', pero tu lista de indicadores inicial puede usar 'id_indicator'
-        // Forzamos a que siempre usemos el mismo nombre de propiedad
         const idLimpio = ind.id || ind.id_indicator;
 
         setForm(prev => ({
@@ -201,16 +198,11 @@ const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, 
             });
 
             if (res?.ok) {
-                // --- CAMBIO CRÍTICO AQUÍ ---
-                // Invalidados la caché global para que al volver a abrir o cambiar de indicador
-                // se descargue el progreso real time actualizado desde el backend.
+
                 invalidateGapCache();
 
                 await Swal.fire('¡Éxito!', 'Planificación guardada correctamente.', 'success');
-
                 setSelectedActivities([]);
-
-                // Notificamos al padre que hubo un cambio (esto refresca el calendario/dashboard)
                 if (typeof onSaveSuccess === 'function') {
                     onSaveSuccess();
                 } else {
@@ -232,7 +224,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, 
         const controller = new AbortController();
 
         const fetchGap = async () => {
-            // Validación: Solo actuamos si hay ambos IDs
             if (!form.indicator_id || !form.location_id) {
                 setGapData(null);
                 return;
@@ -277,7 +268,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, 
                     if (statsProv) {
                         setGapData({
                             indicator_id: indInfo.id,
-                            indicator_type: indInfo.type, // Asegúrate que el JSON diga 'type'
+                            indicator_type: indInfo.type,
                             target: {
                                 total: statsProv.target,
                                 men: statsProv.target_men || 0,
@@ -332,7 +323,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, 
 
     return (
         <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '15px' }}>
-            {/* Header con Oxford Grey */}
+            {/* Header */}
             <div className="modal-header text-white" style={{ backgroundColor: '#1B263B' }}>
                 <h5 className="modal-title fw-bold">
                     <i className="fas fa-calendar-check me-2 text-emerald"></i>
@@ -478,7 +469,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, 
                             ))}
                         </div>
                     </div>
-                    {/* SECCIÓN 3: FECHAS (RESTABLECIDAS) */}
+                    {/*  FECHAS*/}
                     <div className="col-md-6">
                         <label className="form-label fw-bold small text-oxford">FECHA INICIO</label>
                         <input type="date" className="form-control" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
