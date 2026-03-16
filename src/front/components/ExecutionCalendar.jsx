@@ -6,7 +6,7 @@ import bootstrap5Plugin from '@fullcalendar/bootstrap5';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import { getStatusData } from "../../utils/statusHelper";
 
-const ExecutionCalendar = ({ onDateSelect, activities = [], onActivityClick }) => {
+const ExecutionCalendar = ({ onDateSelect, activities = [], onActivityClick, isManagerView = false }) => {
 
     const events = (activities || []).map(act => {
         const endDate = new Date(act.period.end);
@@ -14,9 +14,13 @@ const ExecutionCalendar = ({ onDateSelect, activities = [], onActivityClick }) =
 
         const statusStyle = getStatusData(act.status);
 
+        const displayTitle = (isManagerView && act.responsible?.initials)
+            ? `[${act.responsible.initials}] ${act.description}`
+            : act.description;
+
         return {
             id: act.id,
-            title: act.description,
+            title: displayTitle,
             start: act.period.start,
             end: endDate.toISOString().split('T')[0],
             backgroundColor: statusStyle.calendarColor,
@@ -43,6 +47,7 @@ const ExecutionCalendar = ({ onDateSelect, activities = [], onActivityClick }) =
                 selectMirror={true}
                 dayMaxEvents={true}
                 height="70vh"
+                // dateClick={(info) => onDateSelect && onDateSelect(info.dateStr)}
                 dateClick={(info) => onDateSelect(info.dateStr)}
                 eventClick={(info) => {
                     if (onActivityClick) {
@@ -50,6 +55,13 @@ const ExecutionCalendar = ({ onDateSelect, activities = [], onActivityClick }) =
                     }
                 }}
                 eventDisplay="block"
+                eventMouseEnter={(info) => {
+                    info.el.style.filter = "brightness(0.9)";
+                    info.el.style.cursor = "pointer";
+                }}
+                eventMouseLeave={(info) => {
+                    info.el.style.filter = "brightness(1)";
+                }}
             />
         </div>
     );

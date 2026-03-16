@@ -29,6 +29,7 @@ import ProjectTechnicalSetup from "./pages/ProjectTechnicalSetup";
 import ActivityCatalogManagement from "./pages/ActivityCatalogManagement";
 import VerificationMeansManagement from "./pages/VerificationMeansManagement";
 import { OfficialDashboard } from "./pages/OfficialDashboard";
+import {ManagerDashboard} from "./pages/ManagerDashboard"
 import Profile from "./pages/Profile";
 
 export const router = createBrowserRouter(
@@ -165,6 +166,15 @@ export const router = createBrowserRouter(
         element={
           <ProtectedRoute>
             <ActivityCatalogManagement />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/manager/dashboard"
+        element={
+          <ProtectedRoute>
+            <ManagerDashboard />
           </ProtectedRoute>
         }
       />
