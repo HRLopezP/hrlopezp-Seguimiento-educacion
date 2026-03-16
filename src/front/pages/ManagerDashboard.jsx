@@ -11,47 +11,48 @@ export const ManagerDashboard = () => {
     const [activities, setActivities] = useState([]);
     const [summaryData, setSummaryData] = useState([]);
     const [loading, setLoading] = useState({ activities: false, summary: false });
-    
+
     // Estados específicos para la supervisión de múltiples usuarios
-    const [selectedUsers, setSelectedUsers] = useState([]); 
+    const [selectedUsers, setSelectedUsers] = useState([]);
 
     // 1. Cargar Actividades (Versión Manager: trae todo lo de la competencia)
-    const loadActivities = useCallback(async (proyectoId, competenciaId) => {
-        if (!proyectoId || !competenciaId) {
-            setActivities([]);
-            return;
-        }
+    const loadActivities = useCallback(async (ctx) => {
+        // Extraemos los IDs directamente del objeto de contexto que recibe la función
+        const { proyectoId, competenciaId } = ctx;
+        if (!proyectoId || !competenciaId) return;
         setLoading(prev => ({ ...prev, activities: true }));
         try {
-            // USAMOS EL ENDPOINT DE MANAGER
-            const res = await apiFetch(`/manager/activities?project_id=${proyectoId}&competence_id=${competenceId}`);
+            const res = await apiFetch(`/manager/activities?project_id=${proyectoId}&competence_id=${competenciaId}`);
             if (res?.ok) {
                 const data = await res.json();
                 setActivities(data);
-                
-                // Al cargar, seleccionamos a todos los responsables por defecto
                 const users = [...new Set(data.map(a => a.responsible?.id))].filter(Boolean);
                 setSelectedUsers(users);
             }
         } catch (error) {
-            toast.error("Error al cargar actividades de supervisión");
+            toast.error("Error al cargar actividades");
         } finally {
             setLoading(prev => ({ ...prev, activities: false }));
         }
     }, []);
 
     // 2. Cargar Resumen de Progreso (Mismo que el oficial, pero muestra impacto global)
-    const loadProgressSummary = useCallback(async (proyectoId, competenciaId) => {
+    const loadProgressSummary = useCallback(async (ctx) => {
+        // 👨‍🏫 PROFE: Extraemos con los nombres exactos del objeto context
+        const { proyectoId, competenciaId } = ctx;
+
         if (!proyectoId || !competenciaId) return;
+
         setLoading(prev => ({ ...prev, summary: true }));
         try {
+            // 👨‍🏫 PROFE: Usamos exactamente "competenciaId" (con "ia")
             const res = await apiFetch(`/project/${proyectoId}/progress-summary?competence_id=${competenciaId}`);
             if (res?.ok) {
                 const data = await res.json();
                 setSummaryData(data);
             }
         } catch (error) {
-            toast.error("Error al cargar resumen gerencial");
+            console.error("Error en summary:", error);
         } finally {
             setLoading(prev => ({ ...prev, summary: false }));
         }
@@ -59,8 +60,9 @@ export const ManagerDashboard = () => {
 
     useEffect(() => {
         if (context?.proyectoId && context?.competenciaId) {
-            loadActivities(context.proyectoId, context.competenciaId);
-            loadProgressSummary(context.proyectoId, context.competenciaId);
+            // Pasamos el objeto context completo a las funciones
+            loadActivities(context);
+            loadProgressSummary(context);
         }
     }, [context, loadActivities, loadProgressSummary]);
 
@@ -80,7 +82,7 @@ export const ManagerDashboard = () => {
     }, [activities, selectedUsers]);
 
     const toggleUserFilter = (userId) => {
-        setSelectedUsers(prev => 
+        setSelectedUsers(prev =>
             prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
         );
     };
@@ -108,7 +110,7 @@ export const ManagerDashboard = () => {
 
                 {context ? (
                     <div className="row mt-4" style={{ opacity: loading.activities ? 0.6 : 1, transition: 'opacity 0.3s' }}>
-                        
+
                         {activeTab === 'planning' ? (
                             <>
                                 {/* Columna de Filtros de Personas */}
@@ -118,9 +120,9 @@ export const ManagerDashboard = () => {
                                         {availableUsers.length === 0 && <small className="text-muted">Sin actividades registradas</small>}
                                         {availableUsers.map(user => (
                                             <div key={user.id} className="form-check mb-2">
-                                                <input 
-                                                    className="form-check-input" 
-                                                    type="checkbox" 
+                                                <input
+                                                    className="form-check-input"
+                                                    type="checkbox"
                                                     checked={selectedUsers.includes(user.id)}
                                                     onChange={() => toggleUserFilter(user.id)}
                                                     id={`user-${user.id}`}

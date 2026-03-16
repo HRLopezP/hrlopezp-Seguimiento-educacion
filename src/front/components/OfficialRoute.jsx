@@ -9,8 +9,7 @@ export const OfficialRoute = ({ children }) => {
 
     try {
         const decoded = jwtDecode(token);
-        // El Oficial tiene su propia ruta, pero el Gerente/Admin también puede supervisar
-        const authorizedRoles = ["Oficial", "Gerente", "Administrador"];
+        const authorizedRoles = ["Oficial", "Coordinador", "Gerente", "Administrador"];
         
         if (authorizedRoles.includes(decoded.rol)) {
             return children;
