@@ -58,21 +58,13 @@ export const OfficialDashboard = () => {
     useEffect(() => {
         if (context?.proyectoId && context?.competenciaId) {
             loadActivities(context.proyectoId, context.competenciaId);
+            loadProgressSummary(context.proyectoId, context.competenciaId);
         } else {
             setActivities([]);
+            setSummaryData([]);
         }
-    }, [context?.proyectoId, context?.competenciaId, loadActivities]);
+    }, [context?.proyectoId, context?.competenciaId, loadActivities, loadProgressSummary]);
 
-
-    useEffect(() => {
-        if (activeTab === 'summary') {
-            if (context?.proyectoId && context?.competenciaId) {
-                loadProgressSummary(context.proyectoId, context.competenciaId);
-            } else {
-                setSummaryData([]);
-            }
-        }
-    }, [activeTab, context?.proyectoId, context?.competenciaId, loadProgressSummary]);
 
     const activitiesInSelectedDate = useMemo(() => {
         return activities.filter(act => act.period?.start === selectedDate);
@@ -101,22 +93,16 @@ export const OfficialDashboard = () => {
             });
 
             if (res && res.ok) {
-                toast.success("Actividad cancelada correctamente");
+                toast.success("Actividad cancelada");
 
                 setActivities(prev => prev.map(act =>
                     act.id === actId
                         ? { ...act, status: 'Cancelada', cancellation_reason: reason }
                         : act
                 ));
-
                 closeModals();
-
-            } else {
-                const errorData = await res.json();
-                toast.error(errorData.msg || "Error al cancelar");
             }
         } catch (error) {
-            console.error("Error:", error);
             toast.error("Error de conexión");
         }
     };
@@ -206,8 +192,13 @@ export const OfficialDashboard = () => {
                                     proyectoId={context.proyectoId}
                                     competenciaId={context.competenciaId}
                                     initialData={selectedActivity}
+                                    summaryData={summaryData}
                                     onClose={closeModals}
-                                    onSaveSuccess={() => { closeModals(); loadActivities(context.proyectoId, context.competenciaId); }}
+                                    onSaveSuccess={() => { 
+                                        closeModals(); 
+                                        loadActivities(context.proyectoId, context.competenciaId);
+                                        loadProgressSummary(context.proyectoId, context.competenciaId);
+                                    }}
                                 />
                             </ModalWrapper>
                         )}

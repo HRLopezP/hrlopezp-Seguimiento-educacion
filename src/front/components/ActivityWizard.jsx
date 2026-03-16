@@ -9,7 +9,7 @@ export const invalidateGapCache = () => {
     console.log("Memoria de indicadores refrescada");
 };
 
-const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, onClose, onSaveSuccess }) => {
+const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, onClose, onSaveSuccess, summaryData }) => {
     const [indicadores, setIndicadores] = useState([]);
     const [lugares, setLugares] = useState([]);
     const [catalogo, setCatalogo] = useState([]);
@@ -81,9 +81,16 @@ const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, 
 
     useEffect(() => {
         const loadInitialData = async () => {
+            if (!proyectoId) return;
+
             try {
                 setLoading(true);
-                const resInd = await apiFetch(`/official/projects/${proyectoId}/indicators`);
+                const [resInd, resLoc] = await Promise.all([
+                    apiFetch(`/official/projects/${proyectoId}/indicators`),
+                    initialData?.indicator_id
+                        ? apiFetch(`/official/indicators/${initialData.indicator_id}/locations`)
+                        : Promise.resolve(null)
+                ]);
 
                 if (resInd?.ok) {
                     const listaIndicadores = await resInd.json();
@@ -91,10 +98,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, 
 
                     if (initialData) {
                         const currentIndicatorId = initialData.indicator?.id || initialData.indicator_id;
-                        const indSeleccionado = listaIndicadores.find(i => String(i.id) === String(currentIndicatorId));
-                        if (currentIndicatorId) {
-                            await cargarLugares(currentIndicatorId, indSeleccionado);
-                        }
 
                         setForm({
                             indicator_id: String(currentIndicatorId || ''),
@@ -114,6 +117,12 @@ const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, 
                         }
                     }
                 }
+
+                if (resLoc?.ok) {
+                    const dataLoc = await resLoc.json();
+                    setLugares(dataLoc);
+                }
+
             } catch (err) {
                 console.error("Error en carga inicial:", err);
             } finally {
@@ -121,7 +130,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, 
             }
         };
 
-        if (proyectoId) loadInitialData();
+        loadInitialData();
     }, [proyectoId, initialData]);
 
 
@@ -220,82 +229,62 @@ const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, 
         }
     };
 
+    // ✅ Ahora recibimos 'summaryData' como prop del componente padre
     useEffect(() => {
-        const controller = new AbortController();
+        // Si no hay datos suficientes, limpiamos el gap
+        if (!form.indicator_id || !form.location_id || !summaryData) {
+            setGapData(null);
+            return;
+        }
 
-        const fetchGap = async () => {
-            if (!form.indicator_id || !form.location_id) {
-                setGapData(null);
-                return;
+        const calculateGap = () => {
+            // 1. Buscamos el indicador dentro del resumen que ya tiene el padre
+            const indInfo = summaryData.find(d => String(d.id) === String(form.indicator_id));
+
+            // 2. Buscamos la ubicación seleccionada para sacar el province_id
+            const ubicacionSeleccionada = lugares.find(l => String(l.id_location) === String(form.location_id));
+            let provId = ubicacionSeleccionada?.province_id;
+
+            // Backup por si el ID no viene directo (buscando por nombre en los detalles del indicador)
+            if (!provId && ubicacionSeleccionada?.province_name) {
+                const metaProvincia = selectedIndicatorDetails?.goals_by_province?.find(
+                    g => g.province_name === ubicacionSeleccionada.province_name
+                );
+                provId = metaProvincia?.province_id;
             }
 
-            let projectData = gapCache["current_project"];
+            // 3. Si encontramos la info y la provincia, calculamos el gap en memoria
+            if (indInfo && provId) {
+                const statsProv = indInfo.provinces?.find(p => String(p.province_id) === String(provId));
 
-            if (!projectData) {
-                setLoadingGap(true);
-                try {
-                    const competenceParam = form.project_competence_id ? `?competence_id=${form.project_competence_id}` : '';
-                    const res = await apiFetch(`/project/${proyectoId}/progress-summary${competenceParam}`, { signal: controller.signal });
-                    if (res?.ok) {
-                        projectData = await res.json();
-                        gapCache["current_project"] = projectData;
-                    }
-                } catch (err) {
-                    if (err.name !== 'AbortError') console.error("Error cargando brecha:", err);
-                } finally {
-                    setLoadingGap(false);
-                }
-            }
-
-            if (projectData) {
-                const indInfo = projectData.find(d => String(d.id) === String(form.indicator_id));
-                const ubicacionSeleccionada = lugares.find(l => String(l.id_location) === String(form.location_id));
-                let provId = ubicacionSeleccionada?.province_id;
-
-                if (!provId && ubicacionSeleccionada?.province_name) {
-                    const metaProvincia = selectedIndicatorDetails?.goals_by_province?.find(
-                        g => g.province_name === ubicacionSeleccionada.province_name
-                    );
-                    provId = metaProvincia?.province_id;
-                }
-
-                console.log("Ubicación objeto completo:", ubicacionSeleccionada);
-                console.log("Provincia ID final:", provId);
-
-                if (indInfo && provId) {
-                    const statsProv = indInfo.provinces?.find(p => String(p.province_id) === String(provId));
-
-                    if (statsProv) {
-                        setGapData({
-                            indicator_id: indInfo.id,
-                            indicator_type: indInfo.type,
-                            target: {
-                                total: statsProv.target,
-                                men: statsProv.target_men || 0,
-                                women: statsProv.target_women || 0
-                            },
-                            achieved: {
-                                total: statsProv.achieved,
-                                men: statsProv.men,
-                                women: statsProv.women
-                            },
-                            gap: {
-                                total: Math.max(0, statsProv.target - statsProv.achieved),
-                                men: Math.max(0, (statsProv.target_men || 0) - statsProv.men),
-                                women: Math.max(0, (statsProv.target_women || 0) - statsProv.women)
-                            }
-                        });
-                    } else {
-                        console.warn("No se encontraron estadísticas para la provincia:", provId);
-                        setGapData(null);
-                    }
+                if (statsProv) {
+                    setGapData({
+                        indicator_id: indInfo.id,
+                        indicator_type: indInfo.type,
+                        target: {
+                            total: statsProv.target,
+                            men: statsProv.target_men || 0,
+                            women: statsProv.target_women || 0
+                        },
+                        achieved: {
+                            total: statsProv.achieved,
+                            men: statsProv.men,
+                            women: statsProv.women
+                        },
+                        gap: {
+                            total: Math.max(0, statsProv.target - statsProv.achieved),
+                            men: Math.max(0, (statsProv.target_men || 0) - statsProv.men),
+                            women: Math.max(0, (statsProv.target_women || 0) - statsProv.women)
+                        }
+                    });
+                } else {
+                    setGapData(null);
                 }
             }
         };
 
-        fetchGap();
-        return () => controller.abort();
-    }, [form.indicator_id, form.location_id, proyectoId, lugares]);
+        calculateGap();
+    }, [form.indicator_id, form.location_id, summaryData, lugares]);
 
 
     useEffect(() => {

@@ -97,7 +97,13 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
 
             if (res?.ok) {
                 invalidateGapCache(activity.location_id);
-                await Swal.fire('¡Logrado!', isEditing ? 'El registro ha sido actualizado.' : 'El logro se ha descontado de la meta global.', 'success');
+                await Swal.fire({
+                    title: '¡Logrado!',
+                    text: isEditing ? 'Registro actualizado.' : 'El logro se ha descontado de la meta.',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
                 onRefresh();
                 onClose();
             }
