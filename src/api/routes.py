@@ -1558,7 +1558,7 @@ def get_project_indicatores(project_id):
     return jsonify([ind.serialize() for ind in indicators]), 200
 
 
-# 1. OBTENER TODOS LOS MEDIOS
+# 1. Listado de medios de verificación 1
 @api.route('/verification-means', methods=['GET'])
 @jwt_required()
 def get_verification_means():
@@ -1566,7 +1566,7 @@ def get_verification_means():
     return jsonify([m.serialize() for m in means]), 200
 
 
-# 2. CREAR NUEVO MEDIO (Solo Gerente)
+# 2-C
 @api.route('/verification-means', methods=['POST'])
 @manager_required
 def create_verification_mean():
@@ -1584,7 +1584,7 @@ def create_verification_mean():
 
     return jsonify(new_mean.serialize()), 201
 
-# 3. ACTUALIZAR UN MEDIO (Solo Gerente)
+# 3-E
 @api.route('/verification-means/<int:id>', methods=['PUT'])
 @manager_required
 def update_verification_mean(id):
@@ -1597,7 +1597,7 @@ def update_verification_mean(id):
     db.session.commit()
     return jsonify(mean.serialize()), 200
 
-# 4. ELIMINAR UN MEDIO (Solo Gerente)
+# 4-B
 @api.route('/verification-means/<int:id>', methods=['DELETE'])
 @manager_required
 def delete_verification_mean(id):
@@ -1670,7 +1670,7 @@ def get_my_indicators(project_id):
 
     return jsonify(filtered_indicators), 200
 
-
+#Enpoints para generar listado de actividades 1-C
 @api.route('/activities', methods=['POST'])
 @jwt_required()
 def create_activity():
@@ -1703,7 +1703,7 @@ def create_activity():
         db.session.rollback()
         return jsonify({"message": f"Error al crear planificación: {str(e)}"}), 500
 
-
+#2-E
 @api.route('/activities/<int:id>', methods=['PATCH'])
 @jwt_required()
 def patch_activity(id):
@@ -1738,7 +1738,7 @@ def patch_activity(id):
     db.session.commit()
     return jsonify({"message": "Planificación editada con historial"}), 200
 
-
+#3-B
 @api.route('/activities/<int:id>', methods=['DELETE'])
 @jwt_required()
 @manager_required
@@ -1755,7 +1755,7 @@ def delete_activity(id):
         return jsonify({"message": f"Error: {str(e)}"}), 500
 
 
-# Endpoints de logros
+# Endpoints de logros 1
 @api.route('/achievements', methods=['POST'])
 @jwt_required()
 def create_achievement():
@@ -1793,7 +1793,7 @@ def create_achievement():
         print(f"DEBUG SIGSSEP ERROR: {str(e)}") 
         return jsonify({"message": f"Error en el servidor: {str(e)}"}), 500
 
-
+# 2-E
 @api.route('/achievements/<int:id>', methods=['PATCH'])
 @jwt_required()
 def patch_achievement(id):
@@ -1830,7 +1830,7 @@ def patch_achievement(id):
         db.session.rollback()
         return jsonify({"message": f"Error en base de datos: {str(e)}"}), 500
     
-
+# 3-B
 @api.route('/achievements/<int:id>', methods=['DELETE'])
 @jwt_required()
 @manager_required
@@ -2119,7 +2119,7 @@ def get_proyectos_por_competencia():
     return jsonify(proyectos_data), 200
 
 
-# Oficial crea, edita y ve actividades/planificar
+# Oficial crea actividades/planificar 1
 @api.route('/official/activities', methods=['POST'])
 @jwt_required()
 def create_activitys():
@@ -2170,7 +2170,7 @@ def create_activitys():
         print(f"Error en create_activity: {str(e)}")
         return jsonify({"msg": "Error interno al guardar planificación", "error": str(e)}), 500
 
-
+# 2-E
 @api.route('/official/activities/<int:activity_id>', methods=['PATCH'])
 @jwt_required()
 def update_activity(activity_id):
@@ -2254,22 +2254,19 @@ def get_indicator_locations(indicator_id):
 
     return jsonify(results), 200
 
-
+# Ver las actividades de un oficial
 @api.route('/official/activities', methods=['GET'])
 @jwt_required()
 def get_activities():
     user_id = get_jwt_identity()
-    # 1. Capturamos el project_id de la URL (query params)
     project_id = request.args.get('project_id')
     competence_id = request.args.get('competence_id')
     
     hoy_venezuela = datetime.utcnow() - timedelta(hours=4)
     today = hoy_venezuela.date()
 
-    # 2. Iniciamos la consulta filtrando por usuario
     query = Activity.query.filter_by(created_by_id=user_id)
 
-    # 3. Si el usuario mandó un proyecto específico, filtramos por ese proyecto
     if project_id:
         query = query.filter_by(project_id=project_id)
 
@@ -2333,7 +2330,7 @@ def get_project_indicators(project_id):
     return jsonify([i.serialize() for i in indicators]), 200
 
 
-# --- ENDPOINTS PARA EL CATÁLOGO DE ACTIVIDADES ---
+# --- ENDPOINTS PARA EL CATÁLOGO DE ACTIVIDADES 1 ---
 @api.route('/activity-catalog', methods=['GET'])
 @jwt_required()
 def get_activity_catalog():
@@ -2351,7 +2348,7 @@ def get_activity_catalog():
     activities = query.all()
     return jsonify([a.serialize() for a in activities]), 200
 
-
+#2-C
 @api.route('/activity-catalog', methods=['POST'])
 @jwt_required()
 @manager_required
@@ -2371,7 +2368,7 @@ def create_catalog_activity():
     db.session.commit()
     return jsonify(new_item.serialize()), 201
 
-
+#3-E
 @api.route('/activity-catalog/<int:id>', methods=['PUT'])
 @jwt_required()
 @manager_required
@@ -2387,7 +2384,7 @@ def update_catalog_activity(id):
     db.session.commit()
     return jsonify(item.serialize()), 200
 
-
+#4-B
 @api.route('/activity-catalog/<int:id>', methods=['DELETE'])
 @jwt_required()
 @manager_required
@@ -2418,3 +2415,127 @@ def get_activity_achievements(activity_id):
         "activity_id": activity_id,
         "achievements": [a.serialize() for a in activity.achievements]
     }), 200
+
+
+#Filtrar actividades por proyecto y competencia
+@api.route('/manager/activities', methods=['GET'])
+@jwt_required()
+@manager_required
+def get_manager_supervision_activities():
+    # 1. Capturamos el contexto
+    project_id = request.args.get('project_id')
+    competence_id = request.args.get('competence_id')
+    
+    if not project_id or not competence_id:
+        return jsonify({"msg": "Falta el contexto: project_id y competence_id son obligatorios"}), 400
+
+    # 2. Configuramos el tiempo (Venezuela UTC-4)
+    hoy_venezuela = datetime.utcnow() - timedelta(hours=4)
+    today = hoy_venezuela.date()
+
+    # 3. Consulta: Todas las actividades que pertenezcan a ese proyecto y competencia
+    query = Activity.query.filter_by(
+        project_id=project_id, 
+        project_competence_id=competence_id
+    )
+
+    activities = query.all()
+    results = []
+
+    for act in activities:
+        data = act.serialize()
+        
+        # Aquí inyectamos el "Quién lo hizo" de forma explícita para el Calendario
+        data["responsible"] = {
+            "id": act.creator.id_user,
+            "full_name": f"{act.creator.name} {act.creator.lastname}",
+            "initials": f"{act.creator.name[0]}{act.creator.lastname[0]}".upper()
+        }
+
+        # 4. LÓGICA DE VENCIMIENTO 
+        if data.get('status') not in ['Completada', 'Cancelada']:
+            start_dt = act.start_date.date() if hasattr(act.start_date, 'date') else act.start_date
+            
+            if start_dt < today:
+                data['status'] = 'Vencida'
+            elif start_dt == today:
+                data['status'] = 'En Progreso'
+            else:
+                data['status'] = 'Planificada'
+
+        results.append(data)
+
+    return jsonify(results), 200
+
+
+#Auditoría o historial de actividades
+@api.route('/manager/activity/<int:activity_id>/history', methods=['GET'])
+@jwt_required()
+@manager_required
+def get_activity_full_history(activity_id):
+    activity = Activity.query.get(activity_id)
+    if not activity:
+        return jsonify({"msg": "Actividad no encontrada"}), 404
+
+    logs = SystemChangeLog.query.filter_by(
+        entity_type='activity', 
+        entity_id=activity_id
+    ).order_by(SystemChangeLog.change_date.asc()).all()
+
+    history = []
+    history.append({
+        "event": "Creación",
+        "user": f"{activity.creator.name} {activity.creator.lastname}",
+        "date": activity.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+        "details": "Actividad creada inicialmente"
+    })
+
+    for log in logs:
+        history.append({
+            "event": "Edición",
+            "user": log.user.full_name() if hasattr(log.user, 'full_name') else f"{log.user.name} {log.user.lastname}",
+            "date": log.change_date.strftime("%Y-%m-%d %H:%M:%S"),
+            "field": log.field_changed,
+            "old": log.old_value,
+            "new": log.new_value
+        })
+
+    return jsonify({
+        "activity_description": activity.description,
+        "current_status": activity.get_real_status(),
+        "timeline": history
+    }), 200
+
+#Gerente elimina actividades/plinificaciones
+@api.route('/manager/activities/<int:activity_id>', methods=['DELETE'])
+@jwt_required()
+@manager_required
+def delete_activity_manager(activity_id):
+    activity = Activity.query.get(activity_id)
+    
+    if not activity:
+        return jsonify({"msg": "Actividad no encontrada"}), 404
+
+    if activity.achievements and len(activity.achievements) > 0:
+        return jsonify({"msg": "No se puede eliminar una actividad que ya tiene logros registrados. Por favor, cámbiela a estado Cancelada."}), 400
+
+    try:
+        log = SystemChangeLog(
+            entity_type='activity',
+            entity_id=activity_id,
+            user_id=get_jwt_identity(),
+            field_changed='deletion',
+            old_value=activity.description,
+            new_value='DELETED'
+        )
+        db.session.add(log)
+        
+        db.session.delete(activity)
+        db.session.commit()
+        
+        return jsonify({"msg": f"Actividad {activity_id} eliminada permanentemente por el Gerente"}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Error al eliminar la actividad", "error": str(e)}), 500
+

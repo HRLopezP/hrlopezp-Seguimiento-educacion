@@ -832,7 +832,7 @@ class SystemChangeLog(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     
     entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    entity_id: Mapped[int] = mapped_column(Integer, nullable=False) # Corregido a Integer
+    entity_id: Mapped[int] = mapped_column(Integer, nullable=False) 
     
     user_id: Mapped[int] = mapped_column(ForeignKey('user.id_user'), nullable=False)
     
