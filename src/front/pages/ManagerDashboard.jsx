@@ -3,6 +3,9 @@ import { apiFetch } from "../../utils/api";
 import ContextSelector from '../components/ContextSelector';
 import ExecutionCalendar from "../components/ExecutionCalendar";
 import ProgressSummary from "../components/ProgressSummary";
+import DayManagerModal from "../components/DayManagerModal";
+import ActivityWizard from "../components/ActivityWizard";
+import AchievementTracker from "../components/AchievementTracker";
 import { toast } from "sonner";
 
 export const ManagerDashboard = () => {
@@ -11,13 +14,36 @@ export const ManagerDashboard = () => {
     const [activities, setActivities] = useState([]);
     const [summaryData, setSummaryData] = useState([]);
     const [loading, setLoading] = useState({ activities: false, summary: false });
+    const [modals, setModals] = useState({
+        manager: false,
+        wizard: false,
+        tracker: false
+    });
 
-    // Estados específicos para la supervisión de múltiples usuarios
+    const [selectedActivity, setSelectedActivity] = useState(null);
+    const [selectedDate, setSelectedDate] = useState(null);
+    const [activityHistory, setActivityHistory] = useState([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
     const [selectedUsers, setSelectedUsers] = useState([]);
 
-    // 1. Cargar Actividades (Versión Manager: trae todo lo de la competencia)
+    const filteredActivities = useMemo(() => {
+        // Si no hay usuarios seleccionados, mostramos todo o nada según prefieras
+        return activities.filter(act => selectedUsers.includes(act.responsible?.id));
+    }, [activities, selectedUsers]);
+
+
+    const activitiesForThatDay = useMemo(() => {
+        if (!selectedDate) return [];
+        // Ahora sí, filteredActivities ya existe arriba
+        return filteredActivities.filter(act => act.implementation_date === selectedDate || act.period?.start === selectedDate);
+    }, [filteredActivities, selectedDate]);
+
+    const closeModals = () => {
+        setModals({ manager: false, wizard: false, tracker: false });
+        setSelectedActivity(null);
+    };
+
     const loadActivities = useCallback(async (ctx) => {
-        // Extraemos los IDs directamente del objeto de contexto que recibe la función
         const { proyectoId, competenciaId } = ctx;
         if (!proyectoId || !competenciaId) return;
         setLoading(prev => ({ ...prev, activities: true }));
@@ -36,16 +62,12 @@ export const ManagerDashboard = () => {
         }
     }, []);
 
-    // 2. Cargar Resumen de Progreso (Mismo que el oficial, pero muestra impacto global)
+
     const loadProgressSummary = useCallback(async (ctx) => {
-        // 👨‍🏫 PROFE: Extraemos con los nombres exactos del objeto context
         const { proyectoId, competenciaId } = ctx;
-
         if (!proyectoId || !competenciaId) return;
-
         setLoading(prev => ({ ...prev, summary: true }));
         try {
-            // 👨‍🏫 PROFE: Usamos exactamente "competenciaId" (con "ia")
             const res = await apiFetch(`/project/${proyectoId}/progress-summary?competence_id=${competenciaId}`);
             if (res?.ok) {
                 const data = await res.json();
@@ -58,15 +80,53 @@ export const ManagerDashboard = () => {
         }
     }, []);
 
+
+    const handleDeleteActivity = async (activityId) => {
+        const confirmed = window.confirm("¿Estás seguro de eliminar permanentemente esta actividad? Esta acción quedará registrada en el log de auditoría.");
+
+        if (!confirmed) return;
+
+        try {
+            const res = await apiFetch(`/manager/activities/${activityId}`, {
+                method: 'DELETE'
+            });
+
+            if (res?.ok) {
+                toast.success("Actividad eliminada correctamente");
+                loadActivities(context);
+                loadProgressSummary(context);
+            } else {
+                const errorData = await res.json();
+                toast.error(errorData.msg || "No se pudo eliminar");
+            }
+        } catch (error) {
+            toast.error("Error de conexión al eliminar");
+        }
+    };
+
+    const handleViewHistory = async (activity) => {
+        setLoadingHistory(true);
+        try {
+            const res = await apiFetch(`/manager/activities/${activity.id}/history`);
+            if (res?.ok) {
+                const data = await res.json();
+                setActivityHistory(data);
+                return data;
+            }
+        } catch (error) {
+            toast.error("Error al cargar el historial");
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
+
     useEffect(() => {
         if (context?.proyectoId && context?.competenciaId) {
-            // Pasamos el objeto context completo a las funciones
             loadActivities(context);
             loadProgressSummary(context);
         }
     }, [context, loadActivities, loadProgressSummary]);
 
-    // 3. Lógica de Filtros (Extraemos responsables únicos de las actividades)
     const availableUsers = useMemo(() => {
         const usersMap = {};
         activities.forEach(act => {
@@ -76,10 +136,6 @@ export const ManagerDashboard = () => {
         });
         return Object.entries(usersMap).map(([id, name]) => ({ id: parseInt(id), name }));
     }, [activities]);
-
-    const filteredActivities = useMemo(() => {
-        return activities.filter(act => selectedUsers.includes(act.responsible?.id));
-    }, [activities, selectedUsers]);
 
     const toggleUserFilter = (userId) => {
         setSelectedUsers(prev =>
@@ -108,12 +164,11 @@ export const ManagerDashboard = () => {
 
                 <ContextSelector onContextChange={setContext} />
 
+                {/* SI HAY CONTEXTO: Mostramos el Dashboard */}
                 {context ? (
                     <div className="row mt-4" style={{ opacity: loading.activities ? 0.6 : 1, transition: 'opacity 0.3s' }}>
-
                         {activeTab === 'planning' ? (
                             <>
-                                {/* Columna de Filtros de Personas */}
                                 <div className="col-md-2">
                                     <div className="card shadow-sm border-0 p-3 mb-3" style={{ borderRadius: '15px' }}>
                                         <h6 className="fw-bold mb-3 small text-uppercase">Filtrar Equipo</h6>
@@ -135,12 +190,19 @@ export const ManagerDashboard = () => {
                                     </div>
                                 </div>
 
-                                {/* Columna del Calendario */}
                                 <div className="col-md-10">
                                     <ExecutionCalendar
                                         activities={filteredActivities}
-                                        onActivityClick={(act) => console.log("Inspeccionando actividad:", act)}
-                                        isManagerView={true} // <--- ¡MUY IMPORTANTE!
+                                        onDateSelect={(date) => {
+                                            setSelectedDate(date);
+                                            setModals(prev => ({ ...prev, manager: true }));
+                                        }}
+                                        onActivityClick={(act) => {
+                                            setSelectedDate(act.implementation_date || act.period?.start);
+                                            setSelectedActivity(act);
+                                            setModals(prev => ({ ...prev, manager: true }));
+                                        }}
+                                        isManagerView={true}
                                     />
                                 </div>
                             </>
@@ -156,8 +218,58 @@ export const ManagerDashboard = () => {
                                 )}
                             </div>
                         )}
+
+                        {/* MODALES */}
+                        {modals.manager && (
+                            <ModalWrapper onClose={closeModals}>
+                                <DayManagerModal
+                                    selectedDate={selectedDate}
+                                    activities={activitiesForThatDay}
+                                    isManagerView={true}
+                                    onClose={closeModals}
+                                    onDeleteActivity={handleDeleteActivity}
+                                    onViewHistory={handleViewHistory}
+                                    onEditActivity={(act) => {
+                                        setSelectedActivity(act);
+                                        setModals({ ...modals, manager: false, wizard: true });
+                                    }}
+                                    onAddActivity={() => {
+                                        setModals({ ...modals, manager: false, wizard: true });
+                                    }}
+                                />
+                            </ModalWrapper>
+                        )}
+                        {modals.wizard && (
+                            <ModalWrapper size="lg" onClose={closeModals}>
+                                <ActivityWizard
+                                    selectedDate={selectedDate}
+                                    proyectoId={context.proyectoId}
+                                    competenciaId={context.competenciaId}
+                                    initialData={selectedActivity}
+                                    onClose={closeModals}
+                                    onSaveSuccess={() => {
+                                        closeModals();
+                                        loadActivities(context);
+                                        loadProgressSummary(context);
+                                    }}
+                                />
+                            </ModalWrapper>
+                        )}
+                        {modals.tracker && (
+                            <ModalWrapper onClose={closeModals}>
+                                <AchievementTracker
+                                    activity={selectedActivity}
+                                    onClose={closeModals}
+                                    onRefresh={() => {
+                                        loadActivities(context);
+                                        loadProgressSummary(context);
+                                    }}
+                                />
+                            </ModalWrapper>
+                        )}
                     </div>
                 ) : (
+                    /* SI NO HAY CONTEXTO: Mostramos los binoculares */
                     <div className="text-center py-5 opacity-50">
                         <i className="fas fa-binoculars fa-3x mb-3 text-oxford-dynamic"></i>
                         <p>Selecciona un proyecto para iniciar la supervisión en tiempo real.</p>
@@ -167,3 +279,12 @@ export const ManagerDashboard = () => {
         </div>
     );
 };
+
+
+const ModalWrapper = ({ children, size = "md", onClose }) => (
+    <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1050 }} onClick={onClose}>
+        <div className={`modal-dialog modal-${size} modal-dialog-centered`} onClick={e => e.stopPropagation()}>
+            {children}
+        </div>
+    </div>
+);
