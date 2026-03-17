@@ -2469,31 +2469,33 @@ def get_manager_supervision_activities():
 
 
 #Auditoría o historial de actividades
-@api.route('/manager/activity/<int:activity_id>/history', methods=['GET'])
+@api.route('/manager/activities/<int:activity_id>/history', methods=['GET']) # Ajusté la ruta a /activities/
 @jwt_required()
-@manager_required
 def get_activity_full_history(activity_id):
     activity = Activity.query.get(activity_id)
     if not activity:
         return jsonify({"msg": "Actividad no encontrada"}), 404
 
+    # Buscamos los logs
     logs = SystemChangeLog.query.filter_by(
         entity_type='activity', 
         entity_id=activity_id
     ).order_by(SystemChangeLog.change_date.asc()).all()
 
     history = []
+    
+    # IMPORTANTE: Usamos los nombres de campos que pusiste en tu modelo Activity
     history.append({
         "event": "Creación",
-        "user": f"{activity.creator.name} {activity.creator.lastname}",
-        "date": activity.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+        "user": f"{activity.creator.name} {activity.creator.lastname}" if activity.creator else "Sistema",
+        "date": activity.created_at.strftime("%Y-%m-%d %H:%M:%S") if activity.created_at else "N/A",
         "details": "Actividad creada inicialmente"
     })
 
     for log in logs:
         history.append({
             "event": "Edición",
-            "user": log.user.full_name() if hasattr(log.user, 'full_name') else f"{log.user.name} {log.user.lastname}",
+            "user": log.user.name + " " + log.user.lastname if log.user else "Desconocido",
             "date": log.change_date.strftime("%Y-%m-%d %H:%M:%S"),
             "field": log.field_changed,
             "old": log.old_value,

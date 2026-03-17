@@ -38,9 +38,11 @@ const DayManagerModal = ({
         setLoadingHistory(true);
         try {
             const data = await onViewHistory(act);
-            setSelectedHistory(data || []);
+            // EXTRAEMOS SOLO LA LÍNEA DE TIEMPO
+            setSelectedHistory(data.timeline || []);
         } catch (error) {
-            console.error("Error al obtener historial");
+            console.error("Error al obtener historial", error);
+            setSelectedHistory([]); // Evitamos que quede como undefined
         } finally {
             setLoadingHistory(false);
         }
