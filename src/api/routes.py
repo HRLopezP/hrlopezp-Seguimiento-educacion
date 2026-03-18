@@ -889,7 +889,7 @@ def get_manager_projects():
         for indicator in project.indicators:
             activities = Activity.query.filter_by(
                 indicator_id=indicator.id_indicator,
-                status=ActivityStatus.COMPLETADA
+                status=ActivityStatus.APROBADA
             ).all()
             total_achieved += sum(
                 (rec.men_reached or 0) + (rec.women_reached or 0)
@@ -1777,7 +1777,7 @@ def create_achievement():
             user_id=user_id
         )
 
-        activity.status = 'COMPLETADA' 
+        activity.status = ActivityStatus.EN_REVISION
         db.session.add(new_record)
         db.session.commit()
 
@@ -1817,6 +1817,11 @@ def patch_achievement(id):
                 print(f"DEBUG: Solicitado borrado de ID: {record.evidence_public_id}")
             record.evidence_url = new_url
             record.evidence_public_id = new_public_id 
+            
+    activity = record.activity 
+    
+    if activity.status == ActivityStatus.RECHAZADA:
+        activity.status = ActivityStatus.EN_REVISION
 
     record.updated_by_id = user_id
 
@@ -1920,8 +1925,11 @@ def get_project_progress(project_id):
          .join(Location, Activity.location_id == Location.id_location)\
          .join(Province, Location.province_id == Province.id)\
          .join(AchievementRecord, AchievementRecord.activity_id == Activity.id_activity)\
-         .filter(Indicator.project_id == project_id)\
-         .group_by(Indicator.id_indicator, Province.id, Province.name).all()
+         .filter(
+             Indicator.project_id == project_id,
+             Activity.status == ActivityStatus.APROBADA 
+        )\
+        .group_by(Indicator.id_indicator, Province.id, Province.name).all()
 
         achievements_map = {}
         for r in results:

@@ -538,7 +538,9 @@ class ProjectCompetence(db.Model):
 class ActivityStatus(enum.Enum):
     PLANIFICADA = "Planificada"
     EN_PROGRESO = "En Progreso"
-    COMPLETADA = "Completada"
+    EN_REVISION = "En Revisión"  
+    APROBADA = "Aprobada"        
+    RECHAZADA = "Rechazada"      
     VENCIDA = "Vencida"
     CANCELADA = "Cancelada"
 
@@ -584,16 +586,20 @@ class Activity(db.Model):
         if self.status == ActivityStatus.CANCELADA:
             return ActivityStatus.CANCELADA.value
         
-        if self.achievements and len(self.achievements) > 0:
-            return ActivityStatus.COMPLETADA.value
+        if self.achievements:
+            return self.status.value
         
         if not self.start_date:
             return ActivityStatus.PLANIFICADA.value
 
-        hoy = date.today() 
+        hoy = date.today()
         inicio = self.start_date.date()
+        fin = self.end_date.date()
+
         if hoy < inicio:
             return ActivityStatus.PLANIFICADA.value
+        elif inicio <= hoy <= fin:
+            return ActivityStatus.EN_PROGRESO.value
         else:
             return ActivityStatus.VENCIDA.value
     
@@ -792,6 +798,7 @@ class AchievementRecord(db.Model):
     evidence_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     evidence_public_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     observations: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    monitoring_comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     execution_date: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     user_id: Mapped[int] = mapped_column(ForeignKey('user.id_user'), nullable=False)
@@ -812,13 +819,14 @@ class AchievementRecord(db.Model):
                 "men": self.men_reached, 
                 "women": self.women_reached, 
                 "disability": self.disability_reached,
-                "attended": self.attended_count, # Agregado
-                "approved": self.approved_count, # Agregado
+                "attended": self.attended_count, 
+                "approved": self.approved_count, 
                 "total": self.approved_count if self.activity.indicator.type == 'Outcome' else (self.men_reached + self.women_reached)
             },
             "evidence": self.evidence_url,
             "evidence_public_id": self.evidence_public_id,
             "observations": self.observations,
+            "monitoring_comment": self.monitoring_comment,
             "audit": {
                 "created_by": f"{self.creator.name} {self.creator.lastname}" if self.creator else "N/A",
                 "updated_at": self.updated_at.strftime("%Y-%m-%d %H:%M") if self.updated_at else None,
