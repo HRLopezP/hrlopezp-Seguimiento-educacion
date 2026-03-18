@@ -8,6 +8,7 @@ from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from .manager_decorator import manager_required
+from .decorators import roles_required
 from flask_mail import Message
 from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
@@ -1799,6 +1800,11 @@ def create_achievement():
 def patch_achievement(id):
     user_id = get_jwt_identity() 
     record = AchievementRecord.query.get_or_404(id)
+    activity = record.activity 
+    
+    if activity.status == ActivityStatus.APROBADA:
+        return jsonify({"message": "No se pueden editar logros de una actividad ya aprobada"}), 403
+    
     data = request.json
     
     if 'men_reached' in data: record.men_reached = float(data['men_reached'])
@@ -1818,10 +1824,8 @@ def patch_achievement(id):
             record.evidence_url = new_url
             record.evidence_public_id = new_public_id 
             
-    activity = record.activity 
-    
-    if activity.status == ActivityStatus.RECHAZADA:
-        activity.status = ActivityStatus.EN_REVISION
+    activity.status = ActivityStatus.EN_REVISION
+    record.monitoring_comment = None
 
     record.updated_by_id = user_id
 
@@ -2600,4 +2604,55 @@ def delete_activity_manager(activity_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"msg": "Error al eliminar la actividad", "error": str(e)}), 500
+
+
+#Aprobar o rechazar logro
+@api.route('/activities/<int:id>/review', methods=['PATCH'])
+@roles_required("Administrador", "Gerente", "Monitoreo")
+def review_activity(id):
+    # 1. Verificar que quien firma es un Gerente (Seguridad)
+    # Aquí podrías usar un decorador personalizado o verificar el rol del token
+    user_id = get_jwt_identity()
+    
+    activity = Activity.query.get_or_404(id)
+    data = request.json
+    
+    # Extraemos lo que envía el Gerente
+    new_status = data.get('status') # 'Aprobada' o 'Rechazada'
+    comment = data.get('monitoring_comment', '') # El feedback
+
+    # 2. Validaciones de negocio
+    if new_status not in ['Aprobada', 'Rechazada']:
+        return jsonify({"message": "Estado de revisión no válido"}), 400
+
+    if not activity.achievements:
+        return jsonify({"message": "No se puede revisar una actividad sin logros registrados"}), 400
+
+    # 3. Aplicar los cambios
+    # Actualizamos el estatus de la actividad principal
+    if new_status == 'Aprobada':
+        activity.status = ActivityStatus.APROBADA
+    else:
+        activity.status = ActivityStatus.RECHAZADA
+        if not comment:
+            return jsonify({"message": "Es obligatorio incluir un motivo para el rechazo"}), 400
+
+    # 4. Guardar el comentario en el ÚLTIMO logro (el que se está revisando)
+    # Como definimos que es 1 a 1 por ejecución, tomamos el último de la lista
+    last_achievement = activity.achievements[-1]
+    last_achievement.monitoring_comment = comment
+    
+    # Auditoría de quién revisó
+    activity.updated_by_id = user_id
+
+    try:
+        db.session.commit()
+        return jsonify({
+            "message": f"Actividad {new_status} exitosamente",
+            "status": activity.status.value,
+            "monitoring_comment": last_achievement.monitoring_comment
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Error al procesar la revisión: {str(e)}"}), 500
 
