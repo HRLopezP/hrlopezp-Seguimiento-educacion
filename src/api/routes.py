@@ -2170,6 +2170,18 @@ def create_activitys():
         print(f"Error en create_activity: {str(e)}")
         return jsonify({"msg": "Error interno al guardar planificación", "error": str(e)}), 500
 
+#Función auxiliar para usar en el siguiente endpoint
+def create_log(entity_id, field_name, old, new, user_id):
+    log = SystemChangeLog(
+        entity_type='activity',
+        entity_id=entity_id,
+        user_id=user_id,
+        field_changed=field_name,
+        old_value=old,
+        new_value=new
+    )
+    db.session.add(log)
+
 # 2-E
 @api.route('/official/activities/<int:activity_id>', methods=['PATCH'])
 @jwt_required()
@@ -2181,44 +2193,66 @@ def update_activity(activity_id):
     if not activity:
         return jsonify({"msg": "Actividad no encontrada"}), 404
 
+    # 1. RESCATADO: Validación de autoría
     if activity.created_by_id != user_id:
         print(f"Aviso: Usuario {user_id} editando actividad ajena")
 
     try:
-        if 'description' in data:
-            activity.description = data['description']
-        if 'observations' in data:
-            activity.observations = data['observations']
-        if 'planned_target' in data:
-            activity.planned_target = float(data['planned_target'])
-        elif 'planned_total' in data:
-            activity.planned_target = float(data['planned_total'])
+        # 2. RESCATADO: Manejo especial de planned_total / planned_target
+        if 'planned_total' in data and 'planned_target' not in data:
+            data['planned_target'] = data['planned_total']
 
-        if 'planned_men' in data:
-            activity.planned_men = float(data['planned_men'])
-        if 'planned_women' in data:
-            activity.planned_women = float(data['planned_women'])
+        # Definimos qué campos queremos auditar y actualizar automáticamente
+        fields_to_track = {
+            'description': 'Descripción',
+            'observations': 'Observaciones',
+            'planned_target': 'Meta Total',
+            'planned_men': 'Meta Hombres',
+            'planned_women': 'Meta Mujeres',
+            'start_date': 'Fecha Inicio',
+            'end_date': 'Fecha Fin',
+            'indicator_id': 'Indicador',
+            'location_id': 'Ubicación',
+            'project_competence_id': 'Competencia'
+        }
 
-        if 'start_date' in data:
-            activity.start_date = datetime.strptime(
-                data['start_date'].split('T')[0], '%Y-%m-%d')
-        if 'end_date' in data:
-            activity.end_date = datetime.strptime(
-                data['end_date'].split('T')[0], '%Y-%m-%d')
+        for field, label in fields_to_track.items():
+            if field in data:
+                old_val = getattr(activity, field)
+                new_val = data[field]
 
-        if 'indicator_id' in data:
-            activity.indicator_id = int(data['indicator_id'])
-        if 'location_id' in data:
-            activity.location_id = int(data['location_id'])
-        if 'project_competence_id' in data:
-            activity.project_competence_id = int(
-                data['project_competence_id']) if data['project_competence_id'] else None
+                # --- LÓGICA PARA FECHAS ---
+                if field in ['start_date', 'end_date'] and new_val:
+                    new_dt = datetime.strptime(new_val.split('T')[0], '%Y-%m-%d')
+                    if not old_val or old_val.date() != new_dt.date():
+                        create_log(activity.id_activity, label, str(old_val), str(new_dt.date()), user_id)
+                        setattr(activity, field, new_dt)
 
+                # --- LÓGICA PARA NÚMEROS/IDs ---
+                elif field in ['planned_target', 'planned_men', 'planned_women', 'indicator_id', 'location_id', 'project_competence_id']:
+                    # Manejo de nulos en project_competence_id
+                    clean_new_val = int(new_val) if new_val and 'id' in field else (float(new_val) if new_val else 0.0)
+                    if str(old_val) != str(clean_new_val):
+                        create_log(activity.id_activity, label, str(old_val), str(clean_new_val), user_id)
+                        setattr(activity, field, clean_new_val)
+
+                # --- LÓGICA PARA TEXTO ---
+                elif str(old_val) != str(new_val):
+                    create_log(activity.id_activity, label, str(old_val), str(new_val), user_id)
+                    setattr(activity, field, new_val)
+
+        # 3. RESCATADO: Actualizar quién editó y guardar
+        activity.updated_by_id = user_id 
         db.session.commit()
-        return jsonify({"msg": "Planificación actualizada", "activity": activity.serialize()}), 200
+        
+        return jsonify({
+            "msg": "Planificación actualizada y auditada", 
+            "activity": activity.serialize()
+        }), 200
 
     except Exception as e:
         db.session.rollback()
+        print(f"Error en update_activity: {str(e)}")
         return jsonify({"msg": "Error al actualizar", "error": str(e)}), 500
 
 
