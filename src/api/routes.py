@@ -2177,8 +2177,8 @@ def create_log(entity_id, field_name, old, new, user_id):
         entity_id=entity_id,
         user_id=user_id,
         field_changed=field_name,
-        old_value=old,
-        new_value=new
+        old_value=str(old), # Siempre convertimos a string por seguridad
+        new_value=str(new)
     )
     db.session.add(log)
 
@@ -2343,16 +2343,45 @@ def cancel_activity(activity_id):
     reason = data.get('cancellation_reason')
     if not reason or len(reason.strip()) < 5:
         return jsonify({"msg": "Es obligatorio incluir una observación válida (mín. 5 caracteres)"}), 400
+    
+    try:
+        # 1. Guardamos el estado anterior antes de cambiarlo
+        old_status = activity.status.value if activity.status else "DESCONOCIDO"
+        
+        # 2. Registramos el cambio de estado en la auditoría
+        # Usamos la función create_log que definimos anteriormente
+        create_log(
+            entity_id=activity.id_activity, 
+            field_name="Status", 
+            old=old_status, 
+            new="CANCELADA", 
+            user_id=user_id
+        )
 
-    activity.status = ActivityStatus.CANCELADA
-    activity.cancellation_reason = reason
-    activity.updated_by_id = user_id 
+        # 3. Registramos el motivo de cancelación como un log adicional
+        create_log(
+            entity_id=activity.id_activity, 
+            field_name="Motivo de Cancelación", 
+            old="N/A", 
+            new=reason, 
+            user_id=user_id
+        )
 
-    db.session.commit()
-    return jsonify({
-        "msg": "Actividad cancelada correctamente", 
-        "activity": activity.serialize()
-    }), 200
+        # 4. Actualizamos el modelo
+        activity.status = ActivityStatus.CANCELADA
+        activity.cancellation_reason = reason
+        activity.updated_by_id = user_id 
+
+        db.session.commit()
+        return jsonify({
+            "msg": "Actividad cancelada correctamente", 
+            "activity": activity.serialize()
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en cancel_activity: {str(e)}")
+        return jsonify({"msg": "Error al procesar la cancelación", "error": str(e)}), 500
 
 
 # Buscar todos los indicadores que pertenecen a un proyecto
