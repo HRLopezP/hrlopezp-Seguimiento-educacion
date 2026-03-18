@@ -2177,7 +2177,7 @@ def create_log(entity_id, field_name, old, new, user_id):
         entity_id=entity_id,
         user_id=user_id,
         field_changed=field_name,
-        old_value=str(old), # Siempre convertimos a string por seguridad
+        old_value=str(old),
         new_value=str(new)
     )
     db.session.add(log)
@@ -2193,16 +2193,13 @@ def update_activity(activity_id):
     if not activity:
         return jsonify({"msg": "Actividad no encontrada"}), 404
 
-    # 1. RESCATADO: Validación de autoría
     if activity.created_by_id != user_id:
         print(f"Aviso: Usuario {user_id} editando actividad ajena")
 
     try:
-        # 2. RESCATADO: Manejo especial de planned_total / planned_target
         if 'planned_total' in data and 'planned_target' not in data:
             data['planned_target'] = data['planned_total']
 
-        # Definimos qué campos queremos auditar y actualizar automáticamente
         fields_to_track = {
             'description': 'Descripción',
             'observations': 'Observaciones',
@@ -2221,27 +2218,22 @@ def update_activity(activity_id):
                 old_val = getattr(activity, field)
                 new_val = data[field]
 
-                # --- LÓGICA PARA FECHAS ---
                 if field in ['start_date', 'end_date'] and new_val:
                     new_dt = datetime.strptime(new_val.split('T')[0], '%Y-%m-%d')
                     if not old_val or old_val.date() != new_dt.date():
                         create_log(activity.id_activity, label, str(old_val), str(new_dt.date()), user_id)
                         setattr(activity, field, new_dt)
 
-                # --- LÓGICA PARA NÚMEROS/IDs ---
                 elif field in ['planned_target', 'planned_men', 'planned_women', 'indicator_id', 'location_id', 'project_competence_id']:
-                    # Manejo de nulos en project_competence_id
                     clean_new_val = int(new_val) if new_val and 'id' in field else (float(new_val) if new_val else 0.0)
                     if str(old_val) != str(clean_new_val):
                         create_log(activity.id_activity, label, str(old_val), str(clean_new_val), user_id)
                         setattr(activity, field, clean_new_val)
 
-                # --- LÓGICA PARA TEXTO ---
                 elif str(old_val) != str(new_val):
                     create_log(activity.id_activity, label, str(old_val), str(new_val), user_id)
                     setattr(activity, field, new_val)
 
-        # 3. RESCATADO: Actualizar quién editó y guardar
         activity.updated_by_id = user_id 
         db.session.commit()
         
@@ -2345,11 +2337,10 @@ def cancel_activity(activity_id):
         return jsonify({"msg": "Es obligatorio incluir una observación válida (mín. 5 caracteres)"}), 400
     
     try:
-        # 1. Guardamos el estado anterior antes de cambiarlo
+        # 1. Guardar el estado anterior antes de cambiarlo
         old_status = activity.status.value if activity.status else "DESCONOCIDO"
         
-        # 2. Registramos el cambio de estado en la auditoría
-        # Usamos la función create_log que definimos anteriormente
+        # 2. Registrar el cambio de estado en la auditoría
         create_log(
             entity_id=activity.id_activity, 
             field_name="Status", 
@@ -2358,7 +2349,7 @@ def cancel_activity(activity_id):
             user_id=user_id
         )
 
-        # 3. Registramos el motivo de cancelación como un log adicional
+        # 3. Registrar el motivo de cancelación como un log adicional
         create_log(
             entity_id=activity.id_activity, 
             field_name="Motivo de Cancelación", 
@@ -2367,7 +2358,7 @@ def cancel_activity(activity_id):
             user_id=user_id
         )
 
-        # 4. Actualizamos el modelo
+        # 4. Actualizar el modelo
         activity.status = ActivityStatus.CANCELADA
         activity.cancellation_reason = reason
         activity.updated_by_id = user_id 
@@ -2539,7 +2530,6 @@ def get_activity_full_history(activity_id):
     if not activity:
         return jsonify({"msg": "Actividad no encontrada"}), 404
 
-    # Buscamos los logs
     logs = SystemChangeLog.query.filter_by(
         entity_type='activity', 
         entity_id=activity_id
@@ -2547,7 +2537,6 @@ def get_activity_full_history(activity_id):
 
     history = []
     
-    # IMPORTANTE: Usamos los nombres de campos que pusiste en tu modelo Activity
     history.append({
         "event": "Creación",
         "user": f"{activity.creator.name} {activity.creator.lastname}" if activity.creator else "Sistema",

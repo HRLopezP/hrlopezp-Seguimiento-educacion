@@ -229,23 +229,17 @@ const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, 
         }
     };
 
-    // ✅ Ahora recibimos 'summaryData' como prop del componente padre
     useEffect(() => {
-        // Si no hay datos suficientes, limpiamos el gap
         if (!form.indicator_id || !form.location_id || !summaryData) {
             setGapData(null);
             return;
         }
 
         const calculateGap = () => {
-            // 1. Buscamos el indicador dentro del resumen que ya tiene el padre
             const indInfo = summaryData.find(d => String(d.id) === String(form.indicator_id));
-
-            // 2. Buscamos la ubicación seleccionada para sacar el province_id
             const ubicacionSeleccionada = lugares.find(l => String(l.id_location) === String(form.location_id));
             let provId = ubicacionSeleccionada?.province_id;
 
-            // Backup por si el ID no viene directo (buscando por nombre en los detalles del indicador)
             if (!provId && ubicacionSeleccionada?.province_name) {
                 const metaProvincia = selectedIndicatorDetails?.goals_by_province?.find(
                     g => g.province_name === ubicacionSeleccionada.province_name
@@ -253,7 +247,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, 
                 provId = metaProvincia?.province_id;
             }
 
-            // 3. Si encontramos la info y la provincia, calculamos el gap en memoria
             if (indInfo && provId) {
                 const statsProv = indInfo.provinces?.find(p => String(p.province_id) === String(provId));
 

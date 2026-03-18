@@ -1,6 +1,13 @@
 import React from 'react';
 
 export const ActivityHistoryView = ({ history = [], loading = false, onBack }) => {
+    
+    const getBadgeStyle = (log) => {
+        if (log.event === "Creación") return "bg-success text-white";
+        if (log.event === "Cancelación" || log.field === "Status") return "bg-danger text-white";
+        return "bg-info text-dark";
+    };
+
     return (
         <div className="fade-in">
             <button
@@ -25,43 +32,61 @@ export const ActivityHistoryView = ({ history = [], loading = false, onBack }) =
                     <p className="small text-muted mb-0">No hay cambios registrados para esta actividad.</p>
                 </div>
             ) : (
-                <div className="timeline-wrapper px-2" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                <div className="timeline-wrapper px-2" style={{ maxHeight: '400px', overflowY: 'auto' }}>
                     {history.map((log, index) => (
                         <div key={index} className="mb-4 position-relative ps-4 border-start border-2 border-light">
-                            {/* Punto del timeline */}
-                            <div className="position-absolute start-0 translate-middle-x bg-white border border-2 border-primary rounded-circle"
-                                style={{ width: '12px', height: '12px', marginLeft: '-1px', marginTop: '5px' }}>
+                            
+                            {/* Punto del timeline con color dinámico */}
+                            <div className={`position-absolute start-0 translate-middle-x rounded-circle border border-2 border-white shadow-sm ${log.event === 'Creación' ? 'bg-success' : 'bg-primary'}`}
+                                style={{ width: '14px', height: '14px', marginLeft: '-1px', marginTop: '4px', zIndex: 2 }}>
                             </div>
 
-                            <div className="d-flex justify-content-between align-items-start">
-                                <span className="badge bg-light text-dark border small">
-                                    {log.field?.toUpperCase() || log.event}
+                            <div className="d-flex justify-content-between align-items-center mb-1">
+                                <span className={`badge border-0 small ${getBadgeStyle(log)}`}>
+                                    {log.field || log.event}
                                 </span>
                                 <small className="text-muted" style={{ fontSize: '0.7rem' }}>
-                                    {new Date(log.date).toLocaleString()}
+                                    <i className="far fa-clock me-1"></i>
+                                    {log.date}
                                 </small>
                             </div>
 
-                            <div className="mt-2 p-2 bg-white rounded shadow-sm border">
-                                <p className="mb-1 small">
-                                    {/* Si existe un valor antiguo, mostramos la transición */}
-                                    {log.old ? (
-                                        <>
-                                            <span className="text-danger fst-italic">{log.old}</span>
-                                            <i className="fas fa-long-arrow-alt-right mx-2 text-muted"></i>
-                                        </>
+                            <div className="p-3 bg-white rounded shadow-sm border">
+                                <div className="small">
+                                    {log.event === "Creación" ? (
+                                        <div className="d-flex align-items-center text-success">
+                                            <i className="fas fa-star me-2"></i>
+                                            <span>{log.details || "Se registró la planificación inicial."}</span>
+                                        </div>
                                     ) : (
-                                        /* Si no hay valor antiguo, quizás es una creación o un log informativo */
-                                        <i className="fas fa-plus-circle me-2 text-success small"></i>
+                                        <div className="change-details">
+                                            {/* Valor Anterior */}
+                                            {log.old && (
+                                                <div className="text-muted mb-1 text-decoration-line-through" style={{ fontSize: '0.8rem' }}>
+                                                    <small className="fw-bold me-1 text-uppercase" style={{ fontSize: '0.65rem' }}>Anterior:</small> 
+                                                    {log.old}
+                                                </div>
+                                            )}
+                                            
+                                            {/* Valor Nuevo */}
+                                            <div className="text-dark">
+                                                <i className="fas fa-chevron-right me-2 text-primary small"></i>
+                                                <span className="fw-bold">{log.new || log.details}</span>
+                                            </div>
+                                        </div>
                                     )}
+                                </div>
 
-                                    <span className="text-success fw-bold">
-                                        {log.new || log.details || 'Sin detalles'}
-                                    </span>
-                                </p>
-                                <small className="text-muted">
-                                    <i className="fas fa-user-edit me-1"></i> {log.user || 'Sistema'}
-                                </small>
+                                <hr className="my-2 opacity-25" />
+
+                                <div className="d-flex justify-content-between align-items-center mt-1">
+                                    <small className="text-muted">
+                                        <i className="fas fa-user-circle me-1"></i> {log.user || 'Sistema'}
+                                    </small>
+                                    {log.event === "Edición" && (
+                                        <span className="badge bg-light text-primary border-0" style={{ fontSize: '0.6rem' }}>EDITADO</span>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))}

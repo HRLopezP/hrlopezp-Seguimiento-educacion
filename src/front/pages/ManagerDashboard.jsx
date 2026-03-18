@@ -28,14 +28,12 @@ export const ManagerDashboard = () => {
     const [selectedUsers, setSelectedUsers] = useState([]);
 
     const filteredActivities = useMemo(() => {
-        // Si no hay usuarios seleccionados, mostramos todo o nada según prefieras
         return activities.filter(act => selectedUsers.includes(act.responsible?.id));
     }, [activities, selectedUsers]);
 
 
     const activitiesForThatDay = useMemo(() => {
         if (!selectedDate) return [];
-        // Ahora sí, filteredActivities ya existe arriba
         return filteredActivities.filter(act => act.implementation_date === selectedDate || act.period?.start === selectedDate);
     }, [filteredActivities, selectedDate]);
 
@@ -83,24 +81,22 @@ export const ManagerDashboard = () => {
 
 
     const handleDeleteActivity = async (activityId) => {
-        // 1. Lanzamos la alerta estética de SweetAlert2
         const result = await Swal.fire({
             title: '¿Eliminar permanentemente?',
             text: "Esta acción no se puede deshacer y quedará registrada en el log de auditoría del sistema.",
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#ef4444', // Rojo para peligro
-            cancelButtonColor: '#1B263B',  // Color Oxford de tu paleta
+            confirmButtonColor: '#ef4444', 
+            cancelButtonColor: '#1B263B',  
             confirmButtonText: '<i class="fas fa-trash-alt me-2"></i>Sí, eliminar',
             cancelButtonText: 'Cancelar',
-            background: 'var(--card-bg)', // Mantiene la coherencia con tu tema
+            background: 'var(--card-bg)',
             color: 'var(--text-primary)',
             customClass: {
-                popup: 'rounded-4 shadow-lg' // Un toque de estilo extra
+                popup: 'rounded-4 shadow-lg'
             }
         });
 
-        // 2. Si el usuario confirma, procedemos con el borrado
         if (result.isConfirmed) {
             try {
                 const res = await apiFetch(`/manager/activities/${activityId}`, {
@@ -108,10 +104,8 @@ export const ManagerDashboard = () => {
                 });
 
                 if (res?.ok) {
-                    // Éxito: Usamos Sonner (toast) para no interrumpir el flujo
                     toast.success("Actividad eliminada correctamente");
 
-                    // Recargamos los datos para que el Dashboard refleje el cambio
                     loadActivities(context);
                     loadProgressSummary(context);
                 } else {

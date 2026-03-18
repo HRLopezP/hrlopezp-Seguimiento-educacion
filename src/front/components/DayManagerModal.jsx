@@ -14,7 +14,7 @@ const DayManagerModal = ({
     onClose,
     isManagerView = false
 }) => {
-    const [viewMode, setViewMode] = useState('list'); // 'list' o 'history'
+    const [viewMode, setViewMode] = useState('list'); 
     const [selectedHistory, setSelectedHistory] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [cancellingId, setCancellingId] = useState(null);
@@ -38,11 +38,10 @@ const DayManagerModal = ({
         setLoadingHistory(true);
         try {
             const data = await onViewHistory(act);
-            // EXTRAEMOS SOLO LA LÍNEA DE TIEMPO
             setSelectedHistory(data.timeline || []);
         } catch (error) {
             console.error("Error al obtener historial", error);
-            setSelectedHistory([]); // Evitamos que quede como undefined
+            setSelectedHistory([]); 
         } finally {
             setLoadingHistory(false);
         }
@@ -85,12 +84,10 @@ const DayManagerModal = ({
                             </div>
                         ) : (
                             activities.map((act) => {
-                                // Definimos estas variables para que no den error al renderizar
-                                const isSameDay = true; // Aquí podrías poner tu lógica de comparación de fechas
+                                const isSameDay = true;
                                 const start = act.implementation_date;
                                 const end = act.implementation_date;
 
-                                // ¡IMPORTANTE!: Aquí faltaba el return
                                 return (
                                     <div key={act.id} className="card border-0 shadow-sm transition-hover" style={{ borderRadius: '12px' }}>
                                         <div className="card-body p-3">
@@ -188,7 +185,6 @@ const DayManagerModal = ({
                                                 </>
                                             )}
 
-                                            {/* Nota de cancelación (Se muestra abajo si ya está cancelada) */}
                                             {act.status === 'Cancelada' && act.cancellation_reason && (
                                                 <div className="mt-2 p-2 bg-secondary bg-opacity-10 rounded border-start border-3 border-secondary">
                                                     <small className="text-muted">
@@ -198,8 +194,8 @@ const DayManagerModal = ({
                                             )}
                                         </div>
                                     </div>
-                                ); // Cierre del return de la tarjeta
-                            }) // Cierre del map
+                                ); 
+                            }) 
                         )}
                     </div>
                 )}
