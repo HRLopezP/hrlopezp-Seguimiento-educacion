@@ -6,6 +6,7 @@ import ProgressSummary from "../components/ProgressSummary";
 import DayManagerModal from "../components/DayManagerModal";
 import ActivityWizard from "../components/ActivityWizard";
 import AchievementTracker from "../components/AchievementTracker";
+import Swal from 'sweetalert2';
 import { toast } from "sonner";
 
 export const ManagerDashboard = () => {
@@ -82,25 +83,44 @@ export const ManagerDashboard = () => {
 
 
     const handleDeleteActivity = async (activityId) => {
-        const confirmed = window.confirm("¿Estás seguro de eliminar permanentemente esta actividad? Esta acción quedará registrada en el log de auditoría.");
-
-        if (!confirmed) return;
-
-        try {
-            const res = await apiFetch(`/manager/activities/${activityId}`, {
-                method: 'DELETE'
-            });
-
-            if (res?.ok) {
-                toast.success("Actividad eliminada correctamente");
-                loadActivities(context);
-                loadProgressSummary(context);
-            } else {
-                const errorData = await res.json();
-                toast.error(errorData.msg || "No se pudo eliminar");
+        // 1. Lanzamos la alerta estética de SweetAlert2
+        const result = await Swal.fire({
+            title: '¿Eliminar permanentemente?',
+            text: "Esta acción no se puede deshacer y quedará registrada en el log de auditoría del sistema.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444', // Rojo para peligro
+            cancelButtonColor: '#1B263B',  // Color Oxford de tu paleta
+            confirmButtonText: '<i class="fas fa-trash-alt me-2"></i>Sí, eliminar',
+            cancelButtonText: 'Cancelar',
+            background: 'var(--card-bg)', // Mantiene la coherencia con tu tema
+            color: 'var(--text-primary)',
+            customClass: {
+                popup: 'rounded-4 shadow-lg' // Un toque de estilo extra
             }
-        } catch (error) {
-            toast.error("Error de conexión al eliminar");
+        });
+
+        // 2. Si el usuario confirma, procedemos con el borrado
+        if (result.isConfirmed) {
+            try {
+                const res = await apiFetch(`/manager/activities/${activityId}`, {
+                    method: 'DELETE'
+                });
+
+                if (res?.ok) {
+                    // Éxito: Usamos Sonner (toast) para no interrumpir el flujo
+                    toast.success("Actividad eliminada correctamente");
+
+                    // Recargamos los datos para que el Dashboard refleje el cambio
+                    loadActivities(context);
+                    loadProgressSummary(context);
+                } else {
+                    const errorData = await res.json();
+                    toast.error(errorData.msg || "No se pudo eliminar la actividad");
+                }
+            } catch (error) {
+                toast.error("Error de conexión al intentar eliminar");
+            }
         }
     };
 
