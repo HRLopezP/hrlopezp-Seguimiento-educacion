@@ -14,7 +14,7 @@ const DayManagerModal = ({
     onClose,
     isManagerView = false
 }) => {
-    const [viewMode, setViewMode] = useState('list'); 
+    const [viewMode, setViewMode] = useState('list');
     const [selectedHistory, setSelectedHistory] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [cancellingId, setCancellingId] = useState(null);
@@ -41,7 +41,7 @@ const DayManagerModal = ({
             setSelectedHistory(data.timeline || []);
         } catch (error) {
             console.error("Error al obtener historial", error);
-            setSelectedHistory([]); 
+            setSelectedHistory([]);
         } finally {
             setLoadingHistory(false);
         }
@@ -87,6 +87,11 @@ const DayManagerModal = ({
                                 const isSameDay = true;
                                 const start = act.implementation_date;
                                 const end = act.implementation_date;
+                                const isAprobada = act.status === 'Aprobada';
+                                const isEnRevision = act.status === 'En Revisión';
+                                const isRechazada = act.status === 'Rechazada';
+                                const isCancelada = act.status === 'Cancelada';
+                                const isPlanificadaOProgreso = act.status === 'Planificada' || act.status === 'En Progreso';
 
                                 return (
                                     <div key={act.id} className="card border-0 shadow-sm transition-hover" style={{ borderRadius: '12px' }}>
@@ -154,38 +159,49 @@ const DayManagerModal = ({
                                                         </div>
 
                                                         <div className="btn-group">
-                                                            {act.status !== 'Cancelada' && (
+                                                            {!isCancelada && !isAprobada && (
                                                                 <>
-                                                                    {act.status !== 'Completada' && (
-                                                                        <button className="btn btn-sm btn-outline-danger border-0" onClick={() => setCancellingId(act.id)} title="Cancelar">
+                                                                    {/* Botón Cancelar: Solo si no se ha enviado a revisión */}
+                                                                    {isPlanificadaOProgreso && (
+                                                                        <button className="btn btn-sm btn-outline-danger border-0" onClick={() => setCancellingId(act.id)} title="Cancelar Actividad">
                                                                             <i className="fas fa-ban"></i>
                                                                         </button>
                                                                     )}
-                                                                    {act.status !== 'Completada' && (
+
+                                                                    {/* Botón Editar Planificación: Solo si está en borrador (Planificada/Progreso) */}
+                                                                    {isPlanificadaOProgreso && (
                                                                         <button className="btn btn-sm btn-outline-secondary border-0" onClick={() => onEditActivity(act)} title="Editar Planificación">
                                                                             <i className="fas fa-edit"></i>
                                                                         </button>
                                                                     )}
+
+                                                                    {/* Botón Logros: Disponible siempre, excepto si está aprobada o cancelada */}
                                                                     <button
                                                                         className="btn btn-sm text-white ms-2 shadow-sm d-flex align-items-center"
                                                                         style={{
-                                                                            backgroundColor: act.status === 'Completada' ? '#3a86ff' : '#10b981',
+                                                                            backgroundColor: isRechazada ? '#e63946' : (isEnRevision ? '#3a86ff' : '#10b981'),
                                                                             borderRadius: '8px'
                                                                         }}
                                                                         onClick={() => onRegisterAchievement(act)}
                                                                     >
-                                                                        <i className={`fas ${act.status === 'Completada' ? 'fa-pen-nib' : 'fa-check-circle'} me-1`}></i>
-                                                                        {act.status === 'Completada' ? 'Editar Logros' : 'Logros'}
+                                                                        <i className={`fas ${isEnRevision || isRechazada ? 'fa-pen-nib' : 'fa-check-circle'} me-1`}></i>
+                                                                        {isRechazada ? 'Corregir Logros' : (isEnRevision ? 'Editar Logros' : 'Logros')}
                                                                     </button>
                                                                 </>
                                                             )}
-                                                            {act.status === 'Cancelada' && <span className="text-muted small fst-italic">Sin acciones</span>}
+
+                                                            {isAprobada && (
+                                                                <span className="text-success small fw-bold">
+                                                                    <i className="fas fa-lock me-1"></i> Verificado
+                                                                </span>
+                                                            )}
+                                                            {isCancelada && <span className="text-muted small fst-italic">Sin acciones</span>}
                                                         </div>
                                                     </div>
                                                 </>
                                             )}
 
-                                            {act.status === 'Cancelada' && act.cancellation_reason && (
+                                            {isCancelada && act.cancellation_reason && (
                                                 <div className="mt-2 p-2 bg-secondary bg-opacity-10 rounded border-start border-3 border-secondary">
                                                     <small className="text-muted">
                                                         <strong>Nota:</strong> {act.cancellation_reason}
@@ -194,8 +210,8 @@ const DayManagerModal = ({
                                             )}
                                         </div>
                                     </div>
-                                ); 
-                            }) 
+                                );
+                            })
                         )}
                     </div>
                 )}
