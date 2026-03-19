@@ -775,7 +775,6 @@ def get_theory_full_details(id):
 def create_project():
     data = request.json
 
-
     if not data or not data.get("code"):
         return jsonify({"msg": "El código único del proyecto es obligatorio"}), 400
     try:
@@ -1218,14 +1217,14 @@ def get_templates():
     competences = Competence.query.all()
     return jsonify([c.serialize() for c in competences]), 200
 
-
+# Endpoints de ver provincias
 @api.route('/provinces', methods=['GET'])
 @jwt_required()
 def get_provinces():
     provinces = Province.query.all()
     return jsonify([p.serialize() for p in provinces]), 200
 
-
+# 2-C
 @api.route('/provinces', methods=['POST'])
 @jwt_required()
 @manager_required
@@ -1239,7 +1238,7 @@ def add_province():
     db.session.commit()
     return jsonify(new_province.serialize()), 201
 
-
+#3-E
 @api.route('/provinces/<int:id>', methods=['PUT'])
 @jwt_required()
 @manager_required
@@ -1253,7 +1252,7 @@ def update_province(id):
     db.session.commit()
     return jsonify(province.serialize()), 200
 
-
+#4-B
 @api.route('/provinces/<int:id>', methods=['DELETE'])
 @jwt_required()
 @manager_required

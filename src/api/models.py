@@ -397,6 +397,7 @@ class Indicator(db.Model):
             "verification_means": self.verification_means or "", 
             "observations": self.observations or "",
             "project_competence_id": pc_id,
+            "means_ids": [m.id for m in self.selected_means_list],
             "means_tags": [m.serialize() for m in self.selected_means_list],
             "indicator_targets": {
                 "total": self.target_total,

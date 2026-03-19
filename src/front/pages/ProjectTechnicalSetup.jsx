@@ -70,18 +70,13 @@ const ProjectTechnicalSetup = () => {
             const rType = context.result_type;
             const rName = context.result_name;
 
-            // 1. Aseguramos la jerarquía de Teoría y Tipo (Output/Outcome)
             if (!acc[tName]) acc[tName] = {};
             if (!acc[tName][rType]) acc[tName][rType] = {};
 
-            // 2. ¡AQUÍ ESTÁ EL TRUCO! 
-            // Si el nombre del resultado (ej. "Definidos") NO existe, creamos el array.
-            // Si YA existe, no hacemos nada y el código siguiente hará el .push()
             if (!acc[tName][rType][rName]) {
                 acc[tName][rType][rName] = [];
             }
 
-            // 3. Agregamos el indicador al grupo correspondiente
             acc[tName][rType][rName].push({
                 ...ind,
                 indicator_name: context.indicator_name,
@@ -105,14 +100,10 @@ const ProjectTechnicalSetup = () => {
             const updatedProvinces = ind.province_goals.map(p => {
                 if (p.province_id !== provinceId) return p;
 
-                // 1. Bloqueo de género para Outcomes
                 if (isOutcome && (field === 'men' || field === 'women')) return p;
 
-                // 2. Creamos el nuevo objeto de provincia
                 let updatedProvince = { ...p, [field]: numValue };
 
-                // 3. Lógica de Autocalculado (Solo para Outputs)
-                // Si cambias H o M, el Total se suma solo.
                 if (!isOutcome && (field === 'men' || field === 'women')) {
                     updatedProvince.total = updatedProvince.men + updatedProvince.women;
                 }
@@ -172,9 +163,7 @@ const ProjectTechnicalSetup = () => {
 
             console.log("✅ Nuevo indicador capturado con éxito:", newIndicator);
             setActiveIndicatorId(ind.id);
-
         } else {
-            // Para quitar también usamos la versión funcional por seguridad
             setSelectedIndicators(prev => prev.filter(i => i.template_id !== ind.id));
             if (activeIndicatorId === ind.id) setActiveIndicatorId(null);
         }
@@ -219,17 +208,13 @@ const ProjectTechnicalSetup = () => {
                 }
             }
 
-            // 2. Si es Outcome, saltamos. 
             if (type === 'outcome') continue;
 
             for (const pg of ind.province_goals) {
-                // Convertimos a número y usamos 0 por defecto
                 const h = Number(pg.men || 0);
                 const m = Number(pg.women || 0);
                 const t = Number(pg.total || 0);
 
-                // Solo validamos si es un OUTPUT (donde la suma DEBE coincidir)
-                // Si es un indicador donde el total es 85 y h/m son 0, y NO es outcome, fallará.
                 if (h + m !== t) {
                     Swal.fire({
                         title: 'Error de cálculo',
@@ -253,16 +238,14 @@ const ProjectTechnicalSetup = () => {
                     const info = getIndicatorContext(ind.template_id, allTheories);
 
                     return {
-                        ...ind, // Traemos lo que viene del server (id, verification_means, etc.)
+                        ...ind,
                         template_id: ind.template_id,
                         code: ind.indicator_code,
                         description: ind.description,
                         indicator_name: info.indicator_name || ind.indicator_name,
                         result_type: ind.result_type || info.result_type,
-                        // Mantenemos los IDs de templates para que al re-guardar no se pierdan
                         depends_on_ids: ind.depends_on_ids || [],
                         means_tags: ind.means_tags || [],
-                        // Convertimos la nomenclatura del server a la del estado de React
                         province_goals: (ind.goals_by_province || []).map(g => ({
                             province_id: g.province_id,
                             province_name: g.province_name,
@@ -283,10 +266,8 @@ const ProjectTechnicalSetup = () => {
         return indicatorsList.map(ind => {
             const isOutcome = ind.result_type?.toLowerCase() === 'outcome';
 
-            // Aseguramos que las dependencias sean un array de IDs (Template IDs)
             const finalDependsOn = Array.isArray(ind.depends_on_ids) ? ind.depends_on_ids : [];
 
-            // Extraemos solo los IDs de los medios de verificación
             const finalMeansIds = ind.means_tags ? ind.means_tags.map(t => t.id) : (ind.means_ids || []);
 
             return {
@@ -295,13 +276,11 @@ const ProjectTechnicalSetup = () => {
                 measurement_unit: ind.measurement_unit || (isOutcome ? 'percentage' : 'absolute'),
                 depends_on_ids: finalDependsOn,
                 means_ids: finalMeansIds,
-                // Cálculo automático de totales basados en lo que el usuario puso en las provincias
                 target_total: ind.province_goals?.reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0) || 0,
                 target_men: isOutcome ? null : (ind.province_goals?.reduce((acc, curr) => acc + (parseFloat(curr.men) || 0), 0) || 0),
                 target_women: isOutcome ? null : (ind.province_goals?.reduce((acc, curr) => acc + (parseFloat(curr.women) || 0), 0) || 0),
                 verification_means: ind.verification_means || "",
                 observations: ind.observations || "",
-                // Enviamos las metas desglosadas para el PASO 2 del backend
                 goals_by_province: ind.province_goals?.map(pg => ({
                     province_id: pg.province_id,
                     target: parseFloat(pg.total) || 0,
@@ -348,6 +327,7 @@ const ProjectTechnicalSetup = () => {
                 if (res.ok) {
                     toast.success("¡Planificación técnica guardada con éxito!");
                     await refreshProjectIndicators();
+                    setActiveIndicatorId(null);
 
                 } else {
                     toast.error("Hubo un error al guardar los indicadores.");
@@ -365,8 +345,8 @@ const ProjectTechnicalSetup = () => {
             text: "Se borrará permanentemente del servidor y se actualizarán las dependencias.",
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#ef4444', // Rojo para peligro
-            cancelButtonColor: '#1b263b',  // Oxford Grey para cancelar
+            confirmButtonColor: '#ef4444', 
+            cancelButtonColor: '#1b263b',  
             confirmButtonText: 'Sí, eliminar de la DB',
             cancelButtonText: 'Cancelar',
             background: document.documentElement.getAttribute('data-theme') === 'dark' ? '#1b263b' : '#ffffff',
@@ -375,7 +355,6 @@ const ProjectTechnicalSetup = () => {
             if (result.isConfirmed) {
                 const remainingIndicators = selectedIndicators.filter(i => i.template_id !== indicatorId);
 
-                // 2. Preparamos la data con la misma lógica de guardado
                 const formattedData = {
                     project_id: parseInt(projectId),
                     indicators: prepareIndicatorsForServer(remainingIndicators)
@@ -407,15 +386,11 @@ const ProjectTechnicalSetup = () => {
         setLoading(true);
         try {
             setSelectedComp(comp);
-            // 1. Buscamos las teorías específicas de ESTA nueva competencia
             const res = await apiFetch(`/competence/${comp.competence_id}/theories`);
             const newTheories = await res.json();
 
-            // 2. Actualizamos el estado de teorías
             setTheories(newTheories);
 
-            // 3. ¡IMPORTANTE! Refrescamos los indicadores pasándole las NUEVAS teorías
-            // para que el mapeo de nombres y tipos sea correcto
             await refreshProjectIndicators(newTheories);
 
         } catch (error) {
@@ -448,12 +423,10 @@ const ProjectTechnicalSetup = () => {
 
                 if (myComps.length > 0) {
                     setSelectedComp(myComps[0]);
-                    // Cargamos teorías de la primera competencia
                     const resTheory = await apiFetch(`/competence/${myComps[0].competence_id}/theories`);
                     const initialTheories = await resTheory.json();
                     setTheories(initialTheories);
 
-                    // Ahora que tenemos las teorías, refrescamos los indicadores guardados
                     await refreshProjectIndicators(initialTheories);
                 }
             } catch (error) {
@@ -464,7 +437,6 @@ const ProjectTechnicalSetup = () => {
         };
         loadInitialData();
     }, [projectId]);
-
 
 
     const indicatorsOfSelectedComp = useMemo(() => {
@@ -505,7 +477,7 @@ const ProjectTechnicalSetup = () => {
                             key={comp.competence_id}
                             className={`btn ${selectedComp?.competence_id === comp.competence_id ? 'btn-emerald' : 'btn-outline-oxford'} shadow-sm`}
                             style={{ borderRadius: '8px', transition: 'all 0.3s ease' }}
-                            onClick={() => handleCompetenceChange(comp)} // <--- Cambiamos esto
+                            onClick={() => handleCompetenceChange(comp)} 
                         >
                             <i className={`fas fa-briefcase me-2 ${selectedComp?.competence_id === comp.competence_id ? 'text-white' : ''}`}></i>
                             {comp.competence_name}
@@ -864,7 +836,7 @@ const ProjectTechnicalSetup = () => {
                             </div>
                         ) : (
                             /* TABLA DERECHA RESUMEN*/
-                            <div className="card shadow-sm border-dynamic bg-card-dynamic p-4 fade-in">
+                            <div className="card shadow-sm border-dynamic bg-card-dynamic p-4 fade-in resumen-exitoso">
                                 <div className="text-center border-bottom border-success mb-4">
                                     <div className="icon-circle-emerald mb-3">
                                         <i className="fas fa-clipboard-check fa-2x text-emerald"></i>
