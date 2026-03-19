@@ -28,31 +28,42 @@ export const ManagerDashboard = () => {
     const [selectedUsers, setSelectedUsers] = useState([]);
 
     const filteredActivities = useMemo(() => {
+        if (selectedUsers.length === 0) return activities; // Si no hay nadie marcado, mostramos todo o nada (tú decides)
         return activities.filter(act => selectedUsers.includes(act.responsible?.id));
     }, [activities, selectedUsers]);
 
 
     const activitiesForThatDay = useMemo(() => {
         if (!selectedDate) return [];
-        return filteredActivities.filter(act => act.implementation_date === selectedDate || act.period?.start === selectedDate);
+        return filteredActivities.filter(act => {
+            // Aseguramos que comparamos peras con peras (asumiendo formato YYYY-MM-DD)
+            const dateA = act.implementation_date;
+            const dateB = act.period?.start;
+            return dateA === selectedDate || dateB === selectedDate;
+        });
     }, [filteredActivities, selectedDate]);
 
     const closeModals = () => {
         setModals({ manager: false, wizard: false, tracker: false });
         setSelectedActivity(null);
+        setActivityHistory([]); // ¡Importante limpiar esto!
     };
 
     const loadActivities = useCallback(async (ctx) => {
-        const { proyectoId, competenciaId } = ctx;
-        if (!proyectoId || !competenciaId) return;
+        if (!ctx?.proyectoId || !ctx?.competenciaId) return;
+
         setLoading(prev => ({ ...prev, activities: true }));
         try {
-            const res = await apiFetch(`/manager/activities?project_id=${proyectoId}&competence_id=${competenciaId}`);
+            const res = await apiFetch(`/manager/activities?project_id=${ctx.proyectoId}&competence_id=${ctx.competenciaId}`);
             if (res?.ok) {
                 const data = await res.json();
                 setActivities(data);
-                const users = [...new Set(data.map(a => a.responsible?.id))].filter(Boolean);
-                setSelectedUsers(users);
+
+                // Solo inicializamos los usuarios si la lista está vacía (para no resetear el filtro del gerente)
+                setSelectedUsers(prev => {
+                    if (prev.length > 0) return prev;
+                    return [...new Set(data.map(a => a.responsible?.id))].filter(Boolean);
+                });
             }
         } catch (error) {
             toast.error("Error al cargar actividades");
@@ -61,13 +72,11 @@ export const ManagerDashboard = () => {
         }
     }, []);
 
-
     const loadProgressSummary = useCallback(async (ctx) => {
-        const { proyectoId, competenciaId } = ctx;
-        if (!proyectoId || !competenciaId) return;
+        if (!ctx?.proyectoId || !ctx?.competenciaId) return;
         setLoading(prev => ({ ...prev, summary: true }));
         try {
-            const res = await apiFetch(`/project/${proyectoId}/progress-summary?competence_id=${competenciaId}`);
+            const res = await apiFetch(`/project/${ctx.proyectoId}/progress-summary?competence_id=${ctx.competenciaId}`);
             if (res?.ok) {
                 const data = await res.json();
                 setSummaryData(data);
@@ -160,7 +169,7 @@ export const ManagerDashboard = () => {
             loadActivities(context);
             loadProgressSummary(context);
         }
-    }, [context, loadActivities, loadProgressSummary]);
+    }, [context?.proyectoId, context?.competenciaId, loadActivities, loadProgressSummary]);
 
     const availableUsers = useMemo(() => {
         const usersMap = {};
@@ -287,6 +296,7 @@ export const ManagerDashboard = () => {
                                     proyectoId={context.proyectoId}
                                     competenciaId={context.competenciaId}
                                     initialData={selectedActivity}
+                                    summaryData={summaryData}
                                     onClose={closeModals}
                                     onSaveSuccess={() => {
                                         closeModals();
