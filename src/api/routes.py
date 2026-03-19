@@ -2300,35 +2300,20 @@ def get_activities():
     project_id = request.args.get('project_id')
     competence_id = request.args.get('competence_id')
     
-    hoy_venezuela = datetime.utcnow() - timedelta(hours=4)
-    today = hoy_venezuela.date()
+    # Calculamos hoy en Venezuela para que el Oficial vea lo mismo que el Manager
+    hoy_venezuela = (datetime.utcnow() - timedelta(hours=4)).date()
 
     query = Activity.query.filter_by(created_by_id=user_id)
 
     if project_id:
         query = query.filter_by(project_id=project_id)
-
     if competence_id:
         query = query.filter_by(project_competence_id=competence_id)
 
     activities = query.all()
 
-    results = []
-    for act in activities:
-        data = act.serialize()
-
-        if data.get('status') not in ['Completada', 'Cancelada']:
-            start_dt = act.start_date.date() if hasattr(act.start_date, 'date') else act.start_date
-            end_dt = act.end_date.date() if hasattr(act.end_date, 'date') else act.end_date
-
-            if end_dt < today:
-                data['status'] = 'Vencida'
-            elif start_dt <= today <= end_dt:
-                data['status'] = 'En Progreso'
-            else:
-                data['status'] = 'Planificada'
-        
-        results.append(data)
+    # IMPORTANTE: Pasamos hoy_venezuela al serialize
+    results = [act.serialize(today_date=hoy_venezuela) for act in activities]
 
     return jsonify(results), 200
 
@@ -2495,11 +2480,12 @@ def get_manager_supervision_activities():
     if not project_id or not competence_id:
         return jsonify({"msg": "Falta el contexto: project_id y competence_id son obligatorios"}), 400
 
-    # 2. Configuramos el tiempo (Venezuela UTC-4)
-    hoy_venezuela = datetime.utcnow() - timedelta(hours=4)
-    today = hoy_venezuela.date()
+    # 2. Configuramos el tiempo (Venezuela UTC-4) de forma precisa
+    # Obtenemos solo la FECHA (date) para evitar problemas de comparación con horas
+    ahora_venezuela = datetime.utcnow() - timedelta(hours=4)
+    today = ahora_venezuela.date()
 
-    # 3. Consulta: Todas las actividades que pertenezcan a ese proyecto y competencia
+    # 3. Consulta
     query = Activity.query.filter_by(
         project_id=project_id, 
         project_competence_id=competence_id
@@ -2509,30 +2495,37 @@ def get_manager_supervision_activities():
     results = []
 
     for act in activities:
-        data = act.serialize()
+        # Usamos el serialize pasando la fecha de hoy para que el modelo ayude
+        data = act.serialize(today_date=today)
         
-        # Aquí inyectamos el "Quién lo hizo" de forma explícita para el Calendario
+        # Inyectamos el responsable (se mantiene tu lógica intacta)
         data["responsible"] = {
             "id": act.creator.id_user,
             "full_name": f"{act.creator.name} {act.creator.lastname}",
             "initials": f"{act.creator.name[0]}{act.creator.lastname[0]}".upper()
         }
 
-        # 4. LÓGICA DE VENCIMIENTO 
-        if data.get('status') not in ['Completada', 'Cancelada']:
-            start_dt = act.start_date.date() if hasattr(act.start_date, 'date') else act.start_date
+        # --- 4. LÓGICA DE ESTADOS DINÁMICOS REFORZADA ---
+        status_actual = data.get('status')
+        # Agregamos 'Vencida' a protegidos si ya viene así del modelo para no re-calcular
+        estados_protegidos = ['Aprobada', 'En Revisión', 'Rechazada', 'Cancelada', 'Completada']
+
+        if status_actual not in estados_protegidos:
+            # Normalizamos fechas de la actividad a .date()
+            start_dt = act.start_date.date() if isinstance(act.start_date, datetime) else act.start_date
+            end_dt = act.end_date.date() if isinstance(act.end_date, datetime) else act.end_date
             
-            if start_dt < today:
+            # Aplicamos la jerarquía de fechas
+            if today > end_dt:
                 data['status'] = 'Vencida'
-            elif start_dt == today:
+            elif start_dt <= today <= end_dt:
                 data['status'] = 'En Progreso'
-            else:
+            elif start_dt > today:
                 data['status'] = 'Planificada'
 
         results.append(data)
 
     return jsonify(results), 200
-
 
 #Auditoría o historial de actividades
 @api.route('/manager/activities/<int:activity_id>/history', methods=['GET']) # Ajusté la ruta a /activities/

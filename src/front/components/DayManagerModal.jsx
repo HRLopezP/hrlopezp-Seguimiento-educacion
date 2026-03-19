@@ -20,6 +20,9 @@ const DayManagerModal = ({
     const [cancellingId, setCancellingId] = useState(null);
     const [reason, setReason] = useState("");
 
+    const now = new Date();
+    const todayStr = new Date().toLocaleDateString('en-CA');
+
     const formattedDate = selectedDate ? new Date(selectedDate + "T00:00:00").toLocaleDateString('es-ES', {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
     }) : "";
@@ -27,7 +30,10 @@ const DayManagerModal = ({
     const getStatusBadge = (act) => {
         const config = getStatusData(act.status);
         return (
-            <span className={`badge ${config.badgeClass}`}>
+            <span
+                className={`badge ${config.badgeClass || ''}`}
+                style={config.style || {}}
+            >
                 {config.label}
             </span>
         );
@@ -84,13 +90,15 @@ const DayManagerModal = ({
                             </div>
                         ) : (
                             activities.map((act) => {
-                                const isSameDay = true;
-                                const start = act.implementation_date;
-                                const end = act.implementation_date;
+                                const startDate = act.period?.start;
+                                const endDate = act.period?.end;
+                                const isSingleDay = startDate === endDate;
+                                const currentStatus = act.status;
                                 const isAprobada = act.status === 'Aprobada';
                                 const isEnRevision = act.status === 'En Revisión';
                                 const isRechazada = act.status === 'Rechazada';
                                 const isCancelada = act.status === 'Cancelada';
+                                const isVencida = currentStatus === 'Vencida';
                                 const isPlanificadaOProgreso = act.status === 'Planificada' || act.status === 'En Progreso';
 
                                 return (
@@ -114,9 +122,9 @@ const DayManagerModal = ({
                                                     </span>
                                                     <h6 className="fw-bold text-dark mb-1">{act.description}</h6>
 
-                                                    <div className={`badge ${isSameDay ? 'bg-primary' : 'bg-light text-primary'} border mb-1`} style={{ fontSize: '0.7rem' }}>
-                                                        <i className={`far ${isSameDay ? 'fa-clock' : 'fa-calendar-alt'} me-1`}></i>
-                                                        {isSameDay ? 'Solo por hoy' : `Rango: ${start} al ${end}`}
+                                                    <div className={`badge ${isSingleDay ? 'bg-primary' : 'bg-info text-white'} border mb-1`} style={{ fontSize: '0.7rem' }}>
+                                                        <i className={`far ${isSingleDay ? 'fa-clock' : 'fa-calendar-alt'} me-1`}></i>
+                                                        {isSingleDay ? 'Solo por hoy' : `Rango: ${startDate} al ${endDate}`}
                                                     </div>
 
                                                     <small className="text-muted d-block mb-1">

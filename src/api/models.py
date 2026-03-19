@@ -582,28 +582,33 @@ class Activity(db.Model):
     location: Mapped["Location"] = relationship()
     indicator: Mapped["Indicator"] = relationship()
     
-    def get_real_status(self):
-        if self.status == ActivityStatus.CANCELADA:
-            return ActivityStatus.CANCELADA.value
-        
-        if self.achievements:
+    def get_real_status(self, today_date=None):
+        import datetime
+        if today_date is None:  
+            today_date = datetime.date.today()
+
+        if self.status in [ActivityStatus.CANCELADA, ActivityStatus.APROBADA, ActivityStatus.RECHAZADA]:
             return self.status.value
         
-        if not self.start_date:
+        if self.achievements:
+            return ActivityStatus.EN_REVISION.value
+        
+        if not self.start_date or not self.end_date:
             return ActivityStatus.PLANIFICADA.value
 
-        hoy = date.today()
-        inicio = self.start_date.date()
-        fin = self.end_date.date()
+        inicio = self.start_date.date() if isinstance(self.start_date, datetime.datetime) else self.start_date
+        fin = self.end_date.date() if isinstance(self.end_date, datetime.datetime) else self.end_date
 
-        if hoy < inicio:
+        if today_date < inicio:
             return ActivityStatus.PLANIFICADA.value
-        elif inicio <= hoy <= fin:
+        elif inicio <= today_date <= fin:
             return ActivityStatus.EN_PROGRESO.value
-        else:
+        elif today_date > fin:
             return ActivityStatus.VENCIDA.value
+
+        return self.status.value
     
-    def serialize(self):
+    def serialize(self, today_date=None):
         recs = self.achievements if self.achievements else []
         last_achievement = recs[-1] if recs else None
         total_men = sum((rec.men_reached or 0) for rec in recs)
@@ -645,7 +650,7 @@ class Activity(db.Model):
                 "start": self.start_date.strftime("%Y-%m-%d") if self.start_date else None,
                 "end": self.end_date.strftime("%Y-%m-%d") if self.end_date else None
             },
-            "status": self.get_real_status(),
+            "status": self.get_real_status(today_date),
             "planned": {
                 "total": self.planned_target,
                 "men": self.planned_men,

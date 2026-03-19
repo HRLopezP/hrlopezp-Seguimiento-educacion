@@ -6,22 +6,24 @@ import bootstrap5Plugin from '@fullcalendar/bootstrap5';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import { getStatusData } from "../../utils/statusHelper";
 
-const ExecutionCalendar = ({ 
-    onDateSelect, 
-    activities = [], 
-    onActivityClick, 
-    isManagerView = false 
+const ExecutionCalendar = ({
+    onDateSelect,
+    activities = [],
+    onActivityClick,
+    isManagerView = false
 }) => {
 
     const events = (activities || []).map(act => {
-        // Ajuste de lógica de fechas: 
-        // Si no tienes un objeto "period", usamos implementation_date
-        const startDate = act.period?.start || act.implementation_date;
-        const rawEndDate = act.period?.end || act.implementation_date;
-        
-        // FullCalendar es exclusivo en la fecha de fin (el día de fin no se marca si no sumas 1)
-        const endDate = new Date(rawEndDate);
-        endDate.setDate(endDate.getDate() + 1);
+
+        const startDate = act.period?.start;
+        const rawEndDate = act.period?.end;
+
+        let calendarEndDate = rawEndDate;
+        if (rawEndDate) {
+            const d = new Date(rawEndDate + "T00:00:00");
+            d.setDate(d.getDate() + 1);
+            calendarEndDate = d.toISOString().split('T')[0];
+        }
 
         const statusStyle = getStatusData(act.status);
 
@@ -34,11 +36,10 @@ const ExecutionCalendar = ({
             id: act.id,
             title: displayTitle,
             start: startDate,
-            end: endDate.toISOString().split('T')[0],
-            backgroundColor: statusStyle.calendarColor || '#1B263B', // Azul Marino por defecto
+            end: calendarEndDate,
+            backgroundColor: statusStyle.calendarColor || '#1B263B',
             textColor: statusStyle.textColor || '#FFFFFF',
             borderColor: statusStyle.textColor?.startsWith('#') ? `${statusStyle.textColor}40` : 'transparent',
-            // Pasamos todo el objeto para que el modal tenga la info completa
             extendedProps: { ...act }
         };
     });
