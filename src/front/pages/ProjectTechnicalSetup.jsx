@@ -766,7 +766,6 @@ const ProjectTechnicalSetup = () => {
                                             <thead className="thead-oxford sticky-top">
                                                 <tr>
                                                     <th>Provincia</th>
-                                                    <th className="text-center">Total {activeInd.result_type === 'outcome' ? '(%)' : ''}</th>
                                                     {/* Solo mostramos H y M si NO es outcome */}
                                                     {activeInd.result_type !== 'outcome' && (
                                                         <>
@@ -774,6 +773,7 @@ const ProjectTechnicalSetup = () => {
                                                             <th className="text-center"><i className="fas fa-venus w-color"></i> M</th>
                                                         </>
                                                     )}
+                                                    <th className="text-center">Total {activeInd.result_type === 'outcome' ? '(%)' : ''}</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -806,32 +806,6 @@ const ProjectTechnicalSetup = () => {
                                                             <td className="text-oxford-dynamic fw-bold">
                                                                 {pg.province_name || "Sin nombre"}
                                                             </td>
-
-                                                            {/* Columna TOTAL con Input dinámico */}
-                                                            <td>
-                                                                <div className="input-group input-group-sm">
-                                                                    <input
-                                                                        type="number"
-                                                                        min="0"
-                                                                        max={activeInd.result_type === 'outcome' ? "100" : undefined}
-                                                                        className={`form-control meta-input ${activeInd.result_type !== 'outcome' && (pg.men + pg.women !== pg.total)
-                                                                            ? 'border-danger text-danger'
-                                                                            : ''
-                                                                            }`}
-                                                                        value={pg.total === 0 ? '' : pg.total}
-                                                                        onChange={(e) => {
-                                                                            let val = parseFloat(e.target.value);
-                                                                            if (activeInd.result_type === 'outcome' && val > 100) val = 100;
-                                                                            handleMetaChange(activeIndicatorId, pg.province_id, 'total', val || 0);
-                                                                        }}
-                                                                        placeholder="0"
-                                                                    />
-                                                                    {activeInd.result_type === 'outcome' && (
-                                                                        <span className="input-group-text bg-light-emerald text-emerald fw-bold">%</span>
-                                                                    )}
-                                                                </div>
-                                                            </td>
-
                                                             {/* Columnas H y M condicionadas */}
                                                             {activeInd.result_type !== 'outcome' && (
                                                                 <>
@@ -855,6 +829,31 @@ const ProjectTechnicalSetup = () => {
                                                                     </td>
                                                                 </>
                                                             )}
+                                                            {/* Columna TOTAL con Input dinámico */}
+                                                            <td>
+                                                                <div className="input-group input-group-sm">
+                                                                    <input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        max={activeInd.result_type === 'outcome' ? "100" : undefined}
+                                                                        className={`form-control meta-input ${activeInd.result_type !== 'outcome' && (pg.men + pg.women !== pg.total)
+                                                                            ? 'border-danger text-danger'
+                                                                            : ''
+                                                                            }`}
+                                                                        value={pg.total === 0 ? '' : pg.total}
+                                                                        disabled={activeInd.result_type !== 'outcome'}
+                                                                        onChange={(e) => {
+                                                                            let val = parseFloat(e.target.value);
+                                                                            if (activeInd.result_type === 'outcome' && val > 100) val = 100;
+                                                                            handleMetaChange(activeIndicatorId, pg.province_id, 'total', val || 0);
+                                                                        }}
+                                                                        placeholder="0"
+                                                                    />
+                                                                    {activeInd.result_type === 'outcome' && (
+                                                                        <span className="input-group-text bg-light-emerald text-emerald fw-bold">%</span>
+                                                                    )}
+                                                                </div>
+                                                            </td>
                                                         </tr>
                                                     );
                                                 })}
