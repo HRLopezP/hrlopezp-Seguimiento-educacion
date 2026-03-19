@@ -331,16 +331,27 @@ const CreateProject = () => {
     };
 
     const handleProvinceTargetChange = (provinceId, field, value) => {
-        // Convertimos a número, pero manejamos el vacío para que no salte el 0 de inmediato
+        // 1. Convertimos a número (o dejamos vacío si el usuario borró el input)
         const numericValue = value === '' ? '' : parseInt(value);
 
         setFormData(prev => ({
             ...prev,
-            province_unique_targets: prev.province_unique_targets.map(pt =>
-                pt.province_id === provinceId
-                    ? { ...pt, [field]: numericValue }
-                    : pt
-            )
+            province_unique_targets: prev.province_unique_targets.map(pt => {
+                if (pt.province_id === provinceId) {
+                    // 2. Creamos una copia de la fila con el nuevo valor del campo cambiado
+                    const updatedRow = { ...pt, [field]: numericValue };
+
+                    // 3. Lógica Pro: Si se toca 'men' o 'women', calculamos el total automáticamente
+                    if (field === 'men' || field === 'women') {
+                        const menCount = Number(updatedRow.men || 0);
+                        const womenCount = Number(updatedRow.women || 0);
+                        updatedRow.total = menCount + womenCount;
+                    }
+
+                    return updatedRow;
+                }
+                return pt;
+            })
         }));
     };
 
@@ -613,55 +624,53 @@ const CreateProject = () => {
                                                 <thead className="thead-oxford">
                                                     <tr>
                                                         <th>Estado</th>
-                                                        <th>Meta Total</th>
                                                         <th>Hombres</th>
                                                         <th>Mujeres</th>
+                                                        <th>Meta Total</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {formData.province_unique_targets.map(pt => {
-                                                        // 1. Calculamos el error para esta fila específica
-                                                        const isInvalid = Number(pt.men || 0) + Number(pt.women || 0) !== Number(pt.total || 0);
+                                                    {formData.province_unique_targets.map(pt => (
+                                                        <tr key={`target-row-${pt.province_id}`} className="tr-transparent">
+                                                            {/* Nombre de la Provincia */}
+                                                            <td className="fw-bold text-oxford-dynamic">
+                                                                {pt.province_name}
+                                                            </td>
 
-                                                        return (
-                                                            <React.Fragment key={`target-row-${pt.province_id}`}>
-                                                                {/* FILA DE INPUTS */}
-                                                                <tr className={isInvalid ? "table-danger-light" : "tr-transparent"}>
-                                                                    <td className="fw-bold text-oxford-dynamic">{pt.province_name}</td>
-                                                                    <td>
-                                                                        <input type="number"
-                                                                            className={`form-control form-control-sm ${isInvalid ? 'border-danger' : ''}`}
-                                                                            value={pt.total}
-                                                                            onChange={(e) => handleProvinceTargetChange(pt.province_id, 'total', e.target.value)}
-                                                                        />
-                                                                    </td>
-                                                                    <td>
-                                                                        <input type="number"
-                                                                            className={`form-control form-control-sm ${isInvalid ? 'border-danger' : ''}`}
-                                                                            value={pt.men}
-                                                                            onChange={(e) => handleProvinceTargetChange(pt.province_id, 'men', e.target.value)}
-                                                                        />
-                                                                    </td>
-                                                                    <td>
-                                                                        <input type="number"
-                                                                            className={`form-control form-control-sm ${isInvalid ? 'border-danger' : ''}`}
-                                                                            value={pt.women}
-                                                                            onChange={(e) => handleProvinceTargetChange(pt.province_id, 'women', e.target.value)}
-                                                                        />
-                                                                    </td>
-                                                                </tr>
-                                                                {/* FILA DE MENSAJE DE ERROR (Solo aparece si isInvalid es true) */}
-                                                                {isInvalid && (
-                                                                    <tr>
-                                                                        <td colSpan="4" className="text-danger py-0 border-0" style={{ fontSize: '0.75rem' }}>
-                                                                            <i className="fas fa-exclamation-circle me-1"></i>
-                                                                            La suma de hombres ({pt.men || 0}) + mujeres ({pt.women || 0}) debe ser {pt.total || 0}.
-                                                                        </td>
-                                                                    </tr>
-                                                                )}
-                                                            </React.Fragment>
-                                                        );
-                                                    })}
+                                                            {/* Input Hombres */}
+                                                            <td>
+                                                                <input
+                                                                    type="number"
+                                                                    className="form-control form-control-sm border-primary-subtle"
+                                                                    value={pt.men}
+                                                                    onChange={(e) => handleProvinceTargetChange(pt.province_id, 'men', e.target.value)}
+                                                                    placeholder="0"
+                                                                />
+                                                            </td>
+
+                                                            {/* Input Mujeres */}
+                                                            <td>
+                                                                <input
+                                                                    type="number"
+                                                                    className="form-control form-control-sm border-danger-subtle"
+                                                                    value={pt.women}
+                                                                    onChange={(e) => handleProvinceTargetChange(pt.province_id, 'women', e.target.value)}
+                                                                    placeholder="0"
+                                                                />
+                                                            </td>
+
+                                                            {/* Input TOTAL (Automático y Bloqueado) */}
+                                                            <td>
+                                                                <input
+                                                                    type="number"
+                                                                    className="form-control form-control-sm bg-light fw-bold"
+                                                                    value={pt.total} // El valor viene de la función que actualiza el estado
+                                                                    disabled={true}
+                                                                    readOnly={true}
+                                                                />
+                                                            </td>
+                                                        </tr>
+                                                    ))}
                                                 </tbody>
                                             </table>
                                         </div>
