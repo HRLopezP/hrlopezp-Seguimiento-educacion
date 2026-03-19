@@ -768,18 +768,20 @@ def get_theory_full_details(id):
 
     return jsonify(theory.serialize()), 200
 
-
+#Crear un nuevo proyecto
 @api.route('/projects', methods=['POST'])
 @jwt_required()
 @manager_required
 def create_project():
     data = request.json
 
+
     if not data or not data.get("code"):
         return jsonify({"msg": "El código único del proyecto es obligatorio"}), 400
     try:
         targets = data.get("unique_targets", {})
 
+        status_from_front = data.get("status")
         new_project = Project(
             code=data.get("code"),
             donor_name=data.get("donor_name"),      
@@ -794,7 +796,7 @@ def create_project():
                 data['start_date'], '%Y-%m-%d') if data.get('start_date') else None,
             end_date=datetime.strptime(
                 data['end_date'], '%Y-%m-%d') if data.get('end_date') else None,
-            status=ProjectStatus.EN_PROGRESO
+            status=next((s for s in ProjectStatus if s.value == status_from_front), ProjectStatus.BORRADOR)
         )
 
         db.session.add(new_project)
@@ -968,10 +970,15 @@ def update_project(id):
                 setattr(project, field, data[field])
 
         if 'status' in data:
-            try:
-                project.status = ProjectStatus(data['status'])
-            except ValueError:
-                return jsonify({"msg": f"Estado {data['status']} no es válido"}), 400
+            status_value = data['status']
+            # Buscamos el Enum que coincida con el texto que viene del Front ("Borrador", "En Progreso", etc.)
+            matched_status = next((s for s in ProjectStatus if s.value == status_value), None)
+    
+            if matched_status:
+                project.status = matched_status
+            else:
+                # Si no lo encuentra, por seguridad le ponemos Borrador
+                project.status = ProjectStatus.BORRADOR
 
         if 'unique_targets' in data:
             targets = data['unique_targets']

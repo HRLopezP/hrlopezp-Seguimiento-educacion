@@ -259,39 +259,33 @@ const CreateProject = () => {
             return toast.error("El Código Único es obligatorio, amiguito.");
         }
 
-        // 1. Calculamos los totales globales sumando las metas de cada provincia
-        // Esto garantiza consistencia: el total del proyecto es la suma de sus partes.
         const calculatedTotal = formData.province_unique_targets.reduce((acc, pt) => acc + Number(pt.total || 0), 0);
         const calculatedMen = formData.province_unique_targets.reduce((acc, pt) => acc + Number(pt.men || 0), 0);
         const calculatedWomen = formData.province_unique_targets.reduce((acc, pt) => acc + Number(pt.women || 0), 0);
 
-        // 2. Preparamos el payload con la estructura EXACTA que espera el backend
         const payload = {
             code: formData.unique_code,
-            project_name: formData.name,       // CAMBIADO: de 'name' a 'project_name'
-            donor_name: formData.donor,        // CAMBIADO: de 'donor' a 'donor_name'
-            main_objective: formData.description, // CAMBIADO: de 'description' a 'main_objective'
-            results_summary: formData.main_scope, // CAMBIADO: de 'main_scope' a 'results_summary'
+            project_name: formData.name,       
+            donor_name: formData.donor,        
+            main_objective: formData.description,
+            results_summary: formData.main_scope, 
             start_date: formData.start_date,
             end_date: formData.end_date,
-            status: isPartial ? "Borrador" : "En Progreso", // Usamos el estado Draft si es parcial
+            status: isPartial ? "Borrador" : "En Progreso", 
 
-            // El objeto que el backend busca con .get("unique_targets")
             unique_targets: {
                 total: calculatedTotal,
                 men: calculatedMen,
                 women: calculatedWomen,
-                disability: 0 // Puedes añadir un campo en el form para esto luego
+                disability: 0 
             },
 
-            // Ubicaciones geográficas
             locations: formData.locations.map(loc => ({
                 province_id: parseInt(loc.province_id),
                 municipality_id: parseInt(loc.municipality_id),
                 parish_id: parseInt(loc.parish_id)
             })),
 
-            // Metas por provincia (Desagregadas)
             province_unique_targets: formData.province_unique_targets.map(pt => ({
                 province_id: parseInt(pt.province_id),
                 total: Number(pt.total),
@@ -303,7 +297,6 @@ const CreateProject = () => {
                 manager_id: c.manager_id
             })),
 
-            // Por ahora enviamos indicadores vacíos ya que se configuran en otro paso
             indicators: []
         };
 

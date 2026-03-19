@@ -186,6 +186,7 @@ class IndicatorTemplate(db.Model):
 
 
 class ProjectStatus(enum.Enum):
+    BORRADOR = "Borrador"
     PLANIFICADO = "Planificado"
     EN_PROGRESO = "En Progreso"
     COMPLETADO = "Completado"
