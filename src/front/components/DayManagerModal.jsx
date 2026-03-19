@@ -94,12 +94,10 @@ const DayManagerModal = ({
                                 const endDate = act.period?.end;
                                 const isSingleDay = startDate === endDate;
                                 const currentStatus = act.status;
-                                const isAprobada = act.status === 'Aprobada';
-                                const isEnRevision = act.status === 'En Revisión';
-                                const isRechazada = act.status === 'Rechazada';
                                 const isCancelada = act.status === 'Cancelada';
-                                const isVencida = currentStatus === 'Vencida';
-                                const isPlanificadaOProgreso = act.status === 'Planificada' || act.status === 'En Progreso';
+                                const isAprobada = act.status === 'Aprobada';
+                                const isFinalizada = isAprobada || isCancelada;
+                                const permiteAcciones = act.status === 'Planificada' || act.status === 'En Progreso' || act.status === 'Vencida' || act.status === 'Rechazada' || act.status === 'En Revisión';
 
                                 return (
                                     <div key={act.id} className="card border-0 shadow-sm transition-hover" style={{ borderRadius: '12px' }}>
@@ -166,44 +164,35 @@ const DayManagerModal = ({
                                                             <div className="border-start ps-2" title="Total"><span className="small fw-bold" style={{ color: '#10b981' }}>{act.planned?.total || 0}</span></div>
                                                         </div>
 
-                                                        <div className="btn-group">
-                                                            {!isCancelada && !isAprobada && (
+                                                        <div className="btn-group gap-1">
+                                                            {!isFinalizada && (
                                                                 <>
-                                                                    {/* Botón Cancelar: Solo si no se ha enviado a revisión */}
-                                                                    {isPlanificadaOProgreso && (
-                                                                        <button className="btn btn-sm btn-outline-danger border-0" onClick={() => setCancellingId(act.id)} title="Cancelar Actividad">
-                                                                            <i className="fas fa-ban"></i>
-                                                                        </button>
+                                                                    {/* Botón Cancelar y Editar: Visibles si permiteAcciones es true */}
+                                                                    {permiteAcciones && (
+                                                                        <>
+                                                                            <button className="btn btn-sm btn-outline-danger border-0" onClick={() => setCancellingId(act.id)} title="Cancelar">
+                                                                                <i className="fas fa-ban"></i>
+                                                                            </button>
+                                                                            <button className="btn btn-sm btn-outline-secondary border-0" onClick={() => onEditActivity(act)} title="Editar">
+                                                                                <i className="fas fa-edit"></i>
+                                                                            </button>
+                                                                        </>
                                                                     )}
 
-                                                                    {/* Botón Editar Planificación: Solo si está en borrador (Planificada/Progreso) */}
-                                                                    {isPlanificadaOProgreso && (
-                                                                        <button className="btn btn-sm btn-outline-secondary border-0" onClick={() => onEditActivity(act)} title="Editar Planificación">
-                                                                            <i className="fas fa-edit"></i>
-                                                                        </button>
-                                                                    )}
-
-                                                                    {/* Botón Logros: Disponible siempre, excepto si está aprobada o cancelada */}
+                                                                    {/* Botón Logros (Emerald Green) */}
                                                                     <button
-                                                                        className="btn btn-sm text-white ms-2 shadow-sm d-flex align-items-center"
-                                                                        style={{
-                                                                            backgroundColor: isRechazada ? '#e63946' : (isEnRevision ? '#3a86ff' : '#10b981'),
-                                                                            borderRadius: '8px'
-                                                                        }}
+                                                                        className="btn btn-sm text-white ms-2 shadow-sm"
+                                                                        style={{ backgroundColor: '#10b981', borderRadius: '8px' }}
                                                                         onClick={() => onRegisterAchievement(act)}
                                                                     >
-                                                                        <i className={`fas ${isEnRevision || isRechazada ? 'fa-pen-nib' : 'fa-check-circle'} me-1`}></i>
-                                                                        {isRechazada ? 'Corregir Logros' : (isEnRevision ? 'Editar Logros' : 'Logros')}
+                                                                        <i className="fas fa-check-circle me-1"></i>
+                                                                        {act.status === 'Rechazada' ? 'Corregir' : 'Logros'}
                                                                     </button>
                                                                 </>
                                                             )}
 
-                                                            {isAprobada && (
-                                                                <span className="text-success small fw-bold">
-                                                                    <i className="fas fa-lock me-1"></i> Verificado
-                                                                </span>
-                                                            )}
-                                                            {isCancelada && <span className="text-muted small fst-italic">Sin acciones</span>}
+                                                            {isAprobada && <span className="text-success small fw-bold"><i className="fas fa-lock me-1"></i> Verificado</span>}
+                                                            {act.status === 'Cancelada' && <span className="text-muted small fst-italic">Sin acciones</span>}
                                                         </div>
                                                     </div>
                                                 </>
@@ -228,13 +217,11 @@ const DayManagerModal = ({
             {/* Footer */}
             <div className="modal-footer border-0 bg-white d-flex justify-content-between p-3">
                 <button className="btn btn-link text-dark fw-bold text-decoration-none" onClick={onClose}>Cerrar</button>
-                {!isManagerView && (
-                    <button className="btn text-white px-4 shadow" style={{ backgroundColor: '#1B263B', borderRadius: '10px' }} onClick={onAddActivity}>
-                        <i className="fas fa-plus me-2"></i> Añadir Indicador
-                    </button>
-                )}
+                <button className="btn text-white px-4 shadow" style={{ backgroundColor: '#1B263B', borderRadius: '10px' }} onClick={onAddActivity}>
+                    <i className="fas fa-plus me-2"></i> Añadir Indicador
+                </button>
             </div>
-        </div>
+        </div >
     );
 };
 

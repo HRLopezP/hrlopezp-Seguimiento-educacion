@@ -79,6 +79,27 @@ export const ManagerDashboard = () => {
         }
     }, []);
 
+    const handleCancelActivity = async (actId, reason) => {
+        try {
+            const res = await apiFetch(`/official/activities/${actId}/cancel`, {
+                method: 'PATCH',
+                body: JSON.stringify({ cancellation_reason: reason })
+            });
+
+            if (res && res.ok) {
+                toast.success("Actividad cancelada");
+
+                setActivities(prev => prev.map(act =>
+                    act.id === actId
+                        ? { ...act, status: 'Cancelada', cancellation_reason: reason }
+                        : act
+                ));
+                closeModals();
+            }
+        } catch (error) {
+            toast.error("Error de conexión");
+        }
+    };
 
     const handleDeleteActivity = async (activityId) => {
         const result = await Swal.fire({
@@ -86,8 +107,8 @@ export const ManagerDashboard = () => {
             text: "Esta acción no se puede deshacer y quedará registrada en el log de auditoría del sistema.",
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#ef4444', 
-            cancelButtonColor: '#1B263B',  
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#1B263B',
             confirmButtonText: '<i class="fas fa-trash-alt me-2"></i>Sí, eliminar',
             cancelButtonText: 'Cancelar',
             background: 'var(--card-bg)',
@@ -243,12 +264,18 @@ export const ManagerDashboard = () => {
                                     onClose={closeModals}
                                     onDeleteActivity={handleDeleteActivity}
                                     onViewHistory={handleViewHistory}
+                                    onCancelActivity={handleCancelActivity}
                                     onEditActivity={(act) => {
                                         setSelectedActivity(act);
                                         setModals({ ...modals, manager: false, wizard: true });
                                     }}
                                     onAddActivity={() => {
-                                        setModals({ ...modals, manager: false, wizard: true });
+                                        setSelectedActivity(null);
+                                        setModals({ manager: false, wizard: true });
+                                    }}
+                                    onRegisterAchievement={(act) => {
+                                        setSelectedActivity(act);
+                                        setModals({ manager: false, tracker: true });
                                     }}
                                 />
                             </ModalWrapper>
