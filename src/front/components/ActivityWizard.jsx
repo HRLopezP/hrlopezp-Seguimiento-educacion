@@ -9,7 +9,7 @@ export const invalidateGapCache = () => {
     console.log("Memoria de indicadores refrescada");
 };
 
-const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSaveSuccess }) => {
+const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, onClose, onSaveSuccess, summaryData }) => {
     const [indicadores, setIndicadores] = useState([]);
     const [lugares, setLugares] = useState([]);
     const [catalogo, setCatalogo] = useState([]);
@@ -35,20 +35,22 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
         start_date: selectedDate || '',
         end_date: selectedDate || '',
         project_id: proyectoId,
-        project_competence_id: ''
+        project_competence_id: '',
+        observations: ''
     });
 
     const filteredIndicators = useMemo(() => {
         return indicadores.filter(ind => {
+            const isSameCompetence = String(ind.project_competence_id) === String(competenciaId);
             const matchesSearch = ind.indicator_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 ind.indicator_name.toLowerCase().includes(searchTerm.toLowerCase());
 
             const isPlanificable = ind.result_type === 'output' ||
                 (ind.result_type === 'outcome' && ind.calculation_type === 'independent');
 
-            return matchesSearch && isPlanificable;
+            return isSameCompetence && matchesSearch && isPlanificable;
         });
-    }, [indicadores, searchTerm]);
+    }, [indicadores, searchTerm, competenciaId]);
 
     const groupedIndicators = useMemo(() => {
         return filteredIndicators.reduce((acc, curr) => {
@@ -79,9 +81,16 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
 
     useEffect(() => {
         const loadInitialData = async () => {
+            if (!proyectoId) return;
+
             try {
                 setLoading(true);
-                const resInd = await apiFetch(`/official/projects/${proyectoId}/indicators`);
+                const [resInd, resLoc] = await Promise.all([
+                    apiFetch(`/official/projects/${proyectoId}/indicators`),
+                    initialData?.indicator_id
+                        ? apiFetch(`/official/indicators/${initialData.indicator_id}/locations`)
+                        : Promise.resolve(null)
+                ]);
 
                 if (resInd?.ok) {
                     const listaIndicadores = await resInd.json();
@@ -89,11 +98,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
 
                     if (initialData) {
                         const currentIndicatorId = initialData.indicator?.id || initialData.indicator_id;
-                        const indSeleccionado = listaIndicadores.find(i => String(i.id) === String(currentIndicatorId));
-                        // CARGA CRÍTICA: Esperamos a que los lugares se carguen y filtren
-                        if (currentIndicatorId) {
-                            await cargarLugares(currentIndicatorId, indSeleccionado);
-                        }
 
                         setForm({
                             indicator_id: String(currentIndicatorId || ''),
@@ -104,7 +108,8 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                             start_date: initialData.period?.start || selectedDate,
                             end_date: initialData.period?.end || selectedDate,
                             project_id: proyectoId,
-                            project_competence_id: initialData.project_competence_id || ''
+                            project_competence_id: initialData.project_competence_id || '',
+                            observations: initialData.observations || ''
                         });
 
                         if (initialData.description) {
@@ -112,6 +117,12 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                         }
                     }
                 }
+
+                if (resLoc?.ok) {
+                    const dataLoc = await resLoc.json();
+                    setLugares(dataLoc);
+                }
+
             } catch (err) {
                 console.error("Error en carga inicial:", err);
             } finally {
@@ -119,7 +130,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
             }
         };
 
-        if (proyectoId) loadInitialData();
+        loadInitialData();
     }, [proyectoId, initialData]);
 
 
@@ -160,8 +171,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
     };
 
     const selectIndicator = (ind) => {
-        // El nuevo resumen usa 'id', pero tu lista de indicadores inicial puede usar 'id_indicator'
-        // Forzamos a que siempre usemos el mismo nombre de propiedad
         const idLimpio = ind.id || ind.id_indicator;
 
         setForm(prev => ({
@@ -177,7 +186,6 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
     const handleSave = async () => {
         const finalDescription = selectedActivities.join(", ");
 
-        // Validaciones iniciales
         if (parseInt(form.planned_total) <= 0) {
             Swal.fire('Atención', 'Debes asignar al menos un beneficiario (hombre o mujer) para guardar.', 'warning');
             return;
@@ -199,16 +207,11 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
             });
 
             if (res?.ok) {
-                // --- CAMBIO CRÍTICO AQUÍ ---
-                // Invalidados la caché global para que al volver a abrir o cambiar de indicador
-                // se descargue el progreso real time actualizado desde el backend.
+
                 invalidateGapCache();
 
                 await Swal.fire('¡Éxito!', 'Planificación guardada correctamente.', 'success');
-
                 setSelectedActivities([]);
-
-                // Notificamos al padre que hubo un cambio (esto refresca el calendario/dashboard)
                 if (typeof onSaveSuccess === 'function') {
                     onSaveSuccess();
                 } else {
@@ -227,81 +230,54 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
     };
 
     useEffect(() => {
-        const controller = new AbortController();
+        if (!form.indicator_id || !form.location_id || !summaryData) {
+            setGapData(null);
+            return;
+        }
 
-        const fetchGap = async () => {
-            // Validación: Solo actuamos si hay ambos IDs
-            if (!form.indicator_id || !form.location_id) {
-                setGapData(null);
-                return;
+        const calculateGap = () => {
+            const indInfo = summaryData.find(d => String(d.id) === String(form.indicator_id));
+            const ubicacionSeleccionada = lugares.find(l => String(l.id_location) === String(form.location_id));
+            let provId = ubicacionSeleccionada?.province_id;
+
+            if (!provId && ubicacionSeleccionada?.province_name) {
+                const metaProvincia = selectedIndicatorDetails?.goals_by_province?.find(
+                    g => g.province_name === ubicacionSeleccionada.province_name
+                );
+                provId = metaProvincia?.province_id;
             }
 
-            let projectData = gapCache["current_project"];
+            if (indInfo && provId) {
+                const statsProv = indInfo.provinces?.find(p => String(p.province_id) === String(provId));
 
-            if (!projectData) {
-                setLoadingGap(true);
-                try {
-                    const res = await apiFetch(`/project/${proyectoId}/progress-summary`, { signal: controller.signal });
-                    if (res?.ok) {
-                        projectData = await res.json();
-                        gapCache["current_project"] = projectData;
-                    }
-                } catch (err) {
-                    if (err.name !== 'AbortError') console.error("Error cargando brecha:", err);
-                } finally {
-                    setLoadingGap(false);
-                }
-            }
-
-            if (projectData) {
-                const indInfo = projectData.find(d => String(d.id) === String(form.indicator_id));
-                const ubicacionSeleccionada = lugares.find(l => String(l.id_location) === String(form.location_id));
-                let provId = ubicacionSeleccionada?.province_id;
-
-                if (!provId && ubicacionSeleccionada?.province_name) {
-                    const metaProvincia = selectedIndicatorDetails?.goals_by_province?.find(
-                        g => g.province_name === ubicacionSeleccionada.province_name
-                    );
-                    provId = metaProvincia?.province_id;
-                }
-
-                console.log("Ubicación objeto completo:", ubicacionSeleccionada);
-                console.log("Provincia ID final:", provId);
-
-                if (indInfo && provId) {
-                    const statsProv = indInfo.provinces?.find(p => String(p.province_id) === String(provId));
-
-                    if (statsProv) {
-                        setGapData({
-                            indicator_id: indInfo.id,
-                            indicator_type: indInfo.type, // Asegúrate que el JSON diga 'type'
-                            target: {
-                                total: statsProv.target,
-                                men: statsProv.target_men || 0,
-                                women: statsProv.target_women || 0
-                            },
-                            achieved: {
-                                total: statsProv.achieved,
-                                men: statsProv.men,
-                                women: statsProv.women
-                            },
-                            gap: {
-                                total: Math.max(0, statsProv.target - statsProv.achieved),
-                                men: Math.max(0, (statsProv.target_men || 0) - statsProv.men),
-                                women: Math.max(0, (statsProv.target_women || 0) - statsProv.women)
-                            }
-                        });
-                    } else {
-                        console.warn("No se encontraron estadísticas para la provincia:", provId);
-                        setGapData(null);
-                    }
+                if (statsProv) {
+                    setGapData({
+                        indicator_id: indInfo.id,
+                        indicator_type: indInfo.type,
+                        target: {
+                            total: statsProv.target,
+                            men: statsProv.target_men || 0,
+                            women: statsProv.target_women || 0
+                        },
+                        achieved: {
+                            total: statsProv.achieved,
+                            men: statsProv.men,
+                            women: statsProv.women
+                        },
+                        gap: {
+                            total: Math.max(0, statsProv.target - statsProv.achieved),
+                            men: Math.max(0, (statsProv.target_men || 0) - statsProv.men),
+                            women: Math.max(0, (statsProv.target_women || 0) - statsProv.women)
+                        }
+                    });
+                } else {
+                    setGapData(null);
                 }
             }
         };
 
-        fetchGap();
-        return () => controller.abort();
-    }, [form.indicator_id, form.location_id, proyectoId, lugares]);
+        calculateGap();
+    }, [form.indicator_id, form.location_id, summaryData, lugares]);
 
 
     useEffect(() => {
@@ -329,7 +305,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
 
     return (
         <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '15px' }}>
-            {/* Header con Oxford Grey */}
+            {/* Header */}
             <div className="modal-header text-white" style={{ backgroundColor: '#1B263B' }}>
                 <h5 className="modal-title fw-bold">
                     <i className="fas fa-calendar-check me-2 text-emerald"></i>
@@ -475,7 +451,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                             ))}
                         </div>
                     </div>
-                    {/* SECCIÓN 3: FECHAS (RESTABLECIDAS) */}
+                    {/*  FECHAS*/}
                     <div className="col-md-6">
                         <label className="form-label fw-bold small text-oxford">FECHA INICIO</label>
                         <input type="date" className="form-control" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
@@ -483,6 +459,21 @@ const ActivityWizard = ({ selectedDate, proyectoId, initialData, onClose, onSave
                     <div className="col-md-6">
                         <label className="form-label fw-bold small text-oxford">FECHA FIN</label>
                         <input type="date" className="form-control" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} />
+                    </div>
+                    {/* OBSERVACIONES */}
+                    <div className="col-12 mt-2">
+                        <label className="form-label fw-bold small text-oxford">OBSERVACIONES / JUSTIFICACIÓN</label>
+                        <textarea
+                            className="form-control border-emerald"
+                            rows="3"
+                            placeholder="Escriba aquí detalles adicionales, justificaciones o notas relevantes para esta planificación..."
+                            value={form.observations || ''}
+                            onChange={(e) => setForm({ ...form, observations: e.target.value })}
+                            style={{ fontSize: '0.85rem', resize: 'none' }}
+                        ></textarea>
+                        <div className="form-text small">
+                            Detalle cualquier información relevante que ayude a entender el alcance de esta actividad.
+                        </div>
                     </div>
                     {/* PANEL DE BRECHA PROFESIONAL */}
                     {loadingGap ? (

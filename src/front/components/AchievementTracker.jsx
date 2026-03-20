@@ -4,7 +4,6 @@ import Swal from 'sweetalert2';
 import { invalidateGapCache } from "./ActivityWizard";
 
 const AchievementTracker = ({ activity, onClose, onRefresh }) => {
-    // 1. ESTADOS (Inicializados en 0 numérico)
     const [loading, setLoading] = useState(false);
     const [achievedMen, setAchievedMen] = useState(0);
     const [achievedWomen, setAchievedWomen] = useState(0);
@@ -14,19 +13,15 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
     const [file, setFile] = useState(null);
     const [existingRecordId, setExistingRecordId] = useState(null);
 
-    // 2. LÓGICA DERIVADA
-    // Ahora 'type' viene como 'Outcome' o 'Output' desde el backend
     const isOutcome = activity.indicator?.type === 'Outcome';
     const isEditing = !!existingRecordId;
 
-    // Calculamos el total real según el tipo de indicador
     const totalAchieved = useMemo(() => {
         return isOutcome
             ? Number(totalApproved)
             : (Number(achievedMen) + Number(achievedWomen));
     }, [isOutcome, totalApproved, achievedMen, achievedWomen]);
 
-    // Validación de evidencia (Mejorada para no ser "creepy")
     const hasEvidence = useMemo(() => {
         const previousEvidence = activity?.last_evidence_url;
         return !!file || !!previousEvidence;
@@ -35,17 +30,14 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
     const plannedTotal = activity.planned?.total || 0;
     const progressPercent = plannedTotal > 0 ? Math.min((totalAchieved / plannedTotal) * 100, 100) : 0;
 
-    // 3. EFECTO DE CARGA INICIAL (Sincronización con el Backend)
-    // 3. EFECTO DE CARGA INICIAL (Sincronización con el Backend)
+
     useEffect(() => {
-        // Buscamos el último logro registrado en el historial
         const history = activity?.achievements_history || [];
         const lastRecord = history.length > 0 ? history[history.length - 1] : null;
 
         if (lastRecord) {
             setExistingRecordId(lastRecord.id);
 
-            // Extraemos los datos del último registro individual
             const prog = lastRecord.real_progress;
             setAchievedMen(prog?.men || 0);
             setAchievedWomen(prog?.women || 0);
@@ -55,7 +47,6 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
         }
     }, [activity]);
 
-    // 4. ACCIONES
     const handleSave = async () => {
         if (totalAchieved <= 0) {
             return Swal.fire('Atención', 'El logro debe ser mayor a 0 para poder descontar de la meta.', 'warning');
@@ -90,7 +81,6 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                 observations: observations.trim(),
                 evidence_url: finalEvidenceUrl,
                 evidence_public_id: finalPublicId,
-                // Si es Outcome, enviamos conteos de aprobación, si no, género
                 men_reached: isOutcome ? 0 : Number(achievedMen),
                 women_reached: isOutcome ? 0 : Number(achievedWomen),
                 attended_count: isOutcome ? Number(totalAttended) : 0,
@@ -107,7 +97,13 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
 
             if (res?.ok) {
                 invalidateGapCache(activity.location_id);
-                await Swal.fire('¡Logrado!', isEditing ? 'El registro ha sido actualizado.' : 'El logro se ha descontado de la meta global.', 'success');
+                await Swal.fire({
+                    title: '¡Logrado!',
+                    text: isEditing ? 'Registro actualizado.' : 'El logro se ha descontado de la meta.',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
                 onRefresh();
                 onClose();
             }
@@ -174,8 +170,6 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                                         const val = e.target.value;
                                         const numVal = val === '' ? 0 : Math.max(0, parseInt(val));
                                         setTotalAttended(numVal);
-
-                                        // NUEVO: Si los evaluados bajan de los aprobados, ajustamos aprobados
                                         if (numVal < totalApproved) {
                                             setTotalApproved(numVal);
                                         }
@@ -192,11 +186,8 @@ const AchievementTracker = ({ activity, onClose, onRefresh }) => {
                                         const val = e.target.value;
                                         const numVal = val === '' ? 0 : Math.max(0, parseInt(val));
 
-                                        // NUEVO: No permitir que aprobados superen a los evaluados
                                         if (numVal > totalAttended) {
-                                            // Si intenta poner más, lo bloqueamos en el máximo actual
                                             setTotalApproved(totalAttended);
-                                            // Opcional: Podrías lanzar un Sonner/Toast aquí avisando
                                         } else {
                                             setTotalApproved(numVal);
                                         }

@@ -8,6 +8,7 @@ from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from .manager_decorator import manager_required
+from .decorators import roles_required
 from flask_mail import Message
 from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
@@ -767,7 +768,7 @@ def get_theory_full_details(id):
 
     return jsonify(theory.serialize()), 200
 
-
+#Crear un nuevo proyecto
 @api.route('/projects', methods=['POST'])
 @jwt_required()
 @manager_required
@@ -779,6 +780,7 @@ def create_project():
     try:
         targets = data.get("unique_targets", {})
 
+        status_from_front = data.get("status")
         new_project = Project(
             code=data.get("code"),
             donor_name=data.get("donor_name"),      
@@ -793,7 +795,7 @@ def create_project():
                 data['start_date'], '%Y-%m-%d') if data.get('start_date') else None,
             end_date=datetime.strptime(
                 data['end_date'], '%Y-%m-%d') if data.get('end_date') else None,
-            status=ProjectStatus.EN_PROGRESO
+            status=next((s for s in ProjectStatus if s.value == status_from_front), ProjectStatus.BORRADOR)
         )
 
         db.session.add(new_project)
@@ -889,7 +891,7 @@ def get_manager_projects():
         for indicator in project.indicators:
             activities = Activity.query.filter_by(
                 indicator_id=indicator.id_indicator,
-                status=ActivityStatus.COMPLETADA
+                status=ActivityStatus.APROBADA
             ).all()
             total_achieved += sum(
                 (rec.men_reached or 0) + (rec.women_reached or 0)
@@ -967,10 +969,15 @@ def update_project(id):
                 setattr(project, field, data[field])
 
         if 'status' in data:
-            try:
-                project.status = ProjectStatus(data['status'])
-            except ValueError:
-                return jsonify({"msg": f"Estado {data['status']} no es válido"}), 400
+            status_value = data['status']
+            # Buscamos el Enum que coincida con el texto que viene del Front ("Borrador", "En Progreso", etc.)
+            matched_status = next((s for s in ProjectStatus if s.value == status_value), None)
+    
+            if matched_status:
+                project.status = matched_status
+            else:
+                # Si no lo encuentra, por seguridad le ponemos Borrador
+                project.status = ProjectStatus.BORRADOR
 
         if 'unique_targets' in data:
             targets = data['unique_targets']
@@ -1048,8 +1055,6 @@ def bulk_indicators():
         return jsonify({"msg": "Falta el ID del proyecto"}), 400
 
     try:
-        # --- PASO 1: ELIMINACIÓN DE INDICADORES OMITIDOS ---
-        # Si el gerente quita un indicador de la lista en el frontend, lo borramos de la DB.
         received_template_ids = [item['template_id'] for item in indicators_list]
         to_delete = Indicator.query.filter(
             Indicator.project_id == project_id,
@@ -1057,13 +1062,10 @@ def bulk_indicators():
         ).all()
 
         for ind in to_delete:
-            # Borramos metas geográficas primero por la integridad referencial
             IndicatorLocationGoal.query.filter_by(indicator_id=ind.id_indicator).delete()
             ind.selected_means_list = []
             db.session.delete(ind)
 
-        # --- PASO 2: PRIMERA PASADA (UPSERT DE DATOS BÁSICOS) ---
-        # Creamos o actualizamos el indicador, pero sin tocar 'depends_on' todavía.
         for item in indicators_list:
             from api.models import IndicatorTemplate, ProjectResult, ProjectTheory, MasterVerificationMean
 
@@ -1071,18 +1073,16 @@ def bulk_indicators():
             if not template_info:
                 continue
 
-            # Determinamos si es outcome para manejar nulos en hombres/mujeres (según tu lógica de %)
             is_outcome = template_info.result.type == 'outcome' if template_info.result else False
-
-            # Buscamos el resultado relacionado en este proyecto específico
             real_project_result = ProjectResult.query.join(ProjectTheory).filter(
                 ProjectTheory.project_id == project_id,
                 ProjectResult.result_template_id == template_info.result_id
             ).first()
 
-            project_res_id = real_project_result.id if real_project_result else None
+            if not real_project_result:
+                print(f"⚠️ Alerta: El indicador {template_info.name} no encontró un ProjectResult coincidente.")
 
-            # Buscamos si ya existe para actualizarlo, sino lo creamos
+            project_res_id = real_project_result.id if real_project_result else None
             indicator = Indicator.query.filter_by(
                 project_id=project_id,
                 template_id=item['template_id']
@@ -1093,7 +1093,6 @@ def bulk_indicators():
             t_women = item.get('target_women', 0) if not is_outcome else None
 
             if indicator:
-                # Actualización de campos existentes
                 indicator.target_total = t_total
                 indicator.target_men = t_men
                 indicator.target_women = t_women
@@ -1103,7 +1102,6 @@ def bulk_indicators():
                 indicator.observations = item.get('observations', indicator.observations)
                 indicator.project_result_id = project_res_id
             else:
-                # Creación de nuevo registro
                 indicator = Indicator(
                     project_id=project_id,
                     template_id=item['template_id'],
@@ -1118,19 +1116,15 @@ def bulk_indicators():
                 )
                 db.session.add(indicator)
 
-            # Sincronizar Medios de Verificación (Relación Many-to-Many)
             if 'means_ids' in item:
                 selected_means = MasterVerificationMean.query.filter(
                     MasterVerificationMean.id.in_(item['means_ids'])
                 ).all()
                 indicator.selected_means_list = selected_means
 
-            # Flush para asegurar que el indicador tenga ID (especialmente si es nuevo)
             db.session.flush()
 
-            # --- Sincronizar Metas Geográficas ---
             if 'goals_by_province' in item:
-                # Borramos las viejas y recreamos (más simple para asegurar consistencia)
                 IndicatorLocationGoal.query.filter_by(indicator_id=indicator.id_indicator).delete()
                 for goal in item['goals_by_province']:
                     new_goal = IndicatorLocationGoal(
@@ -1142,10 +1136,7 @@ def bulk_indicators():
                     )
                     db.session.add(new_goal)
 
-        # --- PASO 3: SEGUNDA PASADA (VINCULACIÓN DE DEPENDENCIAS) ---
-        # Ahora que TODOS los indicadores están en la DB, conectamos los hilos.
         for item in indicators_list:
-            # CLAVE: Solo entramos si la llave existe para evitar borrados accidentales
             if 'depends_on_ids' in item:
                 current_indicator = Indicator.query.filter_by(
                     project_id=project_id,
@@ -1155,15 +1146,12 @@ def bulk_indicators():
                 if current_indicator:
                     ids_a_conectar = item.get('depends_on_ids')
                     
-                    # Si es None (null), el frontend no envió info, NO TOCAMOS NADA.
-                    # Si es [] (lista vacía), el gerente quiere quitar las dependencias.
                     if ids_a_conectar is not None:
                         parent_indicators = Indicator.query.filter(
                             Indicator.project_id == project_id,
                             Indicator.template_id.in_(ids_a_conectar)
                         ).all()
                         
-                        # Actualizamos la relación Many-to-Many recursiva
                         current_indicator.depends_on = parent_indicators
 
         db.session.commit()
@@ -1229,14 +1217,14 @@ def get_templates():
     competences = Competence.query.all()
     return jsonify([c.serialize() for c in competences]), 200
 
-
+# Endpoints de ver provincias
 @api.route('/provinces', methods=['GET'])
 @jwt_required()
 def get_provinces():
     provinces = Province.query.all()
     return jsonify([p.serialize() for p in provinces]), 200
 
-
+# 2-C
 @api.route('/provinces', methods=['POST'])
 @jwt_required()
 @manager_required
@@ -1250,7 +1238,7 @@ def add_province():
     db.session.commit()
     return jsonify(new_province.serialize()), 201
 
-
+#3-E
 @api.route('/provinces/<int:id>', methods=['PUT'])
 @jwt_required()
 @manager_required
@@ -1264,7 +1252,7 @@ def update_province(id):
     db.session.commit()
     return jsonify(province.serialize()), 200
 
-
+#4-B
 @api.route('/provinces/<int:id>', methods=['DELETE'])
 @jwt_required()
 @manager_required
@@ -1577,7 +1565,7 @@ def get_project_indicatores(project_id):
     return jsonify([ind.serialize() for ind in indicators]), 200
 
 
-# 1. OBTENER TODOS LOS MEDIOS
+# 1. Listado de medios de verificación 1
 @api.route('/verification-means', methods=['GET'])
 @jwt_required()
 def get_verification_means():
@@ -1585,7 +1573,7 @@ def get_verification_means():
     return jsonify([m.serialize() for m in means]), 200
 
 
-# 2. CREAR NUEVO MEDIO (Solo Gerente)
+# 2-C
 @api.route('/verification-means', methods=['POST'])
 @manager_required
 def create_verification_mean():
@@ -1603,7 +1591,7 @@ def create_verification_mean():
 
     return jsonify(new_mean.serialize()), 201
 
-# 3. ACTUALIZAR UN MEDIO (Solo Gerente)
+# 3-E
 @api.route('/verification-means/<int:id>', methods=['PUT'])
 @manager_required
 def update_verification_mean(id):
@@ -1616,7 +1604,7 @@ def update_verification_mean(id):
     db.session.commit()
     return jsonify(mean.serialize()), 200
 
-# 4. ELIMINAR UN MEDIO (Solo Gerente)
+# 4-B
 @api.route('/verification-means/<int:id>', methods=['DELETE'])
 @manager_required
 def delete_verification_mean(id):
@@ -1689,7 +1677,7 @@ def get_my_indicators(project_id):
 
     return jsonify(filtered_indicators), 200
 
-
+#Enpoints para generar listado de actividades 1-C
 @api.route('/activities', methods=['POST'])
 @jwt_required()
 def create_activity():
@@ -1722,7 +1710,7 @@ def create_activity():
         db.session.rollback()
         return jsonify({"message": f"Error al crear planificación: {str(e)}"}), 500
 
-
+#2-E
 @api.route('/activities/<int:id>', methods=['PATCH'])
 @jwt_required()
 def patch_activity(id):
@@ -1757,7 +1745,7 @@ def patch_activity(id):
     db.session.commit()
     return jsonify({"message": "Planificación editada con historial"}), 200
 
-
+#3-B
 @api.route('/activities/<int:id>', methods=['DELETE'])
 @jwt_required()
 @manager_required
@@ -1774,7 +1762,7 @@ def delete_activity(id):
         return jsonify({"message": f"Error: {str(e)}"}), 500
 
 
-# Endpoints de logros
+# Endpoints de logros 1
 @api.route('/achievements', methods=['POST'])
 @jwt_required()
 def create_achievement():
@@ -1796,7 +1784,7 @@ def create_achievement():
             user_id=user_id
         )
 
-        activity.status = 'COMPLETADA' 
+        activity.status = ActivityStatus.EN_REVISION
         db.session.add(new_record)
         db.session.commit()
 
@@ -1812,12 +1800,17 @@ def create_achievement():
         print(f"DEBUG SIGSSEP ERROR: {str(e)}") 
         return jsonify({"message": f"Error en el servidor: {str(e)}"}), 500
 
-
+# 2-E
 @api.route('/achievements/<int:id>', methods=['PATCH'])
 @jwt_required()
 def patch_achievement(id):
     user_id = get_jwt_identity() 
     record = AchievementRecord.query.get_or_404(id)
+    activity = record.activity 
+    
+    if activity.status == ActivityStatus.APROBADA:
+        return jsonify({"message": "No se pueden editar logros de una actividad ya aprobada"}), 403
+    
     data = request.json
     
     if 'men_reached' in data: record.men_reached = float(data['men_reached'])
@@ -1836,6 +1829,9 @@ def patch_achievement(id):
                 print(f"DEBUG: Solicitado borrado de ID: {record.evidence_public_id}")
             record.evidence_url = new_url
             record.evidence_public_id = new_public_id 
+            
+    activity.status = ActivityStatus.EN_REVISION
+    record.monitoring_comment = None
 
     record.updated_by_id = user_id
 
@@ -1849,7 +1845,7 @@ def patch_achievement(id):
         db.session.rollback()
         return jsonify({"message": f"Error en base de datos: {str(e)}"}), 500
     
-
+# 3-B
 @api.route('/achievements/<int:id>', methods=['DELETE'])
 @jwt_required()
 @manager_required
@@ -1901,9 +1897,27 @@ def upload_evidence():
 @api.route('/project/<int:project_id>/progress-summary', methods=['GET'])
 @jwt_required()
 def get_project_progress(project_id):
+    print(f"DEBUG: Total indicadores en DB para este proyecto: {Indicator.query.filter_by(project_id=project_id).count()}")
     try:
-        # 1. Carga inicial de datos maestros
-        indicators = Indicator.query.filter_by(project_id=project_id).all()
+        competence_id = request.args.get('competence_id')
+        query = Indicator.query.filter_by(project_id=project_id)
+        
+        if competence_id:
+            from api.models import ProjectResult, IndicatorTemplate, ResultTemplate, TheoryTemplate
+            query = query.join(IndicatorTemplate, Indicator.template_id == IndicatorTemplate.id)\
+                         .join(ResultTemplate, IndicatorTemplate.result_id == ResultTemplate.id)\
+                         .join(TheoryTemplate, ResultTemplate.theory_id == TheoryTemplate.id)\
+                         .outerjoin(ProjectResult, Indicator.project_result_id == ProjectResult.id)\
+                         .filter(
+                             db.or_(
+                                 TheoryTemplate.competence_id == competence_id,
+                                 ProjectResult.id != None
+                             )
+                         )
+            
+        indicators = query.all()
+        print(f"DEBUG: Indicadores tras el join corregido: {len(indicators)}")
+
         if not indicators:
             return jsonify([]), 200
 
@@ -1921,8 +1935,11 @@ def get_project_progress(project_id):
          .join(Location, Activity.location_id == Location.id_location)\
          .join(Province, Location.province_id == Province.id)\
          .join(AchievementRecord, AchievementRecord.activity_id == Activity.id_activity)\
-         .filter(Indicator.project_id == project_id)\
-         .group_by(Indicator.id_indicator, Province.id, Province.name).all()
+         .filter(
+             Indicator.project_id == project_id,
+             Activity.status == ActivityStatus.APROBADA 
+        )\
+        .group_by(Indicator.id_indicator, Province.id, Province.name).all()
 
         achievements_map = {}
         for r in results:
@@ -2120,7 +2137,7 @@ def get_proyectos_por_competencia():
     return jsonify(proyectos_data), 200
 
 
-# Oficial crea, edita y ve actividades/planificar
+# Oficial crea actividades/planificar 1
 @api.route('/official/activities', methods=['POST'])
 @jwt_required()
 def create_activitys():
@@ -2138,6 +2155,7 @@ def create_activitys():
 
         new_activity = Activity(
             description=data.get('description', ''),
+            observations=data.get('observations', ''),
             start_date=datetime.strptime(
                 data['start_date'].split('T')[0], '%Y-%m-%d'),
             end_date=datetime.strptime(
@@ -2170,7 +2188,19 @@ def create_activitys():
         print(f"Error en create_activity: {str(e)}")
         return jsonify({"msg": "Error interno al guardar planificación", "error": str(e)}), 500
 
+#Función auxiliar para usar en el siguiente endpoint
+def create_log(entity_id, field_name, old, new, user_id):
+    log = SystemChangeLog(
+        entity_type='activity',
+        entity_id=entity_id,
+        user_id=user_id,
+        field_changed=field_name,
+        old_value=str(old),
+        new_value=str(new)
+    )
+    db.session.add(log)
 
+# 2-E
 @api.route('/official/activities/<int:activity_id>', methods=['PATCH'])
 @jwt_required()
 def update_activity(activity_id):
@@ -2185,38 +2215,54 @@ def update_activity(activity_id):
         print(f"Aviso: Usuario {user_id} editando actividad ajena")
 
     try:
-        if 'description' in data:
-            activity.description = data['description']
-        if 'planned_target' in data:
-            activity.planned_target = float(data['planned_target'])
-        elif 'planned_total' in data:
-            activity.planned_target = float(data['planned_total'])
+        if 'planned_total' in data and 'planned_target' not in data:
+            data['planned_target'] = data['planned_total']
 
-        if 'planned_men' in data:
-            activity.planned_men = float(data['planned_men'])
-        if 'planned_women' in data:
-            activity.planned_women = float(data['planned_women'])
+        fields_to_track = {
+            'description': 'Descripción',
+            'observations': 'Observaciones',
+            'planned_target': 'Meta Total',
+            'planned_men': 'Meta Hombres',
+            'planned_women': 'Meta Mujeres',
+            'start_date': 'Fecha Inicio',
+            'end_date': 'Fecha Fin',
+            'indicator_id': 'Indicador',
+            'location_id': 'Ubicación',
+            'project_competence_id': 'Competencia'
+        }
 
-        if 'start_date' in data:
-            activity.start_date = datetime.strptime(
-                data['start_date'].split('T')[0], '%Y-%m-%d')
-        if 'end_date' in data:
-            activity.end_date = datetime.strptime(
-                data['end_date'].split('T')[0], '%Y-%m-%d')
+        for field, label in fields_to_track.items():
+            if field in data:
+                old_val = getattr(activity, field)
+                new_val = data[field]
 
-        if 'indicator_id' in data:
-            activity.indicator_id = int(data['indicator_id'])
-        if 'location_id' in data:
-            activity.location_id = int(data['location_id'])
-        if 'project_competence_id' in data:
-            activity.project_competence_id = int(
-                data['project_competence_id']) if data['project_competence_id'] else None
+                if field in ['start_date', 'end_date'] and new_val:
+                    new_dt = datetime.strptime(new_val.split('T')[0], '%Y-%m-%d')
+                    if not old_val or old_val.date() != new_dt.date():
+                        create_log(activity.id_activity, label, str(old_val), str(new_dt.date()), user_id)
+                        setattr(activity, field, new_dt)
 
+                elif field in ['planned_target', 'planned_men', 'planned_women', 'indicator_id', 'location_id', 'project_competence_id']:
+                    clean_new_val = int(new_val) if new_val and 'id' in field else (float(new_val) if new_val else 0.0)
+                    if str(old_val) != str(clean_new_val):
+                        create_log(activity.id_activity, label, str(old_val), str(clean_new_val), user_id)
+                        setattr(activity, field, clean_new_val)
+
+                elif str(old_val) != str(new_val):
+                    create_log(activity.id_activity, label, str(old_val), str(new_val), user_id)
+                    setattr(activity, field, new_val)
+
+        activity.updated_by_id = user_id 
         db.session.commit()
-        return jsonify({"msg": "Planificación actualizada", "activity": activity.serialize()}), 200
+        
+        return jsonify({
+            "msg": "Planificación actualizada y auditada", 
+            "activity": activity.serialize()
+        }), 200
 
     except Exception as e:
         db.session.rollback()
+        print(f"Error en update_activity: {str(e)}")
         return jsonify({"msg": "Error al actualizar", "error": str(e)}), 500
 
 
@@ -2252,31 +2298,28 @@ def get_indicator_locations(indicator_id):
 
     return jsonify(results), 200
 
-
+# Ver las actividades de un oficial
 @api.route('/official/activities', methods=['GET'])
 @jwt_required()
 def get_activities():
     user_id = get_jwt_identity()
-    hoy_venezuela = datetime.utcnow() - timedelta(hours=4)
-    today = hoy_venezuela.date()
-    activities = Activity.query.filter_by(created_by_id=user_id).all()
+    project_id = request.args.get('project_id')
+    competence_id = request.args.get('competence_id')
+    
+    # Calculamos hoy en Venezuela para que el Oficial vea lo mismo que el Manager
+    hoy_venezuela = (datetime.utcnow() - timedelta(hours=4)).date()
 
-    results = []
-    for act in activities:
-        data = act.serialize()
+    query = Activity.query.filter_by(created_by_id=user_id)
 
-        if data.get('status') not in ['Completada', 'Cancelada']:
-            start_dt = act.start_date.date() if hasattr(act.start_date, 'date') else act.start_date
-            end_dt = act.end_date.date() if hasattr(act.end_date, 'date') else act.end_date
+    if project_id:
+        query = query.filter_by(project_id=project_id)
+    if competence_id:
+        query = query.filter_by(project_competence_id=competence_id)
 
-            if end_dt < today:
-                data['status'] = 'Vencida'
-            elif start_dt <= today <= end_dt:
-                data['status'] = 'En Progreso'
-            else:
-                data['status'] = 'Planificada'
-        
-        results.append(data)
+    activities = query.all()
+
+    # IMPORTANTE: Pasamos hoy_venezuela al serialize
+    results = [act.serialize(today_date=hoy_venezuela) for act in activities]
 
     return jsonify(results), 200
 
@@ -2295,16 +2338,44 @@ def cancel_activity(activity_id):
     reason = data.get('cancellation_reason')
     if not reason or len(reason.strip()) < 5:
         return jsonify({"msg": "Es obligatorio incluir una observación válida (mín. 5 caracteres)"}), 400
+    
+    try:
+        # 1. Guardar el estado anterior antes de cambiarlo
+        old_status = activity.status.value if activity.status else "DESCONOCIDO"
+        
+        # 2. Registrar el cambio de estado en la auditoría
+        create_log(
+            entity_id=activity.id_activity, 
+            field_name="Status", 
+            old=old_status, 
+            new="CANCELADA", 
+            user_id=user_id
+        )
 
-    activity.status = ActivityStatus.CANCELADA
-    activity.cancellation_reason = reason
-    activity.updated_by_id = user_id 
+        # 3. Registrar el motivo de cancelación como un log adicional
+        create_log(
+            entity_id=activity.id_activity, 
+            field_name="Motivo de Cancelación", 
+            old="N/A", 
+            new=reason, 
+            user_id=user_id
+        )
 
-    db.session.commit()
-    return jsonify({
-        "msg": "Actividad cancelada correctamente", 
-        "activity": activity.serialize()
-    }), 200
+        # 4. Actualizar el modelo
+        activity.status = ActivityStatus.CANCELADA
+        activity.cancellation_reason = reason
+        activity.updated_by_id = user_id 
+
+        db.session.commit()
+        return jsonify({
+            "msg": "Actividad cancelada correctamente", 
+            "activity": activity.serialize()
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en cancel_activity: {str(e)}")
+        return jsonify({"msg": "Error al procesar la cancelación", "error": str(e)}), 500
 
 
 # Buscar todos los indicadores que pertenecen a un proyecto
@@ -2316,7 +2387,7 @@ def get_project_indicators(project_id):
     return jsonify([i.serialize() for i in indicators]), 200
 
 
-# --- ENDPOINTS PARA EL CATÁLOGO DE ACTIVIDADES ---
+# --- ENDPOINTS PARA EL CATÁLOGO DE ACTIVIDADES 1 ---
 @api.route('/activity-catalog', methods=['GET'])
 @jwt_required()
 def get_activity_catalog():
@@ -2334,7 +2405,7 @@ def get_activity_catalog():
     activities = query.all()
     return jsonify([a.serialize() for a in activities]), 200
 
-
+#2-C
 @api.route('/activity-catalog', methods=['POST'])
 @jwt_required()
 @manager_required
@@ -2354,7 +2425,7 @@ def create_catalog_activity():
     db.session.commit()
     return jsonify(new_item.serialize()), 201
 
-
+#3-E
 @api.route('/activity-catalog/<int:id>', methods=['PUT'])
 @jwt_required()
 @manager_required
@@ -2370,7 +2441,7 @@ def update_catalog_activity(id):
     db.session.commit()
     return jsonify(item.serialize()), 200
 
-
+#4-B
 @api.route('/activity-catalog/<int:id>', methods=['DELETE'])
 @jwt_required()
 @manager_required
@@ -2401,3 +2472,186 @@ def get_activity_achievements(activity_id):
         "activity_id": activity_id,
         "achievements": [a.serialize() for a in activity.achievements]
     }), 200
+
+
+#Filtrar actividades por proyecto y competencia
+@api.route('/manager/activities', methods=['GET'])
+@jwt_required()
+@manager_required
+def get_manager_supervision_activities():
+    # 1. Capturamos el contexto
+    project_id = request.args.get('project_id')
+    competence_id = request.args.get('competence_id')
+    
+    if not project_id or not competence_id:
+        return jsonify({"msg": "Falta el contexto: project_id y competence_id son obligatorios"}), 400
+
+    # 2. Configuramos el tiempo (Venezuela UTC-4) de forma precisa
+    # Obtenemos solo la FECHA (date) para evitar problemas de comparación con horas
+    ahora_venezuela = datetime.utcnow() - timedelta(hours=4)
+    today = ahora_venezuela.date()
+
+    # 3. Consulta
+    query = Activity.query.filter_by(
+        project_id=project_id, 
+        project_competence_id=competence_id
+    )
+
+    activities = query.all()
+    results = []
+
+    for act in activities:
+        # Usamos el serialize pasando la fecha de hoy para que el modelo ayude
+        data = act.serialize(today_date=today)
+        
+        # Inyectamos el responsable (se mantiene tu lógica intacta)
+        data["responsible"] = {
+            "id": act.creator.id_user,
+            "full_name": f"{act.creator.name} {act.creator.lastname}",
+            "initials": f"{act.creator.name[0]}{act.creator.lastname[0]}".upper()
+        }
+
+        # --- 4. LÓGICA DE ESTADOS DINÁMICOS REFORZADA ---
+        status_actual = data.get('status')
+        # Agregamos 'Vencida' a protegidos si ya viene así del modelo para no re-calcular
+        estados_protegidos = ['Aprobada', 'En Revisión', 'Rechazada', 'Cancelada', 'Completada']
+
+        if status_actual not in estados_protegidos:
+            # Normalizamos fechas de la actividad a .date()
+            start_dt = act.start_date.date() if isinstance(act.start_date, datetime) else act.start_date
+            end_dt = act.end_date.date() if isinstance(act.end_date, datetime) else act.end_date
+            
+            # Aplicamos la jerarquía de fechas
+            if today > end_dt:
+                data['status'] = 'Vencida'
+            elif start_dt <= today <= end_dt:
+                data['status'] = 'En Progreso'
+            elif start_dt > today:
+                data['status'] = 'Planificada'
+
+        results.append(data)
+
+    return jsonify(results), 200
+
+#Auditoría o historial de actividades
+@api.route('/manager/activities/<int:activity_id>/history', methods=['GET']) # Ajusté la ruta a /activities/
+@jwt_required()
+def get_activity_full_history(activity_id):
+    activity = Activity.query.get(activity_id)
+    if not activity:
+        return jsonify({"msg": "Actividad no encontrada"}), 404
+
+    logs = SystemChangeLog.query.filter_by(
+        entity_type='activity', 
+        entity_id=activity_id
+    ).order_by(SystemChangeLog.change_date.asc()).all()
+
+    history = []
+    
+    history.append({
+        "event": "Creación",
+        "user": f"{activity.creator.name} {activity.creator.lastname}" if activity.creator else "Sistema",
+        "date": activity.created_at.strftime("%Y-%m-%d %H:%M:%S") if activity.created_at else "N/A",
+        "details": "Actividad creada inicialmente"
+    })
+
+    for log in logs:
+        history.append({
+            "event": "Edición",
+            "user": log.user.name + " " + log.user.lastname if log.user else "Desconocido",
+            "date": log.change_date.strftime("%Y-%m-%d %H:%M:%S"),
+            "field": log.field_changed,
+            "old": log.old_value,
+            "new": log.new_value
+        })
+
+    return jsonify({
+        "activity_description": activity.description,
+        "current_status": activity.get_real_status(),
+        "timeline": history
+    }), 200
+
+#Gerente elimina actividades/plinificaciones
+@api.route('/manager/activities/<int:activity_id>', methods=['DELETE'])
+@jwt_required()
+@manager_required
+def delete_activity_manager(activity_id):
+    activity = Activity.query.get(activity_id)
+    
+    if not activity:
+        return jsonify({"msg": "Actividad no encontrada"}), 404
+
+    if activity.achievements and len(activity.achievements) > 0:
+        return jsonify({"msg": "No se puede eliminar una actividad que ya tiene logros registrados. Por favor, cámbiela a estado Cancelada."}), 400
+
+    try:
+        log = SystemChangeLog(
+            entity_type='activity',
+            entity_id=activity_id,
+            user_id=get_jwt_identity(),
+            field_changed='deletion',
+            old_value=activity.description,
+            new_value='DELETED'
+        )
+        db.session.add(log)
+        
+        db.session.delete(activity)
+        db.session.commit()
+        
+        return jsonify({"msg": f"Actividad {activity_id} eliminada permanentemente por el Gerente"}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Error al eliminar la actividad", "error": str(e)}), 500
+
+
+#Aprobar o rechazar logro
+@api.route('/activities/<int:id>/review', methods=['PATCH'])
+@roles_required("Administrador", "Gerente", "Monitoreo")
+def review_activity(id):
+    # 1. Verificar que quien firma es un Gerente (Seguridad)
+    # Aquí podrías usar un decorador personalizado o verificar el rol del token
+    user_id = get_jwt_identity()
+    
+    activity = Activity.query.get_or_404(id)
+    data = request.json
+    
+    # Extraemos lo que envía el Gerente
+    new_status = data.get('status') # 'Aprobada' o 'Rechazada'
+    comment = data.get('monitoring_comment', '') # El feedback
+
+    # 2. Validaciones de negocio
+    if new_status not in ['Aprobada', 'Rechazada']:
+        return jsonify({"message": "Estado de revisión no válido"}), 400
+
+    if not activity.achievements:
+        return jsonify({"message": "No se puede revisar una actividad sin logros registrados"}), 400
+
+    # 3. Aplicar los cambios
+    # Actualizamos el estatus de la actividad principal
+    if new_status == 'Aprobada':
+        activity.status = ActivityStatus.APROBADA
+    else:
+        activity.status = ActivityStatus.RECHAZADA
+        if not comment:
+            return jsonify({"message": "Es obligatorio incluir un motivo para el rechazo"}), 400
+
+    # 4. Guardar el comentario en el ÚLTIMO logro (el que se está revisando)
+    # Como definimos que es 1 a 1 por ejecución, tomamos el último de la lista
+    last_achievement = activity.achievements[-1]
+    last_achievement.monitoring_comment = comment
+    
+    # Auditoría de quién revisó
+    activity.updated_by_id = user_id
+
+    try:
+        db.session.commit()
+        return jsonify({
+            "message": f"Actividad {new_status} exitosamente",
+            "status": activity.status.value,
+            "monitoring_comment": last_achievement.monitoring_comment
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": f"Error al procesar la revisión: {str(e)}"}), 500
+

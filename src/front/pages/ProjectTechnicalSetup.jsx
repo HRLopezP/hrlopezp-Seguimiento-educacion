@@ -33,7 +33,7 @@ const ProjectTechnicalSetup = () => {
             theory_name: "Sin Teoría asignada",
             result_name: "Sin Resultado asignado",
             result_type: "output",
-            comp_name: "Sin Competencia" // <-- Agregamos esto
+            comp_name: "Sin Competencia" 
         };
 
         for (const t of allTheories) {
@@ -47,8 +47,8 @@ const ProjectTechnicalSetup = () => {
                         theory_name: t.name,
                         result_name: r.name,
                         result_type: r.type?.toLowerCase() || "output",
-                        comp_name: t.competence_name || selectedComp?.competence_name || "General", // <-- Ojo aquí
-                        indicator_name: found.name // Aprovechamos de traer el nombre real
+                        comp_name: t.competence_name || selectedComp?.competence_name || "General", 
+                        indicator_name: found.name 
                     };
                 }
             }
@@ -70,18 +70,13 @@ const ProjectTechnicalSetup = () => {
             const rType = context.result_type;
             const rName = context.result_name;
 
-            // 1. Aseguramos la jerarquía de Teoría y Tipo (Output/Outcome)
             if (!acc[tName]) acc[tName] = {};
             if (!acc[tName][rType]) acc[tName][rType] = {};
 
-            // 2. ¡AQUÍ ESTÁ EL TRUCO! 
-            // Si el nombre del resultado (ej. "Definidos") NO existe, creamos el array.
-            // Si YA existe, no hacemos nada y el código siguiente hará el .push()
             if (!acc[tName][rType][rName]) {
                 acc[tName][rType][rName] = [];
             }
 
-            // 3. Agregamos el indicador al grupo correspondiente
             acc[tName][rType][rName].push({
                 ...ind,
                 indicator_name: context.indicator_name,
@@ -105,14 +100,10 @@ const ProjectTechnicalSetup = () => {
             const updatedProvinces = ind.province_goals.map(p => {
                 if (p.province_id !== provinceId) return p;
 
-                // 1. Bloqueo de género para Outcomes
                 if (isOutcome && (field === 'men' || field === 'women')) return p;
 
-                // 2. Creamos el nuevo objeto de provincia
                 let updatedProvince = { ...p, [field]: numValue };
 
-                // 3. Lógica de Autocalculado (Solo para Outputs)
-                // Si cambias H o M, el Total se suma solo.
                 if (!isOutcome && (field === 'men' || field === 'women')) {
                     updatedProvince.total = updatedProvince.men + updatedProvince.women;
                 }
@@ -159,7 +150,7 @@ const ProjectTechnicalSetup = () => {
                 province_goals: uniqueProvinces,
                 means_ids: [],
                 means_tags: [],
-                calculation_type: resultObj?.type === 'outcome' ? 'dependent' : 'direct', // Por defecto, si es outcome, es dependiente
+                calculation_type: resultObj?.type === 'outcome' ? 'dependent' : 'direct', 
                 measurement_unit: resultObj?.type === 'outcome' ? 'percentage' : 'absolute',
                 depends_on_ids: [],
             };
@@ -172,9 +163,7 @@ const ProjectTechnicalSetup = () => {
 
             console.log("✅ Nuevo indicador capturado con éxito:", newIndicator);
             setActiveIndicatorId(ind.id);
-
         } else {
-            // Para quitar también usamos la versión funcional por seguridad
             setSelectedIndicators(prev => prev.filter(i => i.template_id !== ind.id));
             if (activeIndicatorId === ind.id) setActiveIndicatorId(null);
         }
@@ -219,17 +208,13 @@ const ProjectTechnicalSetup = () => {
                 }
             }
 
-            // 2. Si es Outcome, saltamos. 
             if (type === 'outcome') continue;
 
             for (const pg of ind.province_goals) {
-                // Convertimos a número y usamos 0 por defecto
                 const h = Number(pg.men || 0);
                 const m = Number(pg.women || 0);
                 const t = Number(pg.total || 0);
 
-                // Solo validamos si es un OUTPUT (donde la suma DEBE coincidir)
-                // Si es un indicador donde el total es 85 y h/m son 0, y NO es outcome, fallará.
                 if (h + m !== t) {
                     Swal.fire({
                         title: 'Error de cálculo',
@@ -253,16 +238,14 @@ const ProjectTechnicalSetup = () => {
                     const info = getIndicatorContext(ind.template_id, allTheories);
 
                     return {
-                        ...ind, // Traemos lo que viene del server (id, verification_means, etc.)
+                        ...ind,
                         template_id: ind.template_id,
                         code: ind.indicator_code,
                         description: ind.description,
                         indicator_name: info.indicator_name || ind.indicator_name,
                         result_type: ind.result_type || info.result_type,
-                        // Mantenemos los IDs de templates para que al re-guardar no se pierdan
                         depends_on_ids: ind.depends_on_ids || [],
                         means_tags: ind.means_tags || [],
-                        // Convertimos la nomenclatura del server a la del estado de React
                         province_goals: (ind.goals_by_province || []).map(g => ({
                             province_id: g.province_id,
                             province_name: g.province_name,
@@ -283,10 +266,8 @@ const ProjectTechnicalSetup = () => {
         return indicatorsList.map(ind => {
             const isOutcome = ind.result_type?.toLowerCase() === 'outcome';
 
-            // Aseguramos que las dependencias sean un array de IDs (Template IDs)
             const finalDependsOn = Array.isArray(ind.depends_on_ids) ? ind.depends_on_ids : [];
 
-            // Extraemos solo los IDs de los medios de verificación
             const finalMeansIds = ind.means_tags ? ind.means_tags.map(t => t.id) : (ind.means_ids || []);
 
             return {
@@ -295,13 +276,11 @@ const ProjectTechnicalSetup = () => {
                 measurement_unit: ind.measurement_unit || (isOutcome ? 'percentage' : 'absolute'),
                 depends_on_ids: finalDependsOn,
                 means_ids: finalMeansIds,
-                // Cálculo automático de totales basados en lo que el usuario puso en las provincias
                 target_total: ind.province_goals?.reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0) || 0,
                 target_men: isOutcome ? null : (ind.province_goals?.reduce((acc, curr) => acc + (parseFloat(curr.men) || 0), 0) || 0),
                 target_women: isOutcome ? null : (ind.province_goals?.reduce((acc, curr) => acc + (parseFloat(curr.women) || 0), 0) || 0),
                 verification_means: ind.verification_means || "",
                 observations: ind.observations || "",
-                // Enviamos las metas desglosadas para el PASO 2 del backend
                 goals_by_province: ind.province_goals?.map(pg => ({
                     province_id: pg.province_id,
                     target: parseFloat(pg.total) || 0,
@@ -348,6 +327,7 @@ const ProjectTechnicalSetup = () => {
                 if (res.ok) {
                     toast.success("¡Planificación técnica guardada con éxito!");
                     await refreshProjectIndicators();
+                    setActiveIndicatorId(null);
 
                 } else {
                     toast.error("Hubo un error al guardar los indicadores.");
@@ -365,8 +345,8 @@ const ProjectTechnicalSetup = () => {
             text: "Se borrará permanentemente del servidor y se actualizarán las dependencias.",
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#ef4444', // Rojo para peligro
-            cancelButtonColor: '#1b263b',  // Oxford Grey para cancelar
+            confirmButtonColor: '#ef4444', 
+            cancelButtonColor: '#1b263b',  
             confirmButtonText: 'Sí, eliminar de la DB',
             cancelButtonText: 'Cancelar',
             background: document.documentElement.getAttribute('data-theme') === 'dark' ? '#1b263b' : '#ffffff',
@@ -375,7 +355,6 @@ const ProjectTechnicalSetup = () => {
             if (result.isConfirmed) {
                 const remainingIndicators = selectedIndicators.filter(i => i.template_id !== indicatorId);
 
-                // 2. Preparamos la data con la misma lógica de guardado
                 const formattedData = {
                     project_id: parseInt(projectId),
                     indicators: prepareIndicatorsForServer(remainingIndicators)
@@ -407,15 +386,11 @@ const ProjectTechnicalSetup = () => {
         setLoading(true);
         try {
             setSelectedComp(comp);
-            // 1. Buscamos las teorías específicas de ESTA nueva competencia
             const res = await apiFetch(`/competence/${comp.competence_id}/theories`);
             const newTheories = await res.json();
 
-            // 2. Actualizamos el estado de teorías
             setTheories(newTheories);
 
-            // 3. ¡IMPORTANTE! Refrescamos los indicadores pasándole las NUEVAS teorías
-            // para que el mapeo de nombres y tipos sea correcto
             await refreshProjectIndicators(newTheories);
 
         } catch (error) {
@@ -448,12 +423,10 @@ const ProjectTechnicalSetup = () => {
 
                 if (myComps.length > 0) {
                     setSelectedComp(myComps[0]);
-                    // Cargamos teorías de la primera competencia
                     const resTheory = await apiFetch(`/competence/${myComps[0].competence_id}/theories`);
                     const initialTheories = await resTheory.json();
                     setTheories(initialTheories);
 
-                    // Ahora que tenemos las teorías, refrescamos los indicadores guardados
                     await refreshProjectIndicators(initialTheories);
                 }
             } catch (error) {
@@ -464,7 +437,6 @@ const ProjectTechnicalSetup = () => {
         };
         loadInitialData();
     }, [projectId]);
-
 
 
     const indicatorsOfSelectedComp = useMemo(() => {
@@ -505,7 +477,7 @@ const ProjectTechnicalSetup = () => {
                             key={comp.competence_id}
                             className={`btn ${selectedComp?.competence_id === comp.competence_id ? 'btn-emerald' : 'btn-outline-oxford'} shadow-sm`}
                             style={{ borderRadius: '8px', transition: 'all 0.3s ease' }}
-                            onClick={() => handleCompetenceChange(comp)} // <--- Cambiamos esto
+                            onClick={() => handleCompetenceChange(comp)} 
                         >
                             <i className={`fas fa-briefcase me-2 ${selectedComp?.competence_id === comp.competence_id ? 'text-white' : ''}`}></i>
                             {comp.competence_name}
@@ -556,7 +528,6 @@ const ProjectTechnicalSetup = () => {
                                                                     checked={selectedIndicators.some(i => i.template_id === ind.id)}
                                                                     disabled={selectedIndicators.some(i => i.template_id === ind.id)}
                                                                     onChange={(e) => {
-                                                                        // Verificamos si result existe antes de llamar a la función
                                                                         if (result) {
                                                                             handleIndicatorToggle(ind, e.target.checked, result);
                                                                         } else {
@@ -600,7 +571,6 @@ const ProjectTechnicalSetup = () => {
                                         <i className="fas fa-times"></i>
                                     </button>
                                 </div>
-
                                 <div className="card-body">
                                     <div className="row mb-4">
                                         <div className="col-md-7">
@@ -654,7 +624,6 @@ const ProjectTechnicalSetup = () => {
                                             />
                                         </div>
                                     </div>
-
                                     {/* SECCIÓN DE DEPENDENCIAS (Solo para Outcomes) */}
                                     {activeInd.result_type === 'outcome' && (
                                         <div className="mb-4 fade-in">
@@ -766,7 +735,6 @@ const ProjectTechnicalSetup = () => {
                                             <thead className="thead-oxford sticky-top">
                                                 <tr>
                                                     <th>Provincia</th>
-                                                    <th className="text-center">Total {activeInd.result_type === 'outcome' ? '(%)' : ''}</th>
                                                     {/* Solo mostramos H y M si NO es outcome */}
                                                     {activeInd.result_type !== 'outcome' && (
                                                         <>
@@ -774,23 +742,21 @@ const ProjectTechnicalSetup = () => {
                                                             <th className="text-center"><i className="fas fa-venus w-color"></i> M</th>
                                                         </>
                                                     )}
+                                                    <th className="text-center">Total {activeInd.result_type === 'outcome' ? '(%)' : ''}</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {activeInd.province_goals.map((pg, index) => {
-                                                    // --- INICIO LÓGICA DE FILTRO PRO ---
+                                                    // --- INICIO LÓGICA DE FILTRO ---
                                                     const isOutcome = activeInd.result_type?.toLowerCase() === 'outcome';
                                                     const hasDependencies = activeInd.depends_on_ids && activeInd.depends_on_ids.length > 0;
 
                                                     let isVisible = true;
 
                                                     if (isOutcome && hasDependencies) {
-                                                        // Buscamos los indicadores de los que depende este Outcome
                                                         const parentIndicators = selectedIndicators.filter(s =>
                                                             activeInd.depends_on_ids.includes(s.template_id)
                                                         );
-
-                                                        // La provincia solo se muestra si existe en al menos un Output dependiente con meta > 0
                                                         isVisible = parentIndicators.some(parent =>
                                                             parent.province_goals.some(parentPg =>
                                                                 parentPg.province_id === pg.province_id && parentPg.total > 0
@@ -799,39 +765,12 @@ const ProjectTechnicalSetup = () => {
                                                     }
 
                                                     if (!isVisible) return null;
-                                                    // --- FIN LÓGICA DE FILTRO PRO ---
 
                                                     return (
                                                         <tr key={`${pg.province_id}-${index}`} className="tr-transparent">
                                                             <td className="text-oxford-dynamic fw-bold">
                                                                 {pg.province_name || "Sin nombre"}
                                                             </td>
-
-                                                            {/* Columna TOTAL con Input dinámico */}
-                                                            <td>
-                                                                <div className="input-group input-group-sm">
-                                                                    <input
-                                                                        type="number"
-                                                                        min="0"
-                                                                        max={activeInd.result_type === 'outcome' ? "100" : undefined}
-                                                                        className={`form-control meta-input ${activeInd.result_type !== 'outcome' && (pg.men + pg.women !== pg.total)
-                                                                            ? 'border-danger text-danger'
-                                                                            : ''
-                                                                            }`}
-                                                                        value={pg.total === 0 ? '' : pg.total}
-                                                                        onChange={(e) => {
-                                                                            let val = parseFloat(e.target.value);
-                                                                            if (activeInd.result_type === 'outcome' && val > 100) val = 100;
-                                                                            handleMetaChange(activeIndicatorId, pg.province_id, 'total', val || 0);
-                                                                        }}
-                                                                        placeholder="0"
-                                                                    />
-                                                                    {activeInd.result_type === 'outcome' && (
-                                                                        <span className="input-group-text bg-light-emerald text-emerald fw-bold">%</span>
-                                                                    )}
-                                                                </div>
-                                                            </td>
-
                                                             {/* Columnas H y M condicionadas */}
                                                             {activeInd.result_type !== 'outcome' && (
                                                                 <>
@@ -855,6 +794,31 @@ const ProjectTechnicalSetup = () => {
                                                                     </td>
                                                                 </>
                                                             )}
+                                                            {/* Columna TOTAL con Input dinámico */}
+                                                            <td>
+                                                                <div className="input-group input-group-sm">
+                                                                    <input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        max={activeInd.result_type === 'outcome' ? "100" : undefined}
+                                                                        className={`form-control meta-input ${activeInd.result_type !== 'outcome' && (pg.men + pg.women !== pg.total)
+                                                                            ? 'border-danger text-danger'
+                                                                            : ''
+                                                                            }`}
+                                                                        value={pg.total === 0 ? '' : pg.total}
+                                                                        disabled={activeInd.result_type !== 'outcome'}
+                                                                        onChange={(e) => {
+                                                                            let val = parseFloat(e.target.value);
+                                                                            if (activeInd.result_type === 'outcome' && val > 100) val = 100;
+                                                                            handleMetaChange(activeIndicatorId, pg.province_id, 'total', val || 0);
+                                                                        }}
+                                                                        placeholder="0"
+                                                                    />
+                                                                    {activeInd.result_type === 'outcome' && (
+                                                                        <span className="input-group-text bg-light-emerald text-emerald fw-bold">%</span>
+                                                                    )}
+                                                                </div>
+                                                            </td>
                                                         </tr>
                                                     );
                                                 })}
@@ -865,7 +829,7 @@ const ProjectTechnicalSetup = () => {
                             </div>
                         ) : (
                             /* TABLA DERECHA RESUMEN*/
-                            <div className="card shadow-sm border-dynamic bg-card-dynamic p-4 fade-in">
+                            <div className="card shadow-sm border-dynamic bg-card-dynamic p-4 fade-in resumen-exitoso">
                                 <div className="text-center border-bottom border-success mb-4">
                                     <div className="icon-circle-emerald mb-3">
                                         <i className="fas fa-clipboard-check fa-2x text-emerald"></i>
@@ -891,13 +855,11 @@ const ProjectTechnicalSetup = () => {
 
                                                         <td className="fw-bold text-center">
                                                             {ind.result_type?.toLowerCase() === 'outcome' ? (
-                                                                /* Para Outcomes, mostramos el promedio simple de las provincias */
                                                                 <span className="badge bg-primary text-navy px-3 py-2" style={{ fontSize: '0.9rem' }}>
                                                                     {(ind.province_goals.reduce((acc, curr) => acc + (curr.total || 0), 0) /
                                                                         ind.province_goals.filter(p => (p.total || 0) > 0).length || 0).toFixed(0)}%
                                                                 </span>
                                                             ) : (
-                                                                /* Para Outputs, mantenemos la suma total */
                                                                 <span className="badge bg-emerald text-navy px-3 py-2" style={{ fontSize: '0.9rem' }}>
                                                                     {ind.province_goals.reduce((acc, curr) => acc + (curr.total || 0), 0)}
                                                                 </span>
@@ -906,7 +868,6 @@ const ProjectTechnicalSetup = () => {
 
                                                         <td className="text-center">
                                                             {ind.result_type?.toLowerCase() === 'outcome' ? (
-                                                                /* Si es Outcome: Mostramos desglose por provincia en miniatura */
                                                                 <div className="d-flex flex-column gap-1 align-items-center">
                                                                     {ind.province_goals.filter(pg => pg.total > 0).map((pg, i) => (
                                                                         <span key={i} className="badge border text-oxford-dynamic" style={{ fontSize: '0.65rem', minWidth: '80px' }}>
@@ -915,7 +876,6 @@ const ProjectTechnicalSetup = () => {
                                                                     ))}
                                                                 </div>
                                                             ) : (
-                                                                /* Si es Output: Mantenemos el desglose H / M */
                                                                 <div className="d-flex justify-content-center gap-1">
                                                                     <span className="badge bg-blue-100 text-primary border border-primary-subtle" title="Hombres">
                                                                         <i className="fas fa-mars me-1"></i>
@@ -937,7 +897,7 @@ const ProjectTechnicalSetup = () => {
                                                             <button
                                                                 className="btn btn-sm btn-outline-danger border-0"
                                                                 onClick={(e) => {
-                                                                    e.stopPropagation(); // ¡Importante! Evita que se dispare el onClick de la fila
+                                                                    e.stopPropagation(); 
                                                                     confirmDelete(ind.template_id, ind.code);
                                                                 }}
                                                                 title="Eliminar este indicador"
@@ -1035,7 +995,7 @@ const ProjectTechnicalSetup = () => {
                                                                         <div className="text-muted-dynamic" style={{ fontSize: '0.8rem' }}>{ind.description}</div>
                                                                     </td>
                                                                     <td style={{ verticalAlign: 'top' }}>
-                                                                        {/* 1. Chips del Catálogo (usando means_tags de tu serialize) */}
+                                                                        {/* 1. Chips del Catálogo  */}
                                                                         {ind.means_tags && ind.means_tags.length > 0 && (
                                                                             <div className="d-flex flex-wrap gap-1 mb-2">
                                                                                 {ind.means_tags.map((mean, i) => (
@@ -1083,7 +1043,6 @@ const ProjectTechnicalSetup = () => {
                                                                                     </div>
                                                                                 ))
                                                                             }
-                                                                            {/* Mensaje amigable si todo está en cero */}
                                                                             {ind.province_goals.every(pg => (pg.total || pg.target) === 0) && (
                                                                                 <div className="p-2 text-center text-muted small italic">
                                                                                     Sin metas asignadas

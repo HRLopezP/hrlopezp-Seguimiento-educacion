@@ -259,39 +259,33 @@ const CreateProject = () => {
             return toast.error("El Código Único es obligatorio, amiguito.");
         }
 
-        // 1. Calculamos los totales globales sumando las metas de cada provincia
-        // Esto garantiza consistencia: el total del proyecto es la suma de sus partes.
         const calculatedTotal = formData.province_unique_targets.reduce((acc, pt) => acc + Number(pt.total || 0), 0);
         const calculatedMen = formData.province_unique_targets.reduce((acc, pt) => acc + Number(pt.men || 0), 0);
         const calculatedWomen = formData.province_unique_targets.reduce((acc, pt) => acc + Number(pt.women || 0), 0);
 
-        // 2. Preparamos el payload con la estructura EXACTA que espera el backend
         const payload = {
             code: formData.unique_code,
-            project_name: formData.name,       // CAMBIADO: de 'name' a 'project_name'
-            donor_name: formData.donor,        // CAMBIADO: de 'donor' a 'donor_name'
-            main_objective: formData.description, // CAMBIADO: de 'description' a 'main_objective'
-            results_summary: formData.main_scope, // CAMBIADO: de 'main_scope' a 'results_summary'
+            project_name: formData.name,       
+            donor_name: formData.donor,        
+            main_objective: formData.description,
+            results_summary: formData.main_scope, 
             start_date: formData.start_date,
             end_date: formData.end_date,
-            status: isPartial ? "Borrador" : "En Progreso", // Usamos el estado Draft si es parcial
+            status: isPartial ? "Borrador" : "En Progreso", 
 
-            // El objeto que el backend busca con .get("unique_targets")
             unique_targets: {
                 total: calculatedTotal,
                 men: calculatedMen,
                 women: calculatedWomen,
-                disability: 0 // Puedes añadir un campo en el form para esto luego
+                disability: 0 
             },
 
-            // Ubicaciones geográficas
             locations: formData.locations.map(loc => ({
                 province_id: parseInt(loc.province_id),
                 municipality_id: parseInt(loc.municipality_id),
                 parish_id: parseInt(loc.parish_id)
             })),
 
-            // Metas por provincia (Desagregadas)
             province_unique_targets: formData.province_unique_targets.map(pt => ({
                 province_id: parseInt(pt.province_id),
                 total: Number(pt.total),
@@ -303,7 +297,6 @@ const CreateProject = () => {
                 manager_id: c.manager_id
             })),
 
-            // Por ahora enviamos indicadores vacíos ya que se configuran en otro paso
             indicators: []
         };
 
@@ -331,16 +324,27 @@ const CreateProject = () => {
     };
 
     const handleProvinceTargetChange = (provinceId, field, value) => {
-        // Convertimos a número, pero manejamos el vacío para que no salte el 0 de inmediato
+        // 1. Convertimos a número (o dejamos vacío si el usuario borró el input)
         const numericValue = value === '' ? '' : parseInt(value);
 
         setFormData(prev => ({
             ...prev,
-            province_unique_targets: prev.province_unique_targets.map(pt =>
-                pt.province_id === provinceId
-                    ? { ...pt, [field]: numericValue }
-                    : pt
-            )
+            province_unique_targets: prev.province_unique_targets.map(pt => {
+                if (pt.province_id === provinceId) {
+                    // 2. Creamos una copia de la fila con el nuevo valor del campo cambiado
+                    const updatedRow = { ...pt, [field]: numericValue };
+
+                    // 3. Lógica Pro: Si se toca 'men' o 'women', calculamos el total automáticamente
+                    if (field === 'men' || field === 'women') {
+                        const menCount = Number(updatedRow.men || 0);
+                        const womenCount = Number(updatedRow.women || 0);
+                        updatedRow.total = menCount + womenCount;
+                    }
+
+                    return updatedRow;
+                }
+                return pt;
+            })
         }));
     };
 
@@ -613,55 +617,53 @@ const CreateProject = () => {
                                                 <thead className="thead-oxford">
                                                     <tr>
                                                         <th>Estado</th>
-                                                        <th>Meta Total</th>
                                                         <th>Hombres</th>
                                                         <th>Mujeres</th>
+                                                        <th>Meta Total</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {formData.province_unique_targets.map(pt => {
-                                                        // 1. Calculamos el error para esta fila específica
-                                                        const isInvalid = Number(pt.men || 0) + Number(pt.women || 0) !== Number(pt.total || 0);
+                                                    {formData.province_unique_targets.map(pt => (
+                                                        <tr key={`target-row-${pt.province_id}`} className="tr-transparent">
+                                                            {/* Nombre de la Provincia */}
+                                                            <td className="fw-bold text-oxford-dynamic">
+                                                                {pt.province_name}
+                                                            </td>
 
-                                                        return (
-                                                            <React.Fragment key={`target-row-${pt.province_id}`}>
-                                                                {/* FILA DE INPUTS */}
-                                                                <tr className={isInvalid ? "table-danger-light" : "tr-transparent"}>
-                                                                    <td className="fw-bold text-oxford-dynamic">{pt.province_name}</td>
-                                                                    <td>
-                                                                        <input type="number"
-                                                                            className={`form-control form-control-sm ${isInvalid ? 'border-danger' : ''}`}
-                                                                            value={pt.total}
-                                                                            onChange={(e) => handleProvinceTargetChange(pt.province_id, 'total', e.target.value)}
-                                                                        />
-                                                                    </td>
-                                                                    <td>
-                                                                        <input type="number"
-                                                                            className={`form-control form-control-sm ${isInvalid ? 'border-danger' : ''}`}
-                                                                            value={pt.men}
-                                                                            onChange={(e) => handleProvinceTargetChange(pt.province_id, 'men', e.target.value)}
-                                                                        />
-                                                                    </td>
-                                                                    <td>
-                                                                        <input type="number"
-                                                                            className={`form-control form-control-sm ${isInvalid ? 'border-danger' : ''}`}
-                                                                            value={pt.women}
-                                                                            onChange={(e) => handleProvinceTargetChange(pt.province_id, 'women', e.target.value)}
-                                                                        />
-                                                                    </td>
-                                                                </tr>
-                                                                {/* FILA DE MENSAJE DE ERROR (Solo aparece si isInvalid es true) */}
-                                                                {isInvalid && (
-                                                                    <tr>
-                                                                        <td colSpan="4" className="text-danger py-0 border-0" style={{ fontSize: '0.75rem' }}>
-                                                                            <i className="fas fa-exclamation-circle me-1"></i>
-                                                                            La suma de hombres ({pt.men || 0}) + mujeres ({pt.women || 0}) debe ser {pt.total || 0}.
-                                                                        </td>
-                                                                    </tr>
-                                                                )}
-                                                            </React.Fragment>
-                                                        );
-                                                    })}
+                                                            {/* Input Hombres */}
+                                                            <td>
+                                                                <input
+                                                                    type="number"
+                                                                    className="form-control form-control-sm border-primary-subtle"
+                                                                    value={pt.men}
+                                                                    onChange={(e) => handleProvinceTargetChange(pt.province_id, 'men', e.target.value)}
+                                                                    placeholder="0"
+                                                                />
+                                                            </td>
+
+                                                            {/* Input Mujeres */}
+                                                            <td>
+                                                                <input
+                                                                    type="number"
+                                                                    className="form-control form-control-sm border-danger-subtle"
+                                                                    value={pt.women}
+                                                                    onChange={(e) => handleProvinceTargetChange(pt.province_id, 'women', e.target.value)}
+                                                                    placeholder="0"
+                                                                />
+                                                            </td>
+
+                                                            {/* Input TOTAL (Automático y Bloqueado) */}
+                                                            <td>
+                                                                <input
+                                                                    type="number"
+                                                                    className="form-control form-control-sm bg-light fw-bold"
+                                                                    value={pt.total} // El valor viene de la función que actualiza el estado
+                                                                    disabled={true}
+                                                                    readOnly={true}
+                                                                />
+                                                            </td>
+                                                        </tr>
+                                                    ))}
                                                 </tbody>
                                             </table>
                                         </div>

@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: 84ba57f77f59
+Revision ID: 09633a90b6ed
 Revises: 
-Create Date: 2026-03-06 23:31:39.765514
+Create Date: 2026-03-18 23:45:12.012767
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '84ba57f77f59'
+revision = '09633a90b6ed'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -219,8 +219,9 @@ def upgrade():
     sa.Column('planned_target', sa.Float(), nullable=False),
     sa.Column('planned_men', sa.Float(), nullable=False),
     sa.Column('planned_women', sa.Float(), nullable=False),
-    sa.Column('status', sa.Enum('PLANIFICADA', 'EN_PROGRESO', 'COMPLETADA', 'VENCIDA', 'CANCELADA', name='activitystatus'), nullable=False),
+    sa.Column('status', sa.Enum('PLANIFICADA', 'EN_PROGRESO', 'EN_REVISION', 'APROBADA', 'RECHAZADA', 'VENCIDA', 'CANCELADA', name='activitystatus'), nullable=False),
     sa.Column('cancellation_reason', sa.Text(), nullable=True),
+    sa.Column('observations', sa.Text(), nullable=True),
     sa.Column('indicator_id', sa.Integer(), nullable=False),
     sa.Column('project_id', sa.Integer(), nullable=False),
     sa.Column('location_id', sa.Integer(), nullable=False),
@@ -273,6 +274,7 @@ def upgrade():
     sa.Column('evidence_url', sa.Text(), nullable=True),
     sa.Column('evidence_public_id', sa.String(length=100), nullable=True),
     sa.Column('observations', sa.Text(), nullable=True),
+    sa.Column('monitoring_comment', sa.Text(), nullable=True),
     sa.Column('execution_date', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=True),

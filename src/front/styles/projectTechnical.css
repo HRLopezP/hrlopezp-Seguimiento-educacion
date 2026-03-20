@@ -82,7 +82,7 @@
 .theory-row td {
     border-top: 1.5px solid #52b788 !important;
     border-bottom: 1.5px solid #52b788 !important;
-    background-color: #1b263b !important; /* Oxford Grey para que sea sólido */
+    background-color: #1b263b !important; 
 }
 
 .border-outcome {
@@ -90,14 +90,31 @@
 }
 
 
-/* 2. El truco de magia: Invertir el color de la flecha en modo oscuro */
 [data-theme='dark'] .accordion-button::after {
     filter: invert(1) grayscale(1) brightness(1.5);
 }
 
 
-/* Aplicable solo al modo oscuro para mayor elegancia */
 [data-theme='dark'] .accordion-item {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important; /* Solo una línea divisoria fina */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
+.fade-in-elegant {
+    animation: fadeInSmooth 0.6s ease-out;
+}
+
+@keyframes fadeInSmooth {
+    0% {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.resumen-exitoso {
+    border-left: 5px solid #52b788; 
+    transition: all 0.3s ease;
+}
