@@ -1,105 +1,129 @@
 import React, { useState, useEffect } from 'react';
 import { Accordion, Badge, Spinner, Pagination } from 'react-bootstrap';
 import { toast } from 'sonner';
+import ReviewModal from './ReviewModal'; // Importamos nuestro nuevo componente
 
 const AuditInbox = () => {
-    const [inboxData, setInboxData] = useState({});
-    const [loading, setLoading] = useState(true);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
+  const [inboxData, setInboxData] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-    const fetchInbox = async (page = 1) => {
-        setLoading(true);
-        try {
-            const response = await fetch(`${process.env.BACKEND_URL}/api/audit/inbox?page=${page}`, {
-                headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
-            });
-            const result = await response.json();
-            if (response.ok) {
-                setInboxData(result.data);
-                setTotalPages(result.total_pages);
-            }
-        } catch (error) {
-            toast.error("Error al cargar el Inbox");
-        } finally {
-            setLoading(false);
-        }
-    };
+  // --- ESTADOS PARA EL MODAL ---
+  const [showModal, setShowModal] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState(null);
 
-    useEffect(() => { fetchInbox(currentPage); }, [currentPage]);
+  const fetchInbox = async (page = 1) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${process.env.BACKEND_URL}/api/audit/inbox?page=${page}`, {
+        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+      });
+      const result = await response.json();
+      if (response.ok) {
+        setInboxData(result.data);
+        setTotalPages(result.total_pages);
+      }
+    } catch (error) {
+      toast.error("Error al cargar el Inbox");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    if (loading) return <div className="text-center p-5"><Spinner animation="border" variant="primary" /></div>;
+  useEffect(() => { fetchInbox(currentPage); }, [currentPage]);
 
-    return (
-        <div className="container mt-4">
-            <h2 className="mb-4" style={{ color: '#34495E' }}>📥 Inbox de Auditoría</h2>
-            
-            {Object.keys(inboxData).length === 0 ? (
-                <div className="alert alert-info">No hay actividades pendientes de revisión.</div>
-            ) : (
-                <Accordion defaultActiveKey="0">
-                    {Object.entries(inboxData).map(([projectId, project], pIdx) => (
-                        <Accordion.Item eventKey={String(pIdx)} key={projectId} className="mb-3 border-0 shadow-sm">
-                            <Accordion.Header>
-                                <strong style={{ color: '#2C3E50' }}>📁 Proyecto: {project.project_name}</strong>
-                            </Accordion.Header>
-                            <Accordion.Body style={{ backgroundColor: '#f8f9fa' }}>
-                                
-                                <Accordion>
-                                    {Object.entries(project.competencies).map(([compId, comp], cIdx) => (
-                                        <Accordion.Item eventKey={String(cIdx)} key={compId}>
-                                            <Accordion.Header>
-                                                <span className="text-muted">Competencia:</span>&nbsp;
-                                                <span className="fw-bold" style={{ color: '#184d47' }}>{comp.competence_name}</span>
-                                                <Badge bg="warning" text="dark" className="ms-auto me-3">
-                                                    {comp.activities.length} Pendientes
-                                                </Badge>
-                                            </Accordion.Header>
-                                            <Accordion.Body>
-                                                <div className="list-group list-group-flush">
-                                                    {comp.activities.map((act) => (
-                                                        <div key={act.id} className="list-group-item d-flex justify-content-between align-items-center">
-                                                            <div>
-                                                                <small className="text-primary fw-bold">{act.indicator.code}</small>
-                                                                <p className="mb-0">{act.description}</p>
-                                                                <small className="text-muted">Por: {act.audit.created_by_name}</small>
-                                                            </div>
-                                                            <button 
-                                                                className="btn btn-sm btn-outline-dark"
-                                                                onClick={() => {/* Aquí abriremos el Modal de Revisión */}}
-                                                            >
-                                                                Revisar Logro
-                                                            </button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </Accordion.Body>
-                                        </Accordion.Item>
-                                    ))}
-                                </Accordion>
+  // Función para abrir el modal con la actividad correcta
+  const handleOpenReview = (activity) => {
+    setSelectedActivity(activity);
+    setShowModal(true);
+  };
 
-                            </Accordion.Body>
-                        </Accordion.Item>
-                    ))}
-                </Accordion>
-            )}
+  if (loading) return <div className="text-center p-5"><Spinner animation="border" variant="primary" /></div>;
 
-            {/* Paginación simple */}
-            <div className="d-flex justify-content-center mt-4">
-                <Pagination>
-                    {[...Array(totalPages).keys()].map(n => (
-                        <Pagination.Item 
-                            key={n+1} 
-                            active={n+1 === currentPage}
-                            onClick={() => setCurrentPage(n+1)}
-                        >
-                            {n+1}
-                        </Pagination.Item>
-                    ))}
-                </Pagination>
-            </div>
+  return (
+    <div className="container mt-4">
+      <h2 className="mb-4" style={{ color: '#34495E' }}>📥 Inbox de Auditoría</h2>
+
+      {Object.keys(inboxData).length === 0 ? (
+        <div className="alert alert-info border-0 shadow-sm">
+          No hay actividades pendientes de revisión en este momento.
         </div>
-    );
+      ) : (
+        <Accordion defaultActiveKey="0">
+          {Object.entries(inboxData).map(([projectId, project], pIdx) => (
+            <Accordion.Item eventKey={String(pIdx)} key={projectId} className="mb-3 border-0 shadow-sm">
+              <Accordion.Header>
+                <strong style={{ color: '#2C3E50' }}>📁 Proyecto: {project.project_name}</strong>
+              </Accordion.Header>
+              <Accordion.Body style={{ backgroundColor: '#f8f9fa' }}>
+
+                <Accordion>
+                  {Object.entries(project.competencies).map(([compId, comp], cIdx) => (
+                    <Accordion.Item eventKey={String(cIdx)} key={compId} className="border-0 mb-2 shadow-sm">
+                      <Accordion.Header>
+                        <span className="text-muted small">Comp:</span>&nbsp;
+                        <span className="fw-bold" style={{ color: '#184d47' }}>{comp.competence_name}</span>
+                        <Badge bg="warning" text="dark" className="ms-auto me-3 rounded-pill">
+                          {comp.activities.length} por revisar
+                        </Badge>
+                      </Accordion.Header>
+                      <Accordion.Body className="bg-white">
+                        <div className="list-group list-group-flush">
+                          {comp.activities.map((act) => (
+                            <div key={act.id} className="list-group-item d-flex justify-content-between align-items-center py-3">
+                              <div className="me-3">
+                                <Badge bg="secondary" className="mb-1">{act.indicator.code}</Badge>
+                                <p className="mb-0 fw-semibold text-dark">{act.description}</p>
+                                <small className="text-muted">
+                                  Registrado por: <span className="text-dark">{act.audit.created_by_name}</span>
+                                </small>
+                              </div>
+                              <button
+                                className="btn btn-sm btn-dark px-3 shadow-sm"
+                                onClick={() => handleOpenReview(act)} // Conectamos el clic
+                                style={{ backgroundColor: '#374151' }} // Oxford Grey
+                              >
+                                Revisar Logro
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </Accordion.Body>
+                    </Accordion.Item>
+                  ))}
+                </Accordion>
+
+              </Accordion.Body>
+            </Accordion.Item>
+          ))}
+        </Accordion>
+      )}
+
+      {/* Componente del Modal de Revisión */}
+      <ReviewModal
+        show={showModal}
+        onHide={() => setShowModal(false)}
+        activity={selectedActivity}
+        onReviewSuccess={() => fetchInbox(currentPage)} // Recarga los datos al terminar
+      />
+
+      {/* Paginación */}
+      <div className="d-flex justify-content-center mt-4">
+        <Pagination size="sm">
+          {[...Array(totalPages).keys()].map(n => (
+            <Pagination.Item
+              key={n + 1}
+              active={n + 1 === currentPage}
+              onClick={() => setCurrentPage(n + 1)}
+            >
+              {n + 1}
+            </Pagination.Item>
+          ))}
+        </Pagination>
+      </div>
+    </div>
+  );
 };
 
 export default AuditInbox;
