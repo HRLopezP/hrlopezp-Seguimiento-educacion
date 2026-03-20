@@ -33,7 +33,7 @@ const ProjectTechnicalSetup = () => {
             theory_name: "Sin Teoría asignada",
             result_name: "Sin Resultado asignado",
             result_type: "output",
-            comp_name: "Sin Competencia" // <-- Agregamos esto
+            comp_name: "Sin Competencia" 
         };
 
         for (const t of allTheories) {
@@ -47,8 +47,8 @@ const ProjectTechnicalSetup = () => {
                         theory_name: t.name,
                         result_name: r.name,
                         result_type: r.type?.toLowerCase() || "output",
-                        comp_name: t.competence_name || selectedComp?.competence_name || "General", // <-- Ojo aquí
-                        indicator_name: found.name // Aprovechamos de traer el nombre real
+                        comp_name: t.competence_name || selectedComp?.competence_name || "General", 
+                        indicator_name: found.name 
                     };
                 }
             }
@@ -150,7 +150,7 @@ const ProjectTechnicalSetup = () => {
                 province_goals: uniqueProvinces,
                 means_ids: [],
                 means_tags: [],
-                calculation_type: resultObj?.type === 'outcome' ? 'dependent' : 'direct', // Por defecto, si es outcome, es dependiente
+                calculation_type: resultObj?.type === 'outcome' ? 'dependent' : 'direct', 
                 measurement_unit: resultObj?.type === 'outcome' ? 'percentage' : 'absolute',
                 depends_on_ids: [],
             };
@@ -528,7 +528,6 @@ const ProjectTechnicalSetup = () => {
                                                                     checked={selectedIndicators.some(i => i.template_id === ind.id)}
                                                                     disabled={selectedIndicators.some(i => i.template_id === ind.id)}
                                                                     onChange={(e) => {
-                                                                        // Verificamos si result existe antes de llamar a la función
                                                                         if (result) {
                                                                             handleIndicatorToggle(ind, e.target.checked, result);
                                                                         } else {
@@ -572,7 +571,6 @@ const ProjectTechnicalSetup = () => {
                                         <i className="fas fa-times"></i>
                                     </button>
                                 </div>
-
                                 <div className="card-body">
                                     <div className="row mb-4">
                                         <div className="col-md-7">
@@ -626,7 +624,6 @@ const ProjectTechnicalSetup = () => {
                                             />
                                         </div>
                                     </div>
-
                                     {/* SECCIÓN DE DEPENDENCIAS (Solo para Outcomes) */}
                                     {activeInd.result_type === 'outcome' && (
                                         <div className="mb-4 fade-in">
@@ -750,19 +747,16 @@ const ProjectTechnicalSetup = () => {
                                             </thead>
                                             <tbody>
                                                 {activeInd.province_goals.map((pg, index) => {
-                                                    // --- INICIO LÓGICA DE FILTRO PRO ---
+                                                    // --- INICIO LÓGICA DE FILTRO ---
                                                     const isOutcome = activeInd.result_type?.toLowerCase() === 'outcome';
                                                     const hasDependencies = activeInd.depends_on_ids && activeInd.depends_on_ids.length > 0;
 
                                                     let isVisible = true;
 
                                                     if (isOutcome && hasDependencies) {
-                                                        // Buscamos los indicadores de los que depende este Outcome
                                                         const parentIndicators = selectedIndicators.filter(s =>
                                                             activeInd.depends_on_ids.includes(s.template_id)
                                                         );
-
-                                                        // La provincia solo se muestra si existe en al menos un Output dependiente con meta > 0
                                                         isVisible = parentIndicators.some(parent =>
                                                             parent.province_goals.some(parentPg =>
                                                                 parentPg.province_id === pg.province_id && parentPg.total > 0
@@ -771,7 +765,6 @@ const ProjectTechnicalSetup = () => {
                                                     }
 
                                                     if (!isVisible) return null;
-                                                    // --- FIN LÓGICA DE FILTRO PRO ---
 
                                                     return (
                                                         <tr key={`${pg.province_id}-${index}`} className="tr-transparent">
@@ -862,13 +855,11 @@ const ProjectTechnicalSetup = () => {
 
                                                         <td className="fw-bold text-center">
                                                             {ind.result_type?.toLowerCase() === 'outcome' ? (
-                                                                /* Para Outcomes, mostramos el promedio simple de las provincias */
                                                                 <span className="badge bg-primary text-navy px-3 py-2" style={{ fontSize: '0.9rem' }}>
                                                                     {(ind.province_goals.reduce((acc, curr) => acc + (curr.total || 0), 0) /
                                                                         ind.province_goals.filter(p => (p.total || 0) > 0).length || 0).toFixed(0)}%
                                                                 </span>
                                                             ) : (
-                                                                /* Para Outputs, mantenemos la suma total */
                                                                 <span className="badge bg-emerald text-navy px-3 py-2" style={{ fontSize: '0.9rem' }}>
                                                                     {ind.province_goals.reduce((acc, curr) => acc + (curr.total || 0), 0)}
                                                                 </span>
@@ -877,7 +868,6 @@ const ProjectTechnicalSetup = () => {
 
                                                         <td className="text-center">
                                                             {ind.result_type?.toLowerCase() === 'outcome' ? (
-                                                                /* Si es Outcome: Mostramos desglose por provincia en miniatura */
                                                                 <div className="d-flex flex-column gap-1 align-items-center">
                                                                     {ind.province_goals.filter(pg => pg.total > 0).map((pg, i) => (
                                                                         <span key={i} className="badge border text-oxford-dynamic" style={{ fontSize: '0.65rem', minWidth: '80px' }}>
@@ -886,7 +876,6 @@ const ProjectTechnicalSetup = () => {
                                                                     ))}
                                                                 </div>
                                                             ) : (
-                                                                /* Si es Output: Mantenemos el desglose H / M */
                                                                 <div className="d-flex justify-content-center gap-1">
                                                                     <span className="badge bg-blue-100 text-primary border border-primary-subtle" title="Hombres">
                                                                         <i className="fas fa-mars me-1"></i>
@@ -908,7 +897,7 @@ const ProjectTechnicalSetup = () => {
                                                             <button
                                                                 className="btn btn-sm btn-outline-danger border-0"
                                                                 onClick={(e) => {
-                                                                    e.stopPropagation(); // ¡Importante! Evita que se dispare el onClick de la fila
+                                                                    e.stopPropagation(); 
                                                                     confirmDelete(ind.template_id, ind.code);
                                                                 }}
                                                                 title="Eliminar este indicador"
@@ -1006,7 +995,7 @@ const ProjectTechnicalSetup = () => {
                                                                         <div className="text-muted-dynamic" style={{ fontSize: '0.8rem' }}>{ind.description}</div>
                                                                     </td>
                                                                     <td style={{ verticalAlign: 'top' }}>
-                                                                        {/* 1. Chips del Catálogo (usando means_tags de tu serialize) */}
+                                                                        {/* 1. Chips del Catálogo  */}
                                                                         {ind.means_tags && ind.means_tags.length > 0 && (
                                                                             <div className="d-flex flex-wrap gap-1 mb-2">
                                                                                 {ind.means_tags.map((mean, i) => (
@@ -1054,7 +1043,6 @@ const ProjectTechnicalSetup = () => {
                                                                                     </div>
                                                                                 ))
                                                                             }
-                                                                            {/* Mensaje amigable si todo está en cero */}
                                                                             {ind.province_goals.every(pg => (pg.total || pg.target) === 0) && (
                                                                                 <div className="p-2 text-center text-muted small italic">
                                                                                     Sin metas asignadas
