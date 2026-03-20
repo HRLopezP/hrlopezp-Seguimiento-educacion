@@ -2,8 +2,8 @@ import React from "react";
 import { Navigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 
-export const ProtectedRoute = ({ children }) => {
-    // 1. Cambiamos 'token' por 'access_token' para que coincida con tu captura
+// Añadimos 'allowedRoles' como parámetro para que sea dinámico
+export const ProtectedRoute = ({ children, allowedRoles = ["Administrador", "Gerente"] }) => {
     const token = localStorage.getItem("access_token");
 
     if (!token) {
@@ -12,14 +12,14 @@ export const ProtectedRoute = ({ children }) => {
 
     try {
         const decoded = jwtDecode(token);
-        // 1. Definimos quiénes pueden entrar a estas vistas
-        const authorizedRoles = ["Administrador", "Gerente"];
+        // El rol viene en el token (asegúrate que la clave sea 'rol' o 'rol_name' según tu JWT)
+        const userRol = decoded.rol; 
         
-        // 2. Verificamos si el rol incluido en el token tiene permiso
-        if (authorizedRoles.includes(decoded.rol)) {
+        // Verificamos si el rol del usuario está en la lista de permitidos para ESTA ruta
+        if (allowedRoles.includes(userRol)) {
             return children;
         } else {
-            console.log("Acceso denegado para el rol:", decoded.rol);
+            console.log("Acceso denegado para el rol:", userRol);
             return <Navigate to="/denied" replace />;
         }
     } catch (error) {
