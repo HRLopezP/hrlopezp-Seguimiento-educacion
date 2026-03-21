@@ -879,7 +879,7 @@ def create_project():
 
 @api.route('/manager/projects', methods=['GET'])
 @jwt_required()
-@manager_required
+@roles_required("Administrador", "Gerente", "Monitoreo")
 def get_manager_projects():
     projects = Project.query.all()
     results = []

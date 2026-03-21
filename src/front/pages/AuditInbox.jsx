@@ -1,130 +1,254 @@
-import React, { useState, useEffect } from 'react';
-import { Accordion, Badge, Spinner, Pagination } from 'react-bootstrap';
-import { toast } from 'sonner';
-import ReviewModal from '../components/ReviewModal';
+import React, { useEffect, useState, useCallback } from "react";
+import { toast, Toaster } from "sonner";
+import useGlobalReducer from '../hooks/useGlobalReducer'; // Uso del hook estándar de tu proyecto
+import Swal from 'sweetalert2';
 import { apiFetch } from "../../utils/api";
+import "../styles/roleManagement.css";
 
 const AuditInbox = () => {
-  const [inboxData, setInboxData] = useState({});
+  // 1. Acceso al store global usando tu hook personalizado
+  const { store } = useGlobalReducer();
+  const user = store.user;
+  
+  // Extraemos el rol del usuario logueado
+  const userRole = user?.rol?.name_rol || user?.rol || "Oficial";
+
+  const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [competencias, setCompetencias] = useState([]);
+  const [proyectos, setProyectos] = useState([]);
+
+  const [currentTab, setCurrentTab] = useState("En Revisión");
+  const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  // --- ESTADOS PARA EL MODAL ---
-  const [showModal, setShowModal] = useState(false);
-  const [selectedActivity, setSelectedActivity] = useState(null);
+  const [filters, setFilters] = useState({
+    competenciaId: '',
+    proyectoId: '',
+    search_code: ""
+  });
 
-  const fetchInbox = async (page = 1) => {
+  // 2. CARGA DE CATÁLOGOS SEGÚN EL ROL
+  useEffect(() => {
+    const loadCatalogs = async () => {
+      try {
+        // Si es Gerente, usamos rutas que filtran por sus competencias asignadas
+        // Si es Monitoreo/Admin, cargamos los catálogos completos (rutas /manager o generales)
+        const projectRoute = (userRole === "Gerente") ? "/official/projects" : "/manager/projects";
+        const competenceRoute = (userRole === "Gerente") ? "/official/competences" : "/competences";
+
+        const [resP, resC] = await Promise.all([
+          apiFetch(projectRoute),
+          apiFetch(competenceRoute)
+        ]);
+
+        if (resP.ok) setProyectos(await resP.json());
+        if (resC.ok) setCompetencias(await resC.json());
+      } catch (error) {
+        console.error("Error cargando filtros:", error);
+      }
+    };
+
+    if (userRole) loadCatalogs();
+  }, [userRole]);
+
+  // 3. MANEJADOR DE FILTROS CON LÓGICA DE CASCADA PARA GERENTE
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    const numericValue = (name === 'competenciaId' || name === 'proyectoId') && value ? parseInt(value, 10) : value;
+
+    setFilters(prev => {
+      const newFilters = { ...prev, [name]: numericValue };
+
+      // Si el Gerente cambia la competencia, reseteamos el proyecto para obligar a elegir uno nuevo del área
+      if (userRole === "Gerente" && name === "competenciaId") {
+        newFilters.proyectoId = "";
+      }
+      return newFilters;
+    });
+  };
+
+  // 4. CARGA DE ACTIVIDADES PARA AUDITORÍA
+  const fetchAuditData = useCallback(async () => {
+    if (currentTab === "Aprobada" && !filters.proyectoId && !filters.competenciaId) {
+      setActivities([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      // ✅ SIMPLIFICADO: apiFetch ya pone el token por ti
-      const response = await apiFetch(`/audit/inbox?page=${page}`);
+      const queryParams = new URLSearchParams({
+        status: currentTab,
+        page: page,
+        per_page: 10,
+        ...(filters.proyectoId && { project_id: filters.proyectoId }),
+        ...(filters.competenciaId && { competence_id: filters.competenciaId }),
+        ...(filters.search_code && { search_code: filters.search_code })
+      });
 
-      if (response && response.ok) {
-        const result = await response.json();
-        setInboxData(result.data || {}); // Aseguramos que siempre sea un objeto
-        setTotalPages(result.total_pages || 1);
-      } else {
-        toast.error("No se pudo obtener la información del servidor");
+      const res = await apiFetch(`/audit/inbox?${queryParams}`);
+      if (res?.ok) {
+        const result = await res.json();
+        setActivities(result.data);
+        setTotalPages(result.total_pages);
       }
     } catch (error) {
-      console.error("Error cargando inbox:", error);
-      toast.error("Error al conectar con el servidor");
+      toast.error("Error al cargar la bandeja de auditoría");
     } finally {
       setLoading(false);
     }
+  }, [currentTab, page, filters]);
+
+  useEffect(() => {
+    fetchAuditData();
+  }, [fetchAuditData]);
+
+  // 5. MODAL DE REVISIÓN (Mantenemos tu lógica de Swal)
+  const handleReview = async (activity) => {
+    const { value: formValues } = await Swal.fire({
+      title: `Revisar Logro: ${activity.indicator_code}`,
+      background: 'var(--card-bg)',
+      color: 'var(--text-primary)',
+      html: `
+                <div class="review-details mb-3 text-start" style="font-size: 0.9rem;">
+                    <p><strong>Responsable:</strong> ${activity.responsible}</p>
+                    <p><strong>Descripción:</strong> ${activity.description}</p>
+                    ${activity.image_url ? `<img src="${activity.image_url}" class="img-fluid rounded mt-2 border" style="max-height: 200px; width: 100%; object-fit: cover;">` : ''}
+                </div>
+                <select id="swal-status" class="swal2-input">
+                    <option value="Aprobada">Aprobar</option>
+                    <option value="Rechazada">Rechazar</option>
+                </select>
+                <textarea id="swal-comment" class="swal2-textarea" placeholder="Comentario o motivo de rechazo..."></textarea>
+            `,
+      showCancelButton: true,
+      confirmButtonText: 'Procesar',
+      confirmButtonColor: '#10b981'
+    });
+
+    if (formValues) {
+      const status = document.getElementById('swal-status').value;
+      const comment = document.getElementById('swal-comment').value;
+
+      if (status === "Rechazada" && !comment) {
+        toast.error("El motivo es obligatorio para rechazar");
+        return;
+      }
+
+      try {
+        const res = await apiFetch(`/activities/${activity.id}/review`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status, monitoring_comment: comment })
+        });
+        if (res.ok) {
+          toast.success("Revisión procesada");
+          fetchAuditData();
+        }
+      } catch (err) {
+        toast.error("Error en la comunicación");
+      }
+    }
   };
-
-  useEffect(() => { fetchInbox(currentPage); }, [currentPage]);
-
-  // Función para abrir el modal con la actividad correcta
-  const handleOpenReview = (activity) => {
-    setSelectedActivity(activity);
-    setShowModal(true);
-  };
-
-  if (loading) return <div className="text-center p-5"><Spinner animation="border" variant="primary" /></div>;
 
   return (
-    <div className="container mt-4">
-      <h2 className="mb-4" style={{ color: '#34495E' }}>📥 Inbox de Auditoría</h2>
-
-      {Object.keys(inboxData).length === 0 ? (
-        <div className="alert alert-info border-0 shadow-sm">
-          No hay actividades pendientes de revisión en este momento.
+    <div className="management-page-container">
+      <Toaster richColors position="top-right" />
+      <div className="container mt-4">
+        <div className="audit-tabs-container d-flex mb-3">
+          {["En Revisión", "Aprobada", "Rechazada"].map(tab => (
+            <button key={tab} className={`audit-tab-btn ${currentTab === tab ? 'active' : ''}`} onClick={() => { setCurrentTab(tab); setPage(1); }}>
+              {tab}
+            </button>
+          ))}
         </div>
-      ) : (
-        <Accordion defaultActiveKey="0">
-          {Object.entries(inboxData).map(([projectId, project], pIdx) => (
-            <Accordion.Item eventKey={String(pIdx)} key={projectId} className="mb-3 border-0 shadow-sm">
-              <Accordion.Header>
-                <strong style={{ color: '#2C3E50' }}>📁 Proyecto: {project.project_name}</strong>
-              </Accordion.Header>
-              <Accordion.Body style={{ backgroundColor: '#f8f9fa' }}>
 
-                <Accordion>
-                  {Object.entries(project.competencies).map(([compId, comp], cIdx) => (
-                    <Accordion.Item eventKey={String(cIdx)} key={compId} className="border-0 mb-2 shadow-sm">
-                      <Accordion.Header>
-                        <span className="text-muted small">Comp:</span>&nbsp;
-                        <span className="fw-bold" style={{ color: '#184d47' }}>{comp.competence_name}</span>
-                        <Badge bg="warning" text="dark" className="ms-auto me-3 rounded-pill">
-                          {comp.activities.length} por revisar
-                        </Badge>
-                      </Accordion.Header>
-                      <Accordion.Body className="bg-white">
-                        <div className="list-group list-group-flush">
-                          {comp.activities.map((act) => (
-                            <div key={act.id} className="list-group-item d-flex justify-content-between align-items-center py-3">
-                              <div className="me-3">
-                                <Badge bg="secondary" className="mb-1">{act.indicator.code}</Badge>
-                                <p className="mb-0 fw-semibold text-dark">{act.description}</p>
-                                <small className="text-muted">
-                                  Registrado por: <span className="text-dark">{act.audit.created_by_name}</span>
-                                </small>
-                              </div>
-                              <button
-                                className="btn btn-sm btn-dark px-3 shadow-sm"
-                                onClick={() => handleOpenReview(act)} // Conectamos el clic
-                                style={{ backgroundColor: '#374151' }} // Oxford Grey
-                              >
-                                Revisar Logro
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </Accordion.Body>
-                    </Accordion.Item>
-                  ))}
-                </Accordion>
+        <div className="card management-card-unified shadow-lg">
+          <div className="management-card-header bg-light p-3">
+            <div className="row g-2">
+              <div className="col-md-2">
+                <input type="text" name="search_code" className="form-control" placeholder="Código..." value={filters.search_code} onChange={handleFilterChange} />
+              </div>
 
-              </Accordion.Body>
-            </Accordion.Item>
-          ))}
-        </Accordion>
-      )}
+              {/* Selector de Competencia */}
+              <div className={`col-md-${userRole === "Gerente" ? '5' : '4'}`}>
+                <label className="small fw-bold text-muted">ESPECIALIDAD / COMPETENCIA</label>
+                <select name="competenciaId" className="form-select" value={filters.competenciaId} onChange={handleFilterChange}>
+                  <option value="">-- Todas las Áreas --</option>
+                  {competencias.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
 
-      {/* Componente del Modal de Revisión */}
-      <ReviewModal
-        show={showModal}
-        onHide={() => setShowModal(false)}
-        activity={selectedActivity}
-        onReviewSuccess={() => fetchInbox(currentPage)} // Recarga los datos al terminar
-      />
+              {/* Selector de Proyecto con Bloqueo para Gerente */}
+              <div className={`col-md-${userRole === "Gerente" ? '5' : '4'}`}>
+                <label className="small fw-bold text-muted">PROYECTO</label>
+                <select
+                  name="proyectoId"
+                  className="form-select"
+                  value={filters.proyectoId}
+                  onChange={handleFilterChange}
+                  disabled={userRole === "Gerente" && !filters.competenciaId}
+                >
+                  <option value="">
+                    {userRole === "Gerente" && !filters.competenciaId
+                      ? "Elija primero competencia"
+                      : "-- Todos los Proyectos --"}
+                  </option>
+                  {proyectos.map(p => <option key={p.id} value={p.id}>{p.project_name || p.name}</option>)}
+                </select>
+              </div>
 
-      {/* Paginación */}
-      <div className="d-flex justify-content-center mt-4">
-        <Pagination size="sm">
-          {[...Array(totalPages).keys()].map(n => (
-            <Pagination.Item
-              key={n + 1}
-              active={n + 1 === currentPage}
-              onClick={() => setCurrentPage(n + 1)}
-            >
-              {n + 1}
-            </Pagination.Item>
-          ))}
-        </Pagination>
+              <div className="col-md-2 d-grid">
+                <button className="btn btn-outline-secondary" onClick={() => setFilters({ competenciaId: '', proyectoId: '', search_code: "" })}>Limpiar</button>
+              </div>
+            </div>
+          </div>
+
+          <div className="card-body p-0">
+            <div className="table-responsive">
+              <table className="table align-middle table-sigssep mb-0">
+                <thead>
+                  <tr>
+                    <th>Indicador</th>
+                    <th>Responsable</th>
+                    <th>Fecha</th>
+                    <th className="text-center">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentTab === "Aprobada" && !filters.proyectoId && !filters.competenciaId ? (
+                    <tr><td colSpan="4" className="text-center p-5 text-muted">Use los filtros para buscar en el historial de aprobados.</td></tr>
+                  ) : loading ? (
+                    <tr><td colSpan="4" className="text-center p-5"><div className="spinner-border text-emerald"></div></td></tr>
+                  ) : activities.length > 0 ? (
+                    activities.map(act => (
+                      <tr key={act.id}>
+                        <td><span className="fw-bold text-oxford">{act.indicator_code}</span></td>
+                        <td>{act.responsible}</td>
+                        <td className="small">{act.implementation_date}</td>
+                        <td className="text-center">
+                          <button className="btn-action btn-activate" onClick={() => handleReview(act)}>
+                            <i className="fas fa-eye me-1"></i> Revisar
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr><td colSpan="4" className="text-center p-5 text-muted">No se encontraron registros.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="card-footer d-flex justify-content-between align-items-center">
+            <span className="small text-muted">Página {page} de {totalPages}</span>
+            <div className="btn-group">
+              <button className="btn btn-outline-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Anterior</button>
+              <button className="btn btn-outline-secondary btn-sm" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Siguiente</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
