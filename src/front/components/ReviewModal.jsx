@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { Modal, Button, Form, Table, Badge } from 'react-bootstrap';
+import { Modal, Button, Form } from 'react-bootstrap';
 import Swal from 'sweetalert2';
-import withReactContent from 'sweetalert2-react-content';
-
-const MySwal = withReactContent(Swal);
+import { apiFetch } from "../../utils/api";
 
 const ReviewModal = ({ show, onHide, activity, onReviewSuccess }) => {
     const [comment, setComment] = useState("");
@@ -13,54 +11,62 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess }) => {
     const currentAchievement = activity?.achievements_history?.slice(-1)[0];
 
     const handleReview = async (newStatus) => {
+        // Validar comentario si es rechazo
         if (newStatus === 'Rechazada' && !comment.trim()) {
-            return MySwal.fire({
+            return Swal.fire({
                 icon: 'error',
                 title: 'Dato obligatorio',
                 text: 'Debes indicar un motivo para rechazar la actividad.',
-                confirmButtonColor: '#3085d6',
+                confirmButtonColor: '#1B263B',
             });
         }
 
-        const confirmResult = await MySwal.fire({
+        const result = await Swal.fire({
             title: `¿Confirmar ${newStatus}?`,
             text: `La actividad será marcada como ${newStatus.toLowerCase()}.`,
             icon: 'question',
             showCancelButton: true,
-            confirmButtonColor: newStatus === 'Aprobada' ? '#10b981' : '#d33',
-            cancelButtonColor: '#6c757d',
+            confirmButtonColor: newStatus === 'Aprobada' ? '#10b981' : '#ef4444',
+            cancelButtonColor: '#1B263B',
             confirmButtonText: 'Sí, confirmar',
-            cancelButtonText: 'Cancelar'
+            cancelButtonText: 'Cancelar',
+            background: 'var(--card-bg)',
+            color: 'var(--text-primary)'
         });
 
-        if (confirmResult.isConfirmed) {
+        if (result.isConfirmed) {
             setSubmitting(true);
             try {
-                const response = await fetch(`${process.env.BACKEND_URL}/api/activities/${activity.id}/review`, {
+                // ✅ CAMBIO CLAVE: apiFetch ya sabe la URL y el Token
+                const response = await apiFetch(`/activities/${activity.id}/review`, {
                     method: 'PATCH',
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${localStorage.getItem("token")}`
-                    },
                     body: JSON.stringify({
                         status: newStatus,
                         monitoring_comment: comment
                     })
                 });
 
-                if (response.ok) {
-                    MySwal.fire('¡Logrado!', `La actividad ha sido ${newStatus.toLowerCase()}.`, 'success');
-                    onReviewSuccess(); // Recarga el inbox
+                if (response && response.ok) {
+                    await Swal.fire({ // Añadimos await para que el usuario vea el éxito
+                        title: '¡Logrado!',
+                        text: `La actividad ha sido ${newStatus.toLowerCase()}.`,
+                        icon: 'success',
+                        confirmButtonColor: '#10b981'
+                    });
+                    onReviewSuccess();
                     onHide();
+                    setComment("");
+                } else {
+                    Swal.fire('Error', 'No se pudo actualizar el estado.', 'error');
                 }
             } catch (error) {
-                MySwal.fire('Error', 'No se pudo procesar la revisión.', 'error');
+                Swal.fire('Error', 'Error de conexión con el servidor.', 'error');
             } finally {
                 setSubmitting(false);
             }
         }
     };
-
+    
     return (
         <Modal show={show} onHide={onHide} size="lg" centered>
             <Modal.Header closeButton style={{ backgroundColor: '#2C3E50', color: 'white' }}>
@@ -69,7 +75,7 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess }) => {
             <Modal.Body>
                 <h5>Descripción: <small className="text-muted">{activity?.description}</small></h5>
                 <hr />
-                
+
                 <div className="row mb-4">
                     <div className="col-md-6 border-end">
                         <h6 className="text-primary">Logro Actual</h6>
@@ -96,9 +102,9 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess }) => {
 
                 <Form.Group className="mb-3">
                     <Form.Label><strong>Comentario de Retroalimentación (Obligatorio si rechaza)</strong></Form.Label>
-                    <Form.Control 
-                        as="textarea" 
-                        rows={3} 
+                    <Form.Control
+                        as="textarea"
+                        rows={3}
                         placeholder="Escribe aquí las observaciones para el oficial..."
                         value={comment}
                         onChange={(e) => setComment(e.target.value)}
@@ -107,15 +113,15 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess }) => {
             </Modal.Body>
             <Modal.Footer className="bg-light">
                 <Button variant="secondary" onClick={onHide}>Cerrar</Button>
-                <Button 
-                    variant="danger" 
+                <Button
+                    variant="danger"
                     disabled={submitting}
                     onClick={() => handleReview('Rechazada')}
                 >
                     Rechazar y Devolver
                 </Button>
-                <Button 
-                    variant="success" 
+                <Button
+                    variant="success"
                     disabled={submitting}
                     onClick={() => handleReview('Aprobada')}
                 >

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Accordion, Badge, Spinner, Pagination } from 'react-bootstrap';
 import { toast } from 'sonner';
-import ReviewModal from './ReviewModal'; // Importamos nuestro nuevo componente
+import ReviewModal from '../components/ReviewModal';
+import { apiFetch } from "../../utils/api";
 
 const AuditInbox = () => {
   const [inboxData, setInboxData] = useState({});
@@ -16,16 +17,19 @@ const AuditInbox = () => {
   const fetchInbox = async (page = 1) => {
     setLoading(true);
     try {
-      const response = await fetch(`${process.env.BACKEND_URL}/api/audit/inbox?page=${page}`, {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
-      });
-      const result = await response.json();
-      if (response.ok) {
-        setInboxData(result.data);
-        setTotalPages(result.total_pages);
+      // ✅ SIMPLIFICADO: apiFetch ya pone el token por ti
+      const response = await apiFetch(`/audit/inbox?page=${page}`);
+
+      if (response && response.ok) {
+        const result = await response.json();
+        setInboxData(result.data || {}); // Aseguramos que siempre sea un objeto
+        setTotalPages(result.total_pages || 1);
+      } else {
+        toast.error("No se pudo obtener la información del servidor");
       }
     } catch (error) {
-      toast.error("Error al cargar el Inbox");
+      console.error("Error cargando inbox:", error);
+      toast.error("Error al conectar con el servidor");
     } finally {
       setLoading(false);
     }
