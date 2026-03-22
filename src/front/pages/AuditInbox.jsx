@@ -1,17 +1,15 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { toast, Toaster } from "sonner";
-import useGlobalReducer from '../hooks/useGlobalReducer'; // Uso del hook estándar de tu proyecto
-import Swal from 'sweetalert2';
+import useGlobalReducer from '../hooks/useGlobalReducer';
 import { apiFetch } from "../../utils/api";
 import "../styles/roleManagement.css";
 
 const AuditInbox = () => {
-  // 1. Acceso al store global usando tu hook personalizado
   const { store } = useGlobalReducer();
   const user = store.user;
   
-  // Extraemos el rol del usuario logueado
-  const userRole = user?.rol?.name_rol || user?.rol || "Oficial";
+  // Extraemos el rol del serialize del modelo User
+  const userRole = user?.rol_name || "Oficial";
 
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,49 +26,49 @@ const AuditInbox = () => {
     search_code: ""
   });
 
-  // 2. CARGA DE CATÁLOGOS SEGÚN EL ROL
+  // 1. CARGA DE COMPETENCIAS SEGÚN ROL
   useEffect(() => {
-    const loadCatalogs = async () => {
-      try {
-        // Si es Gerente, usamos rutas que filtran por sus competencias asignadas
-        // Si es Monitoreo/Admin, cargamos los catálogos completos (rutas /manager o generales)
-        const projectRoute = (userRole === "Gerente") ? "/official/projects" : "/manager/projects";
-        const competenceRoute = (userRole === "Gerente") ? "/official/competences" : "/competences";
+    if (userRole === "Gerente") {
+      // Usamos las competencias que ya vienen en el serialize() del User
+      const userComps = user?.competences || [];
+      setCompetencias(userComps);
+      
+      // Si solo tiene 1 competencia, la seleccionamos por defecto y bloqueamos el selector
+      if (userComps.length === 1) {
+        setFilters(prev => ({ ...prev, competenciaId: userComps[0].id }));
+      }
+    } else if (userRole === "Administrador" || userRole === "Monitoreo") {
+      // Ellos sí ven todas, las traemos del catálogo maestro
+      const loadAllCompetences = async () => {
+        const res = await apiFetch("/competences");
+        if (res.ok) setCompetencias(await res.json());
+      };
+      loadAllCompetences();
+    }
+  }, [user, userRole]);
 
-        const [resP, resC] = await Promise.all([
-          apiFetch(projectRoute),
-          apiFetch(competenceRoute)
-        ]);
-
-        if (resP.ok) setProyectos(await resP.json());
-        if (resC.ok) setCompetencias(await resC.json());
-      } catch (error) {
-        console.error("Error cargando filtros:", error);
+  // 2. CARGA DE PROYECTOS (Depende de la competencia elegida)
+  // Esto ayuda a que el selector de proyectos sea más corto y eficiente
+  useEffect(() => {
+    const loadProjects = async () => {
+      let url = "/manager/projects";
+      if (filters.competenciaId) {
+        url += `?competence_id=${filters.competenciaId}`;
+      }
+      
+      const res = await apiFetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setProyectos(data);
       }
     };
+    loadProjects();
+  }, [filters.competenciaId]);
 
-    if (userRole) loadCatalogs();
-  }, [userRole]);
-
-  // 3. MANEJADOR DE FILTROS CON LÓGICA DE CASCADA PARA GERENTE
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    const numericValue = (name === 'competenciaId' || name === 'proyectoId') && value ? parseInt(value, 10) : value;
-
-    setFilters(prev => {
-      const newFilters = { ...prev, [name]: numericValue };
-
-      // Si el Gerente cambia la competencia, reseteamos el proyecto para obligar a elegir uno nuevo del área
-      if (userRole === "Gerente" && name === "competenciaId") {
-        newFilters.proyectoId = "";
-      }
-      return newFilters;
-    });
-  };
-
-  // 4. CARGA DE ACTIVIDADES PARA AUDITORÍA
+  // 3. OBTENCIÓN DE DATOS (API /audit/inbox)
   const fetchAuditData = useCallback(async () => {
-    if (currentTab === "Aprobada" && !filters.proyectoId && !filters.competenciaId) {
+    // REGLA: En Aprobados es obligatorio seleccionar proyecto
+    if (currentTab === "Aprobada" && !filters.proyectoId) {
       setActivities([]);
       setLoading(false);
       return;
@@ -78,7 +76,7 @@ const AuditInbox = () => {
 
     setLoading(true);
     try {
-      const queryParams = new URLSearchParams({
+      const query = new URLSearchParams({
         status: currentTab,
         page: page,
         per_page: 10,
@@ -87,14 +85,14 @@ const AuditInbox = () => {
         ...(filters.search_code && { search_code: filters.search_code })
       });
 
-      const res = await apiFetch(`/audit/inbox?${queryParams}`);
-      if (res?.ok) {
+      const res = await apiFetch(`/audit/inbox?${query}`);
+      if (res.ok) {
         const result = await res.json();
         setActivities(result.data);
         setTotalPages(result.total_pages);
       }
     } catch (error) {
-      toast.error("Error al cargar la bandeja de auditoría");
+      toast.error("Error al conectar con el servidor");
     } finally {
       setLoading(false);
     }
@@ -104,131 +102,130 @@ const AuditInbox = () => {
     fetchAuditData();
   }, [fetchAuditData]);
 
-  // 5. MODAL DE REVISIÓN (Mantenemos tu lógica de Swal)
-  const handleReview = async (activity) => {
-    const { value: formValues } = await Swal.fire({
-      title: `Revisar Logro: ${activity.indicator_code}`,
-      background: 'var(--card-bg)',
-      color: 'var(--text-primary)',
-      html: `
-                <div class="review-details mb-3 text-start" style="font-size: 0.9rem;">
-                    <p><strong>Responsable:</strong> ${activity.responsible}</p>
-                    <p><strong>Descripción:</strong> ${activity.description}</p>
-                    ${activity.image_url ? `<img src="${activity.image_url}" class="img-fluid rounded mt-2 border" style="max-height: 200px; width: 100%; object-fit: cover;">` : ''}
-                </div>
-                <select id="swal-status" class="swal2-input">
-                    <option value="Aprobada">Aprobar</option>
-                    <option value="Rechazada">Rechazar</option>
-                </select>
-                <textarea id="swal-comment" class="swal2-textarea" placeholder="Comentario o motivo de rechazo..."></textarea>
-            `,
-      showCancelButton: true,
-      confirmButtonText: 'Procesar',
-      confirmButtonColor: '#10b981'
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters(prev => ({ ...prev, [name]: value }));
+    setPage(1);
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      competenciaId: (userRole === "Gerente" && competencias.length === 1) ? competencias[0].id : '',
+      proyectoId: '',
+      search_code: ''
     });
-
-    if (formValues) {
-      const status = document.getElementById('swal-status').value;
-      const comment = document.getElementById('swal-comment').value;
-
-      if (status === "Rechazada" && !comment) {
-        toast.error("El motivo es obligatorio para rechazar");
-        return;
-      }
-
-      try {
-        const res = await apiFetch(`/activities/${activity.id}/review`, {
-          method: 'PATCH',
-          body: JSON.stringify({ status, monitoring_comment: comment })
-        });
-        if (res.ok) {
-          toast.success("Revisión procesada");
-          fetchAuditData();
-        }
-      } catch (err) {
-        toast.error("Error en la comunicación");
-      }
-    }
   };
 
   return (
     <div className="management-page-container">
       <Toaster richColors position="top-right" />
       <div className="container mt-4">
-        <div className="audit-tabs-container d-flex mb-3">
+        
+        {/* NAVEGACIÓN POR TABS */}
+        <div className="audit-tabs-container d-flex mb-0">
           {["En Revisión", "Aprobada", "Rechazada"].map(tab => (
-            <button key={tab} className={`audit-tab-btn ${currentTab === tab ? 'active' : ''}`} onClick={() => { setCurrentTab(tab); setPage(1); }}>
+            <button
+              key={tab}
+              className={`audit-tab-btn ${currentTab === tab ? "active" : ""}`}
+              onClick={() => { setCurrentTab(tab); setPage(1); }}
+            >
               {tab}
             </button>
           ))}
         </div>
 
-        <div className="card management-card-unified shadow-lg">
-          <div className="management-card-header bg-light p-3">
-            <div className="row g-2">
-              <div className="col-md-2">
-                <input type="text" name="search_code" className="form-control" placeholder="Código..." value={filters.search_code} onChange={handleFilterChange} />
-              </div>
-
-              {/* Selector de Competencia */}
-              <div className={`col-md-${userRole === "Gerente" ? '5' : '4'}`}>
-                <label className="small fw-bold text-muted">ESPECIALIDAD / COMPETENCIA</label>
-                <select name="competenciaId" className="form-select" value={filters.competenciaId} onChange={handleFilterChange}>
-                  <option value="">-- Todas las Áreas --</option>
-                  {competencias.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-
-              {/* Selector de Proyecto con Bloqueo para Gerente */}
-              <div className={`col-md-${userRole === "Gerente" ? '5' : '4'}`}>
-                <label className="small fw-bold text-muted">PROYECTO</label>
-                <select
-                  name="proyectoId"
-                  className="form-select"
-                  value={filters.proyectoId}
+        <div className="card shadow-lg border-0">
+          
+          {/* SECCIÓN DE FILTROS DINÁMICOS */}
+          <div className="card-header bg-white p-3 border-bottom">
+            <div className="row g-3 align-items-end">
+              <div className="col-md-3">
+                <label className="form-label small fw-bold text-muted">BÚSQUEDA POR CÓDIGO</label>
+                <input
+                  type="text"
+                  name="search_code"
+                  className="form-control"
+                  placeholder="Ej: IND-101"
+                  value={filters.search_code}
                   onChange={handleFilterChange}
-                  disabled={userRole === "Gerente" && !filters.competenciaId}
-                >
-                  <option value="">
-                    {userRole === "Gerente" && !filters.competenciaId
-                      ? "Elija primero competencia"
-                      : "-- Todos los Proyectos --"}
-                  </option>
-                  {proyectos.map(p => <option key={p.id} value={p.id}>{p.project_name || p.name}</option>)}
-                </select>
+                />
               </div>
 
-              <div className="col-md-2 d-grid">
-                <button className="btn btn-outline-secondary" onClick={() => setFilters({ competenciaId: '', proyectoId: '', search_code: "" })}>Limpiar</button>
+              {/* Filtros de Proyecto/Competencia SOLO para la pestaña Aprobada */}
+              {currentTab === "Aprobada" && (
+                <>
+                  <div className="col-md-3">
+                    <label className="form-label small fw-bold text-muted">COMPETENCIA</label>
+                    <select
+                      name="competenciaId"
+                      className="form-select"
+                      value={filters.competenciaId}
+                      onChange={handleFilterChange}
+                      disabled={userRole === "Gerente" && competencias.length <= 1}
+                    >
+                      <option value="">Todas</option>
+                      {competencias.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="col-md-4">
+                    <label className="form-label small fw-bold text-oxford">PROYECTO (OBLIGATORIO)</label>
+                    <select
+                      name="proyectoId"
+                      className="form-select border-emerald"
+                      value={filters.proyectoId}
+                      onChange={handleFilterChange}
+                    >
+                      <option value="">-- Seleccionar --</option>
+                      {proyectos.map(p => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+                    </select>
+                  </div>
+                </>
+              )}
+
+              <div className="col-md-2">
+                <button className="btn btn-light border w-100" onClick={resetFilters}>
+                  Limpiar
+                </button>
               </div>
             </div>
           </div>
 
+          {/* TABLA DE RESULTADOS */}
           <div className="card-body p-0">
             <div className="table-responsive">
-              <table className="table align-middle table-sigssep mb-0">
+              <table className="table table-sigssep align-middle mb-0">
                 <thead>
-                  <tr>
-                    <th>Indicador</th>
+                  <tr className="bg-light">
+                    <th className="ps-3">Indicador</th>
                     <th>Responsable</th>
-                    <th>Fecha</th>
+                    <th>Proyecto</th>
                     <th className="text-center">Acción</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {currentTab === "Aprobada" && !filters.proyectoId && !filters.competenciaId ? (
-                    <tr><td colSpan="4" className="text-center p-5 text-muted">Use los filtros para buscar en el historial de aprobados.</td></tr>
+                  {currentTab === "Aprobada" && !filters.proyectoId ? (
+                    <tr>
+                      <td colSpan="4" className="text-center p-5 text-muted">
+                        <i className="fas fa-hand-point-up me-2"></i>
+                        Selecciona un <strong>Proyecto</strong> para cargar los logros aprobados.
+                      </td>
+                    </tr>
                   ) : loading ? (
-                    <tr><td colSpan="4" className="text-center p-5"><div className="spinner-border text-emerald"></div></td></tr>
+                    <tr><td colSpan="4" className="text-center p-5"><span className="spinner-border text-emerald"></span></td></tr>
                   ) : activities.length > 0 ? (
                     activities.map(act => (
                       <tr key={act.id}>
-                        <td><span className="fw-bold text-oxford">{act.indicator_code}</span></td>
+                        <td className="ps-3"><span className="badge bg-azul-marino p-2">{act.indicator_code}</span></td>
                         <td>{act.responsible}</td>
-                        <td className="small">{act.implementation_date}</td>
+                        <td className="small">{act.project_name}</td>
                         <td className="text-center">
-                          <button className="btn-action btn-activate" onClick={() => handleReview(act)}>
-                            <i className="fas fa-eye me-1"></i> Revisar
+                          <button 
+                             className={`btn-action ${currentTab === 'En Revisión' ? 'btn-activate' : 'btn-view'}`}
+                             onClick={() => console.log("Auditar", act)}
+                          >
+                            <i className={`fas ${currentTab === 'En Revisión' ? 'fa-clipboard-check' : 'fa-eye'} me-1`}></i>
+                            {currentTab === 'En Revisión' ? 'Auditar' : 'Ver'}
                           </button>
                         </td>
                       </tr>
@@ -241,7 +238,8 @@ const AuditInbox = () => {
             </div>
           </div>
 
-          <div className="card-footer d-flex justify-content-between align-items-center">
+          {/* PAGINACIÓN */}
+          <div className="card-footer bg-white d-flex justify-content-between align-items-center">
             <span className="small text-muted">Página {page} de {totalPages}</span>
             <div className="btn-group">
               <button className="btn btn-outline-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Anterior</button>

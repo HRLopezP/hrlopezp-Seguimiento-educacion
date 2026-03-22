@@ -2710,6 +2710,10 @@ def get_audit_inbox():
     # Filtros de búsqueda
     status_str = request.args.get('status', ActivityStatus.EN_REVISION.value)
     project_id = request.args.get('project_id', type=int)
+
+    if status_str == "Aprobada" and not project_id:
+        return jsonify({"msg": "Debe seleccionar un proyecto para ver los logros aprobados"}), 400
+    
     competence_id = request.args.get('competence_id', type=int)
     search_code = request.args.get('search_code') # Para buscar por código de indicador
 
@@ -2741,9 +2745,7 @@ def get_audit_inbox():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
     if user.rol.name_rol == "Gerente":
-        # Un gerente solo ve lo que tiene asignado como manager
-        query = query.join(ProjectCompetence, Activity.project_competence_id == ProjectCompetence.id_pc)\
-                     .filter(ProjectCompetence.manager_id == user_id)
+        query = query.join(ProjectCompetence).filter(ProjectCompetence.manager_id == user_id)
 
     # 5. Ejecución con Paginación
     pagination = query.order_by(Activity.created_at.desc()).paginate(
@@ -2829,3 +2831,4 @@ def get_audit_history(entity_type, entity_id):
     ).order_by(SystemChangeLog.change_date.desc()).all()
     
     return jsonify([log.serialize() for log in logs]), 200
+
