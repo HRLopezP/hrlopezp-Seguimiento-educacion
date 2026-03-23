@@ -2654,49 +2654,48 @@ def delete_activity_manager(activity_id):
 @roles_required("Administrador", "Gerente", "Monitoreo")
 def review_activity(id):
     user_id = get_jwt_identity()
-    activity = Activity.query.get_or_404(id)
+    activity = Activity.query.get_or_404(id) # Flask-SQLAlchemy simplificado
     data = request.json
     
-    new_status_str = data.get('status') # 'Aprobada' o 'Rechazada'
+    new_status_str = data.get('status')
     comment = data.get('monitoring_comment', '').strip()
 
-    # Validación de estados permitidos
-    if new_status_str not in [ActivityStatus.APROBADA.value, ActivityStatus.RECHAZADA.value]:
+    if new_status_str == "Aprobada":
+        activity.status = ActivityStatus.APROBADA
+    elif new_status_str == "Rechazada":
+        if not comment:
+            return jsonify({"message": "El motivo es obligatorio para rechazar"}), 400
+        activity.status = ActivityStatus.RECHAZADA
+    else:
         return jsonify({"message": "Estado no válido"}), 400
 
-    old_status = activity.status.value
+    # CORRECCIÓN AQUÍ: 
+    # 1. Usamos 'execution_date' que es el nombre real en tu modelo AchievementRecord.
+    # 2. O mejor aún, usamos el ID para asegurar que es el último insertado.
+    last_ach = AchievementRecord.query.filter_by(activity_id=id).order_by(AchievementRecord.id.desc()).first()
     
-    # Lógica de decisión
-    if new_status_str == ActivityStatus.APROBADA.value:
-        activity.status = ActivityStatus.APROBADA
-    else:
-        # Obligatorio si es Rechazada
-        if not comment:
-            return jsonify({"message": "El motivo es obligatorio para rechazar la actividad"}), 400
-        activity.status = ActivityStatus.RECHAZADA
+    if last_ach:
+        last_ach.monitoring_comment = comment
+        last_ach.updated_by_id = user_id # Aquí guardamos quién auditó
+        # Opcional: last_ach.updated_at se actualizará solo por el 'onupdate' del modelo
 
-    # Guardar comentario en el logro y registrar quién auditó
-    if activity.achievements:
-        # Tomamos el logro más reciente enviado por el oficial
-        last_ach = AchievementRecord.query.filter_by(activity_id=id).order_by(AchievementRecord.created_at.desc()).first()
-        if last_ach:
-            last_ach.monitoring_comment = comment
-            last_ach.updated_by_id = user_id # Aquí guardamos quién auditó
-
-    # Registro en SystemChangeLog (Auditoría de la Decisión)
-    audit = SystemChangeLog(
-        entity_type="Activity",
-        entity_id=activity.id_activity,
-        user_id=user_id,
-        field_changed="status",
-        old_value=old_status,
-        new_value=activity.status.value
-    )
-    db.session.add(audit)
-
-    db.session.commit()
-    return jsonify({"message": f"Actividad {activity.status.value} correctamente"}), 200
-
+    try:
+        # Auditoría general del sistema
+        audit = SystemChangeLog(
+            entity_type="Activity",
+            entity_id=activity.id_activity,
+            user_id=user_id,
+            field_changed="status",
+            new_value=activity.status.value
+        )
+        db.session.add(audit)
+        db.session.commit()
+        
+        return jsonify({"message": f"Actividad {activity.status.value} correctamente"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "Error interno al procesar la revisión"}), 500
+    
 
 #Monitoreo-Auditoría de logros
 @api.route('/audit/inbox', methods=['GET'])

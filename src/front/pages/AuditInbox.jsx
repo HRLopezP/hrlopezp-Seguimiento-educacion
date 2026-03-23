@@ -2,20 +2,19 @@ import React, { useEffect, useState, useCallback } from "react";
 import { toast, Toaster } from "sonner";
 import useGlobalReducer from '../hooks/useGlobalReducer';
 import { apiFetch } from "../../utils/api";
+import ReviewModal from "../components/ReviewModal";
 import "../styles/roleManagement.css";
 
 const AuditInbox = () => {
   const { store } = useGlobalReducer();
   const user = store.user;
-  
-  // Extraemos el rol del serialize del modelo User
+  const [showModal, setShowModal] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState(null);
   const userRole = user?.rol_name || "Oficial";
-
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [competencias, setCompetencias] = useState([]);
   const [proyectos, setProyectos] = useState([]);
-
   const [currentTab, setCurrentTab] = useState("En Revisión");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -26,13 +25,18 @@ const AuditInbox = () => {
     search_code: ""
   });
 
+  const handleOpenAudit = (activity) => {
+    setSelectedActivity(activity);
+    setShowModal(true);
+  };
+
   // 1. CARGA DE COMPETENCIAS SEGÚN ROL
   useEffect(() => {
     if (userRole === "Gerente") {
       // Usamos las competencias que ya vienen en el serialize() del User
       const userComps = user?.competences || [];
       setCompetencias(userComps);
-      
+
       // Si solo tiene 1 competencia, la seleccionamos por defecto y bloqueamos el selector
       if (userComps.length === 1) {
         setFilters(prev => ({ ...prev, competenciaId: userComps[0].id }));
@@ -48,14 +52,13 @@ const AuditInbox = () => {
   }, [user, userRole]);
 
   // 2. CARGA DE PROYECTOS (Depende de la competencia elegida)
-  // Esto ayuda a que el selector de proyectos sea más corto y eficiente
   useEffect(() => {
     const loadProjects = async () => {
       let url = "/manager/projects";
       if (filters.competenciaId) {
         url += `?competence_id=${filters.competenciaId}`;
       }
-      
+
       const res = await apiFetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -67,7 +70,6 @@ const AuditInbox = () => {
 
   // 3. OBTENCIÓN DE DATOS (API /audit/inbox)
   const fetchAuditData = useCallback(async () => {
-    // REGLA: En Aprobados es obligatorio seleccionar proyecto
     if (currentTab === "Aprobada" && !filters.proyectoId) {
       setActivities([]);
       setLoading(false);
@@ -120,7 +122,7 @@ const AuditInbox = () => {
     <div className="management-page-container">
       <Toaster richColors position="top-right" />
       <div className="container mt-4">
-        
+
         {/* NAVEGACIÓN POR TABS */}
         <div className="audit-tabs-container d-flex mb-0">
           {["En Revisión", "Aprobada", "Rechazada"].map(tab => (
@@ -135,7 +137,7 @@ const AuditInbox = () => {
         </div>
 
         <div className="card shadow-lg border-0">
-          
+
           {/* SECCIÓN DE FILTROS DINÁMICOS */}
           <div className="card-header bg-white p-3 border-bottom">
             <div className="row g-3 align-items-end">
@@ -220,9 +222,9 @@ const AuditInbox = () => {
                         <td>{act.responsible}</td>
                         <td className="small">{act.project_name}</td>
                         <td className="text-center">
-                          <button 
-                             className={`btn-action ${currentTab === 'En Revisión' ? 'btn-activate' : 'btn-view'}`}
-                             onClick={() => console.log("Auditar", act)}
+                          <button
+                            className={`btn-action ${currentTab === 'En Revisión' ? 'btn-activate' : 'btn-view'}`}
+                            onClick={() => handleOpenAudit(act)}
                           >
                             <i className={`fas ${currentTab === 'En Revisión' ? 'fa-clipboard-check' : 'fa-eye'} me-1`}></i>
                             {currentTab === 'En Revisión' ? 'Auditar' : 'Ver'}
@@ -248,6 +250,14 @@ const AuditInbox = () => {
           </div>
         </div>
       </div>
+      {selectedActivity && (
+        <ReviewModal
+          show={showModal}
+          onHide={() => { setShowModal(false); setSelectedActivity(null); }}
+          activity={selectedActivity}
+          onReviewSuccess={fetchAuditData} 
+        />
+      )}
     </div>
   );
 };
