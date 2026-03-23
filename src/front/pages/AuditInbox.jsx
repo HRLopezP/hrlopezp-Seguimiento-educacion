@@ -208,6 +208,9 @@ const AuditInbox = () => {
                     <th className="ps-3">Indicador</th>
                     <th>Responsable</th>
                     <th>Proyecto</th>
+                    <th>Competencia</th>
+                    <th>Provincia</th>
+                    <th>Fecha</th>
                     <th className="text-center">Acción</th>
                   </tr>
                 </thead>
@@ -224,13 +227,35 @@ const AuditInbox = () => {
                   ) : activities.length > 0 ? (
                     activities.map(act => (
                       <tr key={act.id}>
-                        <td className="ps-3"><span className="badge bg-azul-marino p-2">{act.indicator_code}</span></td>
-                        <td>{act.responsible}</td>
-                        <td className="small">{act.project_name}</td>
+                        {/* 1. Código del Indicador */}
+                        <td className="ps-4">
+                          <span className="badge bg-success">
+                            {act.indicator_code || act.indicator?.code}
+                          </span>
+                        </td>
+                        {/* 2. Responsable */}
+                        <td className="fw-medium text-dark">{act.responsible}</td>
+                        {/* 3. Proyecto */}
+                        <td className="small text-muted" style={{ maxWidth: '200px' }}>
+                          {act.project_name}
+                        </td>
+                        {/* 4. Competencia */}
+                        <td className="small">{act.competence_name}</td>
+                        {/* 5. Ubicación (Provincia) */}
+                        <td className="small">
+                          <i className="fas fa-map-marker-alt text-danger me-1"></i>
+                          {act.province_name || "No definida"}
+                        </td>
+                        {/* 6. Fecha (de creación del logro) */}
+                        <td className="small">
+                          {act.audit?.created_at ? act.audit.created_at.split(' ')[0] : 'N/A'}
+                        </td>
+                        {/* 7. Acciones */}
                         <td className="text-center">
                           <button
                             className={`btn-action ${currentTab === 'En Revisión' ? 'btn-activate' : 'btn-view'}`}
-                            onClick={() => handleOpenAudit(act)}
+                            onClick={() => { setSelectedActivity(act); setShowModal(true); }}
+                            style={currentTab !== 'En Revisión' ? { backgroundColor: '#10b981', color: 'white' } : {}}
                           >
                             <i className={`fas ${currentTab === 'En Revisión' ? 'fa-clipboard-check' : 'fa-eye'} me-1`}></i>
                             {currentTab === 'En Revisión' ? 'Auditar' : 'Ver'}
