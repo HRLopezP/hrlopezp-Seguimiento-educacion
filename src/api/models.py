@@ -563,6 +563,7 @@ class Activity(db.Model):
     project_id: Mapped[int] = mapped_column(ForeignKey('project.id_project'), nullable=False)
     location_id: Mapped[int] = mapped_column(ForeignKey('location.id_location'), nullable=False)
     project_competence_id: Mapped[int] = mapped_column(ForeignKey('project_competence.id_pc'), nullable=False)
+    project_competence: Mapped["ProjectCompetence"] = relationship()
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, onupdate=func.now())
@@ -630,6 +631,10 @@ class Activity(db.Model):
         m_name = loc.municipality_ref.name if loc and getattr(loc, 'municipality_ref', None) else None
         pa_name = loc.parish_ref.name if loc and getattr(loc, 'parish_ref', None) else None
 
+        comp_name = "No especificada"
+        if self.project_competence and self.project_competence.competence:
+            comp_name = self.project_competence.competence.name
+
         return {
             "id": self.id_activity,
             "description": self.description,
@@ -648,6 +653,7 @@ class Activity(db.Model):
             "project_id": self.project_id,
             "cancellation_reason": self.cancellation_reason,
             "project_competence_id": self.project_competence_id,
+            "competence_name": comp_name,
             "period": {
                 "start": self.start_date.strftime("%Y-%m-%d") if self.start_date else None,
                 "end": self.end_date.strftime("%Y-%m-%d") if self.end_date else None

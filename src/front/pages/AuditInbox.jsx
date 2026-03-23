@@ -118,6 +118,12 @@ const AuditInbox = () => {
     });
   };
 
+  useEffect(() => {
+    if (!showModal) {
+      setSelectedActivity(null);
+    }
+  }, [showModal]);
+
   return (
     <div className="management-page-container">
       <Toaster richColors position="top-right" />
@@ -253,9 +259,9 @@ const AuditInbox = () => {
       {selectedActivity && (
         <ReviewModal
           show={showModal}
-          onHide={() => { setShowModal(false); setSelectedActivity(null); }}
+          onHide={() => setShowModal(false)}
           activity={selectedActivity}
-          onReviewSuccess={fetchAuditData} 
+          onReviewSuccess={fetchAuditData}
         />
       )}
     </div>
