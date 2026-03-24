@@ -98,7 +98,7 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
     };
 
     return (
-        <Modal show={show} onHide={onHide} size="lg" centered backdrop="static">
+        <Modal show={show} onHide={onHide} enforceFocus={false} size="lg" centered backdrop="static">
             {/* El Header cambia de color según el estado para control visual */}
             <Modal.Header closeButton className={`${currentTab === 'En Revisión' ? 'bg-primary' : (currentTab === 'Aprobada' ? 'bg-success' : 'bg-danger')} text-white d-flex justify-content-between align-items-center`}>
                 <Modal.Title className="h6">Auditoría: {activity?.indicator?.code || activity?.indicator_code}</Modal.Title>

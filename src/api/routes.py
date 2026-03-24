@@ -2654,30 +2654,32 @@ def delete_activity_manager(activity_id):
 @roles_required("Administrador", "Gerente", "Monitoreo")
 def review_activity(id):
     user_id = get_jwt_identity()
-    activity = Activity.query.get_or_404(id) # Flask-SQLAlchemy simplificado
+    activity = Activity.query.get_or_404(id)
     data = request.json
     
     new_status_str = data.get('status')
     comment = data.get('monitoring_comment', '').strip()
 
+    # --- NUEVA LÓGICA DE ESTADOS ---
     if new_status_str == "Aprobada":
         activity.status = ActivityStatus.APROBADA
     elif new_status_str == "Rechazada":
         if not comment:
             return jsonify({"message": "El motivo es obligatorio para rechazar"}), 400
         activity.status = ActivityStatus.RECHAZADA
+    elif new_status_str == "En Revisión": # <--- AGREGAMOS ESTO PARA EL BOTÓN REVERTIR
+        if not comment:
+            return jsonify({"message": "Debe indicar la razón por la cual revierte la aprobación"}), 400
+        activity.status = ActivityStatus.EN_REVISION
     else:
         return jsonify({"message": "Estado no válido"}), 400
 
-    # CORRECCIÓN AQUÍ: 
-    # 1. Usamos 'execution_date' que es el nombre real en tu modelo AchievementRecord.
-    # 2. O mejor aún, usamos el ID para asegurar que es el último insertado.
+    # Buscamos el último registro de logro enviado
     last_ach = AchievementRecord.query.filter_by(activity_id=id).order_by(AchievementRecord.id.desc()).first()
     
     if last_ach:
         last_ach.monitoring_comment = comment
-        last_ach.updated_by_id = user_id # Aquí guardamos quién auditó
-        # Opcional: last_ach.updated_at se actualizará solo por el 'onupdate' del modelo
+        last_ach.updated_by_id = user_id 
 
     try:
         # Auditoría general del sistema
@@ -2686,12 +2688,15 @@ def review_activity(id):
             entity_id=activity.id_activity,
             user_id=user_id,
             field_changed="status",
-            new_value=activity.status.value
+            new_value=activity.status.value 
         )
         db.session.add(audit)
         db.session.commit()
         
-        return jsonify({"message": f"Actividad {activity.status.value} correctamente"}), 200
+        return jsonify({
+            "message": f"Estado actualizado a {activity.status.value} correctamente",
+            "status": activity.status.value
+        }), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": "Error interno al procesar la revisión"}), 500

@@ -30,19 +30,25 @@ const AuditInbox = () => {
     setShowModal(true);
   };
 
+  const handleCloseModal = () => {
+    setShowModal(false);
+    // Damos 300ms para que la animación de Bootstrap termine 
+    // y limpie los atributos aria-hidden antes de borrar el dato
+    setTimeout(() => {
+      setSelectedActivity(null);
+    }, 300);
+  };
+
   // 1. CARGA DE COMPETENCIAS SEGÚN ROL
   useEffect(() => {
     if (userRole === "Gerente") {
-      // Usamos las competencias que ya vienen en el serialize() del User
       const userComps = user?.competences || [];
       setCompetencias(userComps);
 
-      // Si solo tiene 1 competencia, la seleccionamos por defecto y bloqueamos el selector
       if (userComps.length === 1) {
         setFilters(prev => ({ ...prev, competenciaId: userComps[0].id }));
       }
     } else if (userRole === "Administrador" || userRole === "Monitoreo") {
-      // Ellos sí ven todas, las traemos del catálogo maestro
       const loadAllCompetences = async () => {
         const res = await apiFetch("/competences");
         if (res.ok) setCompetencias(await res.json());
@@ -51,7 +57,7 @@ const AuditInbox = () => {
     }
   }, [user, userRole]);
 
-  // 2. CARGA DE PROYECTOS (Depende de la competencia elegida)
+  // 2. CARGA DE PROYECTOS 
   useEffect(() => {
     const loadProjects = async () => {
       let url = "/manager/projects";
@@ -68,7 +74,7 @@ const AuditInbox = () => {
     loadProjects();
   }, [filters.competenciaId]);
 
-  // 3. OBTENCIÓN DE DATOS (API /audit/inbox)
+  // 3. OBTENCIÓN DE DATOS
   const fetchAuditData = useCallback(async () => {
     if (currentTab === "Aprobada" && !filters.proyectoId) {
       setActivities([]);
@@ -118,11 +124,6 @@ const AuditInbox = () => {
     });
   };
 
-  useEffect(() => {
-    if (!showModal) {
-      setSelectedActivity(null);
-    }
-  }, [showModal]);
 
   return (
     <div className="management-page-container">
@@ -141,7 +142,6 @@ const AuditInbox = () => {
             </button>
           ))}
         </div>
-
         <div className="card shadow-lg border-0">
 
           {/* SECCIÓN DE FILTROS DINÁMICOS */}
@@ -254,7 +254,7 @@ const AuditInbox = () => {
                         <td className="text-center">
                           <button
                             className={`btn-action ${currentTab === 'En Revisión' ? 'btn-activate' : 'btn-view'}`}
-                            onClick={() => { setSelectedActivity(act); setShowModal(true); }}
+                            onClick={() => handleOpenAudit(act)}
                             style={currentTab !== 'En Revisión' ? { backgroundColor: '#10b981', color: 'white' } : {}}
                           >
                             <i className={`fas ${currentTab === 'En Revisión' ? 'fa-clipboard-check' : 'fa-eye'} me-1`}></i>
@@ -284,7 +284,7 @@ const AuditInbox = () => {
       {selectedActivity && (
         <ReviewModal
           show={showModal}
-          onHide={() => setShowModal(false)}
+          onHide={handleCloseModal}
           activity={selectedActivity}
           onReviewSuccess={fetchAuditData}
           currentTab={currentTab}
