@@ -2655,8 +2655,9 @@ def delete_activity_manager(activity_id):
 def review_activity(id):
     user_id = get_jwt_identity()
     activity = Activity.query.get_or_404(id)
+
+    old_status = activity.status.value if activity.status else "N/A"
     data = request.json
-    
     new_status_str = data.get('status')
     comment = data.get('monitoring_comment', '').strip()
 
@@ -2667,7 +2668,7 @@ def review_activity(id):
         if not comment:
             return jsonify({"message": "El motivo es obligatorio para rechazar"}), 400
         activity.status = ActivityStatus.RECHAZADA
-    elif new_status_str == "En Revisión": # <--- AGREGAMOS ESTO PARA EL BOTÓN REVERTIR
+    elif new_status_str == "En Revisión": 
         if not comment:
             return jsonify({"message": "Debe indicar la razón por la cual revierte la aprobación"}), 400
         activity.status = ActivityStatus.EN_REVISION
@@ -2688,7 +2689,9 @@ def review_activity(id):
             entity_id=activity.id_activity,
             user_id=user_id,
             field_changed="status",
-            new_value=activity.status.value 
+            old_value=old_status,
+            new_value=activity.status.value,
+            comment=comment
         )
         db.session.add(audit)
         db.session.commit()

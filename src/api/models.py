@@ -860,6 +860,7 @@ class SystemChangeLog(db.Model):
     field_changed: Mapped[str] = mapped_column(String(50)) 
     old_value: Mapped[str] = mapped_column(Text, nullable=True) 
     new_value: Mapped[str] = mapped_column(Text, nullable=True) 
+    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     change_date: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
@@ -873,6 +874,7 @@ class SystemChangeLog(db.Model):
             "field": self.field_changed,
             "old": self.old_value,
             "new": self.new_value,
+            "comment": self.comment,
             "date": self.change_date.strftime("%Y-%m-%d %H:%M:%S"),
             "user": f"{self.user.name} {self.user.lastname}" if self.user else "Desconocido"
         }

@@ -85,7 +85,7 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
             );
         }
 
-        return (
+        return (api
             <Button 
                 variant="outline-dark" 
                 style={{ borderColor: '#1B263B', color: '#1B263B' }} 
