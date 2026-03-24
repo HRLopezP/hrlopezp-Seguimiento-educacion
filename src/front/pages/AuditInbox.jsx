@@ -287,6 +287,7 @@ const AuditInbox = () => {
           onHide={() => setShowModal(false)}
           activity={selectedActivity}
           onReviewSuccess={fetchAuditData}
+          currentTab={currentTab}
         />
       )}
     </div>
