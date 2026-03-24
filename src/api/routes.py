@@ -2844,45 +2844,60 @@ def get_audit_history(entity_type, entity_id):
 @api.route('/audit/achievement-full-history/<int:activity_id>', methods=['GET'])
 @jwt_required()
 def get_achievement_timeline(activity_id):
-    # 1. Buscamos el logro de esa actividad
+    # 1. Buscamos el logro y la actividad
     achievement = AchievementRecord.query.filter_by(activity_id=activity_id).first()
     if not achievement:
         return jsonify({"timeline": [], "msg": "No hay logros registrados aún"}), 200
 
-    # 2. Buscamos TODOS los logs relacionados a este logro específico
-    logs = SystemChangeLog.query.filter_by(
-        entity_type="AchievementRecord",
-        entity_id=achievement.id
+    # 2. Buscamos logs de DOS fuentes:
+    # A) Logs del Logro (ediciones de números)
+    # B) Logs de la Actividad (cambios de estado: Aprobada/Rechazada)
+    logs = SystemChangeLog.query.filter(
+        db.or_(
+            db.and_(SystemChangeLog.entity_type == "AchievementRecord", SystemChangeLog.entity_id == achievement.id),
+            db.and_(SystemChangeLog.entity_type == "Activity", SystemChangeLog.entity_id == activity_id)
+        )
     ).order_by(SystemChangeLog.change_date.asc()).all()
 
     # 3. Construimos la línea de tiempo
     timeline = []
     
-    # El primer evento siempre es la creación del registro (quién subió el logro)
+    # Evento inicial (Creación por el Oficial)
     timeline.append({
         "event": "Creación de Logro",
-        # CAMBIO AQUÍ: achievement.creator en lugar de achievement.user
         "user": f"{achievement.creator.name} {achievement.creator.lastname}" if achievement.creator else "Oficial",
-        # Usamos execution_date que es el campo real en tu modelo para la creación
         "date": achievement.execution_date.strftime("%Y-%m-%d %H:%M:%S") if achievement.execution_date else "N/A",
         "details": f"Ingresó inicialmente: {achievement.men_reached} H / {achievement.women_reached} M",
         "type": "create"
     })
 
-    # Agregamos todas las ediciones y revisiones guardadas en los logs
+    # Agregamos todas las acciones posteriores
     for log in logs:
-        event_type = "edition"
-        if log.field_changed == "status":
-            event_type = "status_change"
+        # Identificamos si es un cambio de estado o una edición de datos
+        is_status = log.field_changed == "status"
         
+        event_label = "Actualización de Datos"
+        event_type = "edition"
+        
+        if is_status:
+            event_type = "status_change"
+            if log.new_value == "Aprobada":
+                event_label = "Logro Aprobado"
+            elif log.new_value == "Rechazada":
+                event_label = "Logro Rechazado"
+            elif log.new_value == "En Revisión":
+                event_label = "Revertido a Revisión"
+            else:
+                event_label = f"Estado: {log.new_value}"
+
         timeline.append({
-            "event": "Actualización de Logro" if event_type == "edition" else f"Cambio a {log.new_value}",
+            "event": event_label,
             "user": f"{log.user.name} {log.user.lastname}" if log.user else "Sistema",
             "date": log.change_date.strftime("%Y-%m-%d %H:%M:%S"),
             "field": log.field_changed,
             "old": log.old_value,
             "new": log.new_value,
-            "comment": log.comment,
+            "comment": log.comment, # AQUÍ APARECERÁ EL MOTIVO DEL RECHAZO
             "type": event_type
         })
 
