@@ -7,13 +7,17 @@ import "../styles/roleManagement.css";
 const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) => {
     const [comment, setComment] = useState("");
     const [submitting, setSubmitting] = useState(false);
-
-    // --- NUEVA LÓGICA DE AUDITORÍA ---
-    const [viewMode, setViewMode] = useState('detail'); // 'detail' o 'history'
+    const [viewMode, setViewMode] = useState('detail');
     const [timeline, setTimeline] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
-
     const currentAchievement = activity?.achievements_history?.[activity.achievements_history.length - 1];
+    const isOutcome = activity?.indicator?.type === 'Outcome';
+    const progress = currentAchievement?.real_progress || {};
+
+    const calculatePercentage = () => {
+        if (!progress.attended || progress.attended === 0) return 0;
+        return Math.round((progress.approved * 100) / progress.attended);
+    };
 
     useEffect(() => {
         if (show) {
@@ -119,6 +123,46 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
         );
     };
 
+    const renderTimeline = () => {
+        if (loadingHistory) {
+            return <div className="text-center py-5"><Spinner animation="border" variant="primary" /></div>;
+        }
+
+        if (timeline.length === 0) {
+            return <div className="text-center py-4 text-muted">No hay registros de auditoría para este logro.</div>;
+        }
+
+        return (
+            <div className="timeline-v2">
+                {timeline.map((item, index) => (
+                    <div key={index} className="timeline-item mb-4 position-relative ps-4 border-start border-2">
+                        <div className={`dot-indicator ${item.type === 'status_change' ? 'bg-emerald' : 'bg-azul-marino'}`}></div>
+                        <div className="d-flex justify-content-between">
+                            <span className="fw-bold text-oxford">{item.event}</span>
+                            <small className="text-muted"><i className="far fa-clock me-1"></i>{item.date}</small>
+                        </div>
+                        <div className="text-muted small mb-2">Por: <strong>{item.user}</strong></div>
+
+                        {item.field && item.field !== 'status' && (
+                            <div className="p-2 bg-light rounded x-small border mb-2">
+                                Modificó <strong>{item.field}</strong>:
+                                <span className="text-danger ms-1 text-decoration-line-through">{item.old}</span>
+                                <i className="fas fa-arrow-right mx-2 text-muted"></i>
+                                <span className="text-success fw-bold">{item.new}</span>
+                            </div>
+                        )}
+
+                        {item.comment && (
+                            <div className="mt-2 p-2 bg-warning bg-opacity-10 border-start border-3 border-warning rounded small italic">
+                                <i className="fas fa-comment-dots me-2 text-warning"></i>"{item.comment}"
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
     return (
         <Modal show={show} onHide={onHide} enforceFocus={false} size="lg" centered backdrop="static">
             <Modal.Header closeButton className={`${currentTab === 'En Revisión' ? 'bg-primary' : (currentTab === 'Aprobada' ? 'bg-success' : 'bg-danger')} text-white d-flex justify-content-between align-items-center`}>
@@ -132,22 +176,23 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
             </Modal.Header>
 
             <Modal.Body className="p-4" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-
-                {/* BOTÓN DE ACCESO AL HISTORIAL (AUDITORÍA) */}
-                <div className="d-flex justify-content-end mb-3">
+                <div className="d-flex justify-content-between align-items-center mb-4">
+                    <h5 className="text-oxford mb-0">
+                        {viewMode === 'detail' ? 'Detalles del Logro' : 'Historial de Cambios'}
+                    </h5>
                     <Button
-                        variant={viewMode === 'detail' ? "outline-dark" : "azul-marino"}
+                        variant={viewMode === 'detail' ? "outline-primary" : "azul-marino"}
                         size="sm"
                         onClick={() => viewMode === 'detail' ? fetchAchievementHistory() : setViewMode('detail')}
-                        className="rounded-pill px-3"
+                        className="rounded-pill"
                     >
                         <i className={`fas ${viewMode === 'detail' ? 'fa-history' : 'fa-info-circle'} me-2`}></i>
-                        {viewMode === 'detail' ? 'Ver Historial del Logro' : 'Volver al Detalle'}
+                        {viewMode === 'detail' ? 'Ver Auditoría' : 'Volver al Detalle'}
                     </Button>
                 </div>
 
+                {/* LÓGICA CORREGIDA: O detalle, o línea de tiempo */}
                 {viewMode === 'detail' ? (
-                    /* --- VISTA ORIGINAL (TAL CUAL ME LA ENVIASTE) --- */
                     <>
                         <div className="row mb-3">
                             <div className="col-md-6">
@@ -169,19 +214,23 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
                             <p className="mb-0 small">{activity?.description}</p>
                         </div>
 
-                        <div className="row g-3 mb-4">
-                            <div className="col-md-4">
-                                <div className="card text-center p-2 border-dashed shadow-sm">
-                                    <span className="small text-muted">Hombres Alcanzados</span>
-                                    <h4 className="mb-0 text-azul-marino">{currentAchievement?.real_progress?.men || 0}</h4>
-                                </div>
-                            </div>
-                            <div className="col-md-4">
-                                <div className="card text-center p-2 border-dashed shadow-sm">
-                                    <span className="small text-muted">Mujeres Alcanzadas</span>
-                                    <h4 className="mb-0 text-azul-marino">{currentAchievement?.real_progress?.women || 0}</h4>
-                                </div>
-                            </div>
+                        <div className="row g-3 mb-4 text-center">
+                            {isOutcome ? (
+                                <>
+                                    <StatCard label="Atendidos" value={progress.attended} color="text-oxford" />
+                                    <StatCard label="Aprobados" value={progress.approved} color="text-emerald" />
+                                    <StatCard label="Efectividad" value={`${calculatePercentage()}%`} color="text-primary" />
+                                </>
+                            ) : (
+                                <>
+                                    <StatCard label="Hombres" value={progress.men} color="text-primary" />
+                                    <StatCard label="Mujeres" value={progress.women} color="text-danger" />
+                                    <StatCard label="Total" value={progress.total} color="text-oxford" />
+                                </>
+                            )}
+                        </div>
+
+                        <div className="row mb-4">
                             <div className="col-md-4">
                                 <label className="text-muted small fw-bold d-block">EVIDENCIA</label>
                                 {currentAchievement?.evidence ? (
@@ -215,46 +264,7 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
                         </Form.Group>
                     </>
                 ) : (
-                    /* --- VISTA DE LÍNEA DE TIEMPO (NUEVA LOGICA) --- */
-                    <div className="achievement-timeline p-2">
-                        {loadingHistory ? (
-                            <div className="text-center py-5"><Spinner animation="border" variant="primary" /></div>
-                        ) : timeline.length > 0 ? (
-                            <div className="timeline-v2">
-                                {timeline.map((item, index) => (
-                                    <div key={index} className="timeline-item mb-4 position-relative ps-4 border-start border-2">
-                                        <div className={`dot-indicator ${item.type === 'status_change' ? 'bg-success' : 'bg-primary'}`}></div>
-                                        <div className="d-flex justify-content-between align-items-center">
-                                            <span className="fw-bold text-oxford">{item.event}</span>
-                                            <small className="text-muted"><i className="far fa-clock me-1"></i>{item.date}</small>
-                                        </div>
-                                        <div className="text-muted small mb-2">Realizado por: <strong>{item.user}</strong></div>
-
-                                        {/* Detalle de qué cambió específicamente */}
-                                        {item.field && item.field !== 'status' && (
-                                            <div className="p-2 bg-light rounded x-small border">
-                                                Modificó <strong>{item.field}</strong>:
-                                                <span className="text-danger ms-1 text-decoration-line-through">{item.old}</span>
-                                                <i className="fas fa-arrow-right mx-2 text-muted"></i>
-                                                <span className="text-success fw-bold">{item.new}</span>
-                                            </div>
-                                        )}
-
-                                        {/* Comentario si fue rechazado o revertido */}
-                                        {item.comment && (
-                                            <div className="mt-2 p-2 bg-warning bg-opacity-10 border-start border-3 border-warning rounded small italic">
-                                                <i className="fas fa-comment-dots me-2"></i>"{item.comment}"
-                                            </div>
-                                        )}
-
-                                        {item.details && <div className="small text-secondary">{item.details}</div>}
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-4">No hay logs registrados.</div>
-                        )}
-                    </div>
+                    renderTimeline()
                 )}
             </Modal.Body>
 
@@ -265,5 +275,14 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
         </Modal>
     );
 };
+
+const StatCard = ({ label, value, color }) => (
+    <div className="col-4">
+        <div className="p-3 border rounded bg-white shadow-sm">
+            <div className="text-muted x-small fw-bold text-uppercase">{label}</div>
+            <div className={`h4 mb-0 ${color}`}>{value || 0}</div>
+        </div>
+    </div>
+);
 
 export default ReviewModal;
