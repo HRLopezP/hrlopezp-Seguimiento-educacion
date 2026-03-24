@@ -1,23 +1,47 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Form, Badge } from 'react-bootstrap';
+import { Modal, Button, Form, Badge, Spinner } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import { apiFetch } from "../../utils/api";
 import "../styles/roleManagement.css";
-
 
 const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) => {
     const [comment, setComment] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
+    // --- NUEVA LÓGICA DE AUDITORÍA ---
+    const [viewMode, setViewMode] = useState('detail'); // 'detail' o 'history'
+    const [timeline, setTimeline] = useState([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+
     const currentAchievement = activity?.achievements_history?.[activity.achievements_history.length - 1];
 
     useEffect(() => {
-        if (currentAchievement?.monitoring_comment) {
-            setComment(currentAchievement.monitoring_comment);
-        } else {
-            setComment("");
+        if (show) {
+            setViewMode('detail'); // Resetear a detalle al abrir
+            if (currentAchievement?.monitoring_comment) {
+                setComment(currentAchievement.monitoring_comment);
+            } else {
+                setComment("");
+            }
         }
-    }, [activity, show]);
+    }, [activity, show, currentAchievement]);
+
+    // Función para obtener historial
+    const fetchAchievementHistory = async () => {
+        setLoadingHistory(true);
+        setViewMode('history');
+        try {
+            const res = await apiFetch(`/audit/achievement-full-history/${activity.id}`);
+            if (res.ok) {
+                const data = await res.json();
+                setTimeline(data.timeline);
+            }
+        } catch (error) {
+            console.error("Error cargando auditoría:", error);
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
 
     const handleReview = async (newStatus) => {
         if ((newStatus === 'Rechazada' || newStatus === 'En Revisión') && !comment.trim()) {
@@ -30,7 +54,7 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
         }
 
         const actionText = newStatus === 'En Revisión' ? 'revertir a revisión' : newStatus.toLowerCase();
-        
+
         const confirm = await Swal.fire({
             title: `¿Confirmar acción?`,
             text: `La actividad pasará a estado: ${newStatus}.`,
@@ -45,7 +69,6 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
         if (confirm.isConfirmed) {
             setSubmitting(true);
             try {
-                // El endpoint sigue siendo el mismo, enviamos el nuevo status
                 const response = await apiFetch(`/activities/${activity.id}/review`, {
                     method: 'PATCH',
                     body: JSON.stringify({
@@ -70,7 +93,6 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
         }
     };
 
-
     const renderFooterButtons = () => {
         if (currentTab === "En Revisión") {
             return (
@@ -85,11 +107,11 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
             );
         }
 
-        return (api
-            <Button 
-                variant="outline-dark" 
-                style={{ borderColor: '#1B263B', color: '#1B263B' }} 
-                disabled={submitting} 
+        return (
+            <Button
+                variant="outline-dark"
+                style={{ borderColor: '#1B263B', color: '#1B263B' }}
+                disabled={submitting}
                 onClick={() => handleReview('En Revisión')}
             >
                 <i className="fas fa-undo me-2"></i>Revertir a Revisión
@@ -99,7 +121,6 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
 
     return (
         <Modal show={show} onHide={onHide} enforceFocus={false} size="lg" centered backdrop="static">
-            {/* El Header cambia de color según el estado para control visual */}
             <Modal.Header closeButton className={`${currentTab === 'En Revisión' ? 'bg-primary' : (currentTab === 'Aprobada' ? 'bg-success' : 'bg-danger')} text-white d-flex justify-content-between align-items-center`}>
                 <Modal.Title className="h6">Auditoría: {activity?.indicator?.code || activity?.indicator_code}</Modal.Title>
                 <Badge className="ms-auto me-4 bg-white text-dark border">
@@ -110,76 +131,136 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
                 </Badge>
             </Modal.Header>
 
-            <Modal.Body className="p-4">
-                <div className="row mb-3">
-                    <div className="col-md-6">
-                        <label className="text-muted small fw-bold d-block">PROYECTO</label>
-                        <p className="fw-bold text-oxford">{activity?.project_name || "N/A"}</p>
-                    </div>
-                    <div className="col-md-3">
-                        <label className="text-muted small fw-bold d-block">COMPETENCIA</label>
-                        <p className="text-oxford mb-0 small">{activity?.competence_name || "N/A"}</p>
-                    </div>
-                    <div className="col-md-3">
-                        <label className="text-muted small fw-bold d-block">PROVINCIA</label>
-                        <Badge bg="light" className="text-dark border">{activity?.province_name}</Badge>
-                    </div>
+            <Modal.Body className="p-4" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+
+                {/* BOTÓN DE ACCESO AL HISTORIAL (AUDITORÍA) */}
+                <div className="d-flex justify-content-end mb-3">
+                    <Button
+                        variant={viewMode === 'detail' ? "outline-dark" : "azul-marino"}
+                        size="sm"
+                        onClick={() => viewMode === 'detail' ? fetchAchievementHistory() : setViewMode('detail')}
+                        className="rounded-pill px-3"
+                    >
+                        <i className={`fas ${viewMode === 'detail' ? 'fa-history' : 'fa-info-circle'} me-2`}></i>
+                        {viewMode === 'detail' ? 'Ver Historial del Logro' : 'Volver al Detalle'}
+                    </Button>
                 </div>
 
-                <div className="bg-light p-3 rounded mb-4 border-start border-4 border-azul-marino">
-                    <label className="text-muted small fw-bold">DESCRIPCIÓN DE LA ACTIVIDAD</label>
-                    <p className="mb-0 small">{activity?.description}</p>
-                </div>
-
-                <div className="row g-3 mb-4">
-                    <div className="col-md-4">
-                        <div className="card text-center p-2 border-dashed shadow-sm">
-                            <span className="small text-muted">Hombres Alcanzados</span>
-                            <h4 className="mb-0 text-azul-marino">{currentAchievement?.real_progress?.men || 0}</h4>
+                {viewMode === 'detail' ? (
+                    /* --- VISTA ORIGINAL (TAL CUAL ME LA ENVIASTE) --- */
+                    <>
+                        <div className="row mb-3">
+                            <div className="col-md-6">
+                                <label className="text-muted small fw-bold d-block">PROYECTO</label>
+                                <p className="fw-bold text-oxford">{activity?.project_name || "N/A"}</p>
+                            </div>
+                            <div className="col-md-3">
+                                <label className="text-muted small fw-bold d-block">COMPETENCIA</label>
+                                <p className="text-oxford mb-0 small">{activity?.competence_name || "N/A"}</p>
+                            </div>
+                            <div className="col-md-3">
+                                <label className="text-muted small fw-bold d-block">PROVINCIA</label>
+                                <Badge bg="light" className="text-dark border">{activity?.province_name}</Badge>
+                            </div>
                         </div>
-                    </div>
-                    <div className="col-md-4">
-                        <div className="card text-center p-2 border-dashed shadow-sm">
-                            <span className="small text-muted">Mujeres Alcanzadas</span>
-                            <h4 className="mb-0 text-azul-marino">{currentAchievement?.real_progress?.women || 0}</h4>
+
+                        <div className="bg-light p-3 rounded mb-4 border-start border-4 border-azul-marino">
+                            <label className="text-muted small fw-bold">DESCRIPCIÓN DE LA ACTIVIDAD</label>
+                            <p className="mb-0 small">{activity?.description}</p>
                         </div>
-                    </div>
-                    <div className="col-md-4">
-                        <label className="text-muted small fw-bold d-block">EVIDENCIA</label>
-                        {currentAchievement?.evidence ? (
-                            <a href={currentAchievement.evidence} target="_blank" rel="noreferrer"
-                                className="btn btn-sm btn-outline-success w-100 mt-1">
-                                <i className="fas fa-external-link-alt me-2"></i>Ver Respaldo
-                            </a>
-                        ) : <span className="text-danger small">Sin archivo adjunto</span>}
-                    </div>
-                </div>
 
-                <div className="mb-4">
-                    <label className="text-muted small fw-bold">OBSERVACIONES DEL OFICIAL (CAMPO)</label>
-                    <div className="p-2 border rounded bg-white italic small text-muted">
-                        {currentAchievement?.observations || "Sin comentarios del oficial."}
-                    </div>
-                </div>
+                        <div className="row g-3 mb-4">
+                            <div className="col-md-4">
+                                <div className="card text-center p-2 border-dashed shadow-sm">
+                                    <span className="small text-muted">Hombres Alcanzados</span>
+                                    <h4 className="mb-0 text-azul-marino">{currentAchievement?.real_progress?.men || 0}</h4>
+                                </div>
+                            </div>
+                            <div className="col-md-4">
+                                <div className="card text-center p-2 border-dashed shadow-sm">
+                                    <span className="small text-muted">Mujeres Alcanzadas</span>
+                                    <h4 className="mb-0 text-azul-marino">{currentAchievement?.real_progress?.women || 0}</h4>
+                                </div>
+                            </div>
+                            <div className="col-md-4">
+                                <label className="text-muted small fw-bold d-block">EVIDENCIA</label>
+                                {currentAchievement?.evidence ? (
+                                    <a href={currentAchievement.evidence} target="_blank" rel="noreferrer"
+                                        className="btn btn-sm btn-outline-success w-100 mt-1">
+                                        <i className="fas fa-external-link-alt me-2"></i>Ver Respaldo
+                                    </a>
+                                ) : <span className="text-danger small">Sin archivo adjunto</span>}
+                            </div>
+                        </div>
 
-                <Form.Group>
-                    <Form.Label className="fw-bold text-oxford">
-                        {currentTab === 'En Revisión' ? 'Retroalimentación del Auditor' : 'Motivo del cambio de estado'}
-                    </Form.Label>
-                    <Form.Control
-                        as="textarea"
-                        rows={3}
-                        placeholder="Escriba aquí sus observaciones..."
-                        value={comment}
-                        onChange={(e) => setComment(e.target.value)}
-                        className="border-azul-marino"
-                    />
-                </Form.Group>
+                        <div className="mb-4">
+                            <label className="text-muted small fw-bold">OBSERVACIONES DEL OFICIAL (CAMPO)</label>
+                            <div className="p-2 border rounded bg-white italic small text-muted">
+                                {currentAchievement?.observations || "Sin comentarios del oficial."}
+                            </div>
+                        </div>
+
+                        <Form.Group>
+                            <Form.Label className="fw-bold text-oxford">
+                                {currentTab === 'En Revisión' ? 'Retroalimentación del Auditor' : 'Motivo del cambio de estado'}
+                            </Form.Label>
+                            <Form.Control
+                                as="textarea"
+                                rows={3}
+                                placeholder="Escriba aquí sus observaciones..."
+                                value={comment}
+                                onChange={(e) => setComment(e.target.value)}
+                                className="border-azul-marino"
+                            />
+                        </Form.Group>
+                    </>
+                ) : (
+                    /* --- VISTA DE LÍNEA DE TIEMPO (NUEVA LOGICA) --- */
+                    <div className="achievement-timeline p-2">
+                        {loadingHistory ? (
+                            <div className="text-center py-5"><Spinner animation="border" variant="primary" /></div>
+                        ) : timeline.length > 0 ? (
+                            <div className="timeline-v2">
+                                {timeline.map((item, index) => (
+                                    <div key={index} className="timeline-item mb-4 position-relative ps-4 border-start border-2">
+                                        <div className={`dot-indicator ${item.type === 'status_change' ? 'bg-success' : 'bg-primary'}`}></div>
+                                        <div className="d-flex justify-content-between align-items-center">
+                                            <span className="fw-bold text-oxford">{item.event}</span>
+                                            <small className="text-muted"><i className="far fa-clock me-1"></i>{item.date}</small>
+                                        </div>
+                                        <div className="text-muted small mb-2">Realizado por: <strong>{item.user}</strong></div>
+
+                                        {/* Detalle de qué cambió específicamente */}
+                                        {item.field && item.field !== 'status' && (
+                                            <div className="p-2 bg-light rounded x-small border">
+                                                Modificó <strong>{item.field}</strong>:
+                                                <span className="text-danger ms-1 text-decoration-line-through">{item.old}</span>
+                                                <i className="fas fa-arrow-right mx-2 text-muted"></i>
+                                                <span className="text-success fw-bold">{item.new}</span>
+                                            </div>
+                                        )}
+
+                                        {/* Comentario si fue rechazado o revertido */}
+                                        {item.comment && (
+                                            <div className="mt-2 p-2 bg-warning bg-opacity-10 border-start border-3 border-warning rounded small italic">
+                                                <i className="fas fa-comment-dots me-2"></i>"{item.comment}"
+                                            </div>
+                                        )}
+
+                                        {item.details && <div className="small text-secondary">{item.details}</div>}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-4">No hay logs registrados.</div>
+                        )}
+                    </div>
+                )}
             </Modal.Body>
 
             <Modal.Footer className="bg-light border-0">
                 <Button variant="link" className="text-muted text-decoration-none" onClick={onHide}>Cerrar</Button>
-                {renderFooterButtons()}
+                {viewMode === 'detail' && renderFooterButtons()}
             </Modal.Footer>
         </Modal>
     );
