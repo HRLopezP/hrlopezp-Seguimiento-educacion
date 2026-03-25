@@ -2182,32 +2182,39 @@ def create_activitys():
     user_id = get_jwt_identity()
     data = request.json
 
-    required_fields = ['description', 'indicator_id',
-                       'location_id', 'project_id', 'start_date', 'end_date']
+    required_fields = ['description', 'indicator_id', 'location_id', 'project_id', 'start_date', 'end_date']
     if not all(field in data for field in required_fields):
-        return jsonify({"msg": "Faltan campos obligatorios para la planificación"}), 400
+        return jsonify({"msg": "Faltan campos obligatorios"}), 400
 
     try:
-        total_meta = data.get('planned_target') or data.get(
-            'planned_total') or 0
+        total_meta = data.get('planned_target') or data.get('planned_total') or 0
+        
+        # 1. Buscamos el indicador para validar que existe
+        indicador = Indicator.query.get(data['indicator_id'])
+        if not indicador:
+            return jsonify({"msg": "Indicador no encontrado"}), 404
 
+        # 2. Creamos la actividad
         new_activity = Activity(
             description=data.get('description', ''),
             observations=data.get('observations', ''),
-            start_date=datetime.strptime(
-                data['start_date'].split('T')[0], '%Y-%m-%d'),
-            end_date=datetime.strptime(
-                data['end_date'].split('T')[0], '%Y-%m-%d'),
+            start_date=datetime.strptime(data['start_date'].split('T')[0], '%Y-%m-%d'),
+            end_date=datetime.strptime(data['end_date'].split('T')[0], '%Y-%m-%d'),
             planned_target=float(total_meta),
             planned_men=float(data.get('planned_men', 0)),
             planned_women=float(data.get('planned_women', 0)),
-
             status=ActivityStatus.PLANIFICADA,
-            indicator_id=int(data['indicator_id']),
+
+            # --- CORRECCIÓN FINAL DE CABLES ---
+            indicator_id=indicador.id_indicator,
             project_id=int(data['project_id']),
             location_id=int(data['location_id']),
-            project_competence_id=int(data['project_competence_id']) if data.get(
-                'project_competence_id') else None,
+            
+            # Usamos el project_competence_id que viene del frontend (el Selector de Contexto)
+            # que es exactamente lo que hacía el endpoint viejo que sí te servía
+            project_competence_id=data.get('project_competence_id'), 
+            # ----------------------------------
+            
             created_by_id=user_id
         )
 
@@ -2219,12 +2226,11 @@ def create_activitys():
             "activity": new_activity.serialize()
         }), 201
 
-    except ValueError as ve:
-        return jsonify({"msg": "Error en formato de datos (fecha o números)", "error": str(ve)}), 400
     except Exception as e:
         db.session.rollback()
         print(f"Error en create_activity: {str(e)}")
-        return jsonify({"msg": "Error interno al guardar planificación", "error": str(e)}), 500
+        return jsonify({"msg": "Error interno", "error": str(e)}), 500
+
 
 #Función auxiliar para usar en el siguiente endpoint
 def create_log(entity_id, field_name, old, new, user_id):
@@ -2344,19 +2350,20 @@ def get_activities():
     project_id = request.args.get('project_id')
     competence_id = request.args.get('competence_id')
     
-    # Calculamos hoy en Venezuela para que el Oficial vea lo mismo que el Manager
     hoy_venezuela = (datetime.utcnow() - timedelta(hours=4)).date()
 
-    query = Activity.query.filter_by(created_by_id=user_id)
+    query = Activity.query.filter(Activity.created_by_id == user_id)
 
     if project_id:
-        query = query.filter_by(project_id=project_id)
+        query = query.filter(Activity.project_id == project_id)
+        
     if competence_id:
-        query = query.filter_by(project_competence_id=competence_id)
+        # Aquí está el truco: Unimos Activity -> Indicator -> ProjectCompetence
+        query = query.join(Indicator).join(ProjectCompetence).filter(
+            ProjectCompetence.competence_id == competence_id
+        )
 
     activities = query.all()
-
-    # IMPORTANTE: Pasamos hoy_venezuela al serialize
     results = [act.serialize(today_date=hoy_venezuela) for act in activities]
 
     return jsonify(results), 200
