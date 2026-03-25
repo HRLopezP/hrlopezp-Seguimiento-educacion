@@ -131,14 +131,21 @@ const AuditInbox = () => {
       <div className="container mt-4">
 
         {/* NAVEGACIÓN POR TABS */}
-        <div className="audit-tabs-container d-flex mb-0">
-          {["En Revisión", "Aprobada", "Rechazada"].map(tab => (
+        <div className="audit-tabs-container">
+          {[
+            { id: "En Revisión", label: "En Revisión", class: "tab-revision" },
+            { id: "Aprobada", label: "Aprobadas", class: "tab-aprobada" },
+            { id: "Rechazada", label: "Rechazadas", class: "tab-rechazada" }
+          ].map(tab => (
             <button
-              key={tab}
-              className={`audit-tab-btn ${currentTab === tab ? "active" : ""}`}
-              onClick={() => { setCurrentTab(tab); setPage(1); }}
+              key={tab.id}
+              className={`audit-tab-btn ${currentTab === tab.id ? `active ${tab.class}` : ""}`}
+              onClick={() => { setCurrentTab(tab.id); setPage(1); }}
             >
-              {tab}
+              <i className={`fas ${tab.id === 'En Revisión' ? 'fa-clock' :
+                  tab.id === 'Aprobada' ? 'fa-check-circle' : 'fa-times-circle'
+                } me-2`}></i>
+              {tab.label}
             </button>
           ))}
         </div>

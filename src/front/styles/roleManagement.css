@@ -208,3 +208,54 @@
   color: white !important;
 }
 
+
+/* auditoría */
+/* Contenedor centrado para las categorías */
+.audit-tabs-container {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 25px;
+    padding: 10px;
+}
+
+/* Estilo base de los botones de categoría */
+.audit-tab-btn {
+    border: none;
+    background: #f8f9fa;
+    color: #6c757d;
+    padding: 10px 25px;
+    border-radius: 50px; /* Bordes redondeados para un look moderno */
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* Efecto Hover */
+.audit-tab-btn:hover {
+    transform: translateY(-2px);
+    filter: brightness(0.95);
+}
+
+/* Colores dinámicos para la pestaña ACTIVA */
+
+/* "En Revisión" -> Oxford Grey (Gris serio) */
+.audit-tab-btn.active.tab-revision {
+    background-color: #37474f !important; /* Oxford Grey */
+    color: white !important;
+    box-shadow: 0 4px 10px rgba(55, 71, 79, 0.3);
+}
+
+/* "Aprobada" -> Emerald Green */
+.audit-tab-btn.active.tab-aprobada {
+    background-color: #10b981 !important; /* Emerald Green */
+    color: white !important;
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+}
+
+/* "Rechazada" -> Rojo */
+.audit-tab-btn.active.tab-rechazada {
+    background-color: #ef4444 !important; /* Rojo vibrante */
+    color: white !important;
+    box-shadow: 0 4px 10px rgba(239, 68, 68, 0.3);
+}
