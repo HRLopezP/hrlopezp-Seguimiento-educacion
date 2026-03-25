@@ -134,31 +134,51 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
 
         return (
             <div className="timeline-v2">
-                {timeline.map((item, index) => (
-                    <div key={index} className="timeline-item mb-4 position-relative ps-4 border-start border-2">
-                        <div className={`dot-indicator ${item.type === 'status_change' ? 'bg-emerald' : 'bg-azul-marino'}`}></div>
-                        <div className="d-flex justify-content-between">
-                            <span className="fw-bold text-oxford">{item.event}</span>
-                            <small className="text-muted"><i className="far fa-clock me-1"></i>{item.date}</small>
+                {/* --- VISTA DE LÍNEA DE TIEMPO --- */}
+                {timeline.map((item, index) => {
+                    // 1. Definimos qué campos pertenecen a cada tipo
+                    const outcomeFields = ['attended_count', 'approved_count'];
+                    const outputFields = ['men_reached', 'women_reached', 'total_reached'];
+
+                    // 2. Verificamos si el campo debe ser ignorado según el tipo de indicador
+                    const isIrrelevantField =
+                        (isOutcome && outputFields.includes(item.field)) ||
+                        (!isOutcome && outcomeFields.includes(item.field));
+
+                    // 3. Verificamos si hubo un cambio real (valor antiguo distinto al nuevo)
+                    const hasChanged = item.old !== item.new;
+
+                    // Solo mostramos el detalle si el campo es relevante Y cambió
+                    const shouldShowDetail = item.field && item.field !== 'status' && !isIrrelevantField && hasChanged;
+
+                    return (
+                        <div key={index} className="timeline-item mb-4 position-relative ps-4 border-start border-2">
+                            <div className={`dot-indicator ${item.type === 'status_change' ? 'bg-success' : 'bg-primary'}`}></div>
+                            <div className="d-flex justify-content-between align-items-center">
+                                <span className="fw-bold text-oxford">{item.event}</span>
+                                <small className="text-muted"><i className="far fa-clock me-1"></i>{item.date}</small>
+                            </div>
+                            <div className="text-muted small mb-2">Realizado por: <strong>{item.user}</strong></div>
+
+                            {/* DETALLE FILTRADO: Solo si es relevante y hubo cambio */}
+                            {shouldShowDetail && (
+                                <div className="p-2 bg-light rounded x-small border">
+                                    Modificó <strong>{item.field.replace('_', ' ')}</strong>:
+                                    <span className="text-danger ms-1 text-decoration-line-through">{item.old}</span>
+                                    <i className="fas fa-arrow-right mx-2 text-muted"></i>
+                                    <span className="text-success fw-bold">{item.new}</span>
+                                </div>
+                            )}
+
+                            {/* Comentario si existe */}
+                            {item.comment && (
+                                <div className="mt-2 p-2 bg-warning bg-opacity-10 border-start border-3 border-warning rounded small italic">
+                                    <i className="fas fa-comment-dots me-2"></i>"{item.comment}"
+                                </div>
+                            )}
                         </div>
-                        <div className="text-muted small mb-2">Por: <strong>{item.user}</strong></div>
-
-                        {item.field && item.field !== 'status' && (
-                            <div className="p-2 bg-light rounded x-small border mb-2">
-                                Modificó <strong>{item.field}</strong>:
-                                <span className="text-danger ms-1 text-decoration-line-through">{item.old}</span>
-                                <i className="fas fa-arrow-right mx-2 text-muted"></i>
-                                <span className="text-success fw-bold">{item.new}</span>
-                            </div>
-                        )}
-
-                        {item.comment && (
-                            <div className="mt-2 p-2 bg-warning bg-opacity-10 border-start border-3 border-warning rounded small italic">
-                                <i className="fas fa-comment-dots me-2 text-warning"></i>"{item.comment}"
-                            </div>
-                        )}
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         );
     };
