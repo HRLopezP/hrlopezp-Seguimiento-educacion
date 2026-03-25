@@ -123,10 +123,30 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
         );
     };
 
+
     const renderTimeline = () => {
         if (loadingHistory) {
             return <div className="text-center py-5"><Spinner animation="border" variant="primary" /></div>;
         }
+
+        const formatLocalDate = (dateString) => {
+            if (!dateString) return "N/A";
+            // El backend envía "YYYY-MM-DD HH:MM:SS". Agregamos "Z" para que JS sepa que es UTC
+            // o simplemente creamos el objeto Date.
+            const date = new Date(dateString.replace(" ", "T") + "Z");
+
+            // Si la fecha es inválida, devolvemos el string original
+            if (isNaN(date.getTime())) return dateString;
+
+            return date.toLocaleString('es-ES', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+        };
 
         if (timeline.length === 0) {
             return <div className="text-center py-4 text-muted">No hay registros de auditoría para este logro.</div>;
@@ -156,10 +176,12 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
                             <div className={`dot-indicator ${item.type === 'status_change' ? 'bg-success' : 'bg-primary'}`}></div>
                             <div className="d-flex justify-content-between align-items-center">
                                 <span className="fw-bold text-oxford">{item.event}</span>
-                                <small className="text-muted"><i className="far fa-clock me-1"></i>{item.date}</small>
+                                <small className="text-muted">
+                                    <i className="far fa-clock me-1"></i>
+                                    {formatLocalDate(item.date)}
+                                </small>
                             </div>
                             <div className="text-muted small mb-2">Realizado por: <strong>{item.user}</strong></div>
-
                             {/* DETALLE FILTRADO: Solo si es relevante y hubo cambio */}
                             {shouldShowDetail && (
                                 <div className="p-2 bg-light rounded x-small border">
