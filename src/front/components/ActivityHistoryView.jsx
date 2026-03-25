@@ -1,7 +1,23 @@
 import React from 'react';
 
 export const ActivityHistoryView = ({ history = [], loading = false, onBack }) => {
-    
+
+    const formatLocalTime = (dateString) => {
+        if (!dateString) return "N/A";
+        // Agregamos "Z" al final para decirle a JavaScript que la fecha recibida es UTC
+        const date = new Date(dateString.replace(" ", "T") + "Z");
+        if (isNaN(date.getTime())) return dateString;
+
+        return date.toLocaleString('es-ES', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+    };
+
     const getBadgeStyle = (log) => {
         if (log.event === "Creación") return "bg-success text-white";
         if (log.event === "Cancelación" || log.field === "Status") return "bg-danger text-white";
@@ -35,7 +51,7 @@ export const ActivityHistoryView = ({ history = [], loading = false, onBack }) =
                 <div className="timeline-wrapper px-2" style={{ maxHeight: '400px', overflowY: 'auto' }}>
                     {history.map((log, index) => (
                         <div key={index} className="mb-4 position-relative ps-4 border-start border-2 border-light">
-                            
+
                             {/* Punto del timeline con color dinámico */}
                             <div className={`position-absolute start-0 translate-middle-x rounded-circle border border-2 border-white shadow-sm ${log.event === 'Creación' ? 'bg-success' : 'bg-primary'}`}
                                 style={{ width: '14px', height: '14px', marginLeft: '-1px', marginTop: '4px', zIndex: 2 }}>
@@ -47,7 +63,7 @@ export const ActivityHistoryView = ({ history = [], loading = false, onBack }) =
                                 </span>
                                 <small className="text-muted" style={{ fontSize: '0.7rem' }}>
                                     <i className="far fa-clock me-1"></i>
-                                    {log.date}
+                                    {formatLocalTime(log.date)}
                                 </small>
                             </div>
 
@@ -63,11 +79,11 @@ export const ActivityHistoryView = ({ history = [], loading = false, onBack }) =
                                             {/* Valor Anterior */}
                                             {log.old && (
                                                 <div className="text-muted mb-1 text-decoration-line-through" style={{ fontSize: '0.8rem' }}>
-                                                    <small className="fw-bold me-1 text-uppercase" style={{ fontSize: '0.65rem' }}>Anterior:</small> 
+                                                    <small className="fw-bold me-1 text-uppercase" style={{ fontSize: '0.65rem' }}>Anterior:</small>
                                                     {log.old}
                                                 </div>
                                             )}
-                                            
+
                                             {/* Valor Nuevo */}
                                             <div className="text-dark">
                                                 <i className="fas fa-chevron-right me-2 text-primary small"></i>
