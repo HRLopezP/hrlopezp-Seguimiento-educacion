@@ -2524,22 +2524,21 @@ def get_activity_achievements(activity_id):
 @jwt_required()
 @manager_required
 def get_manager_supervision_activities():
-    # 1. Capturamos el contexto
     project_id = request.args.get('project_id')
     competence_id = request.args.get('competence_id')
+
+    print(f"DEBUG GERENTE: Buscando Proyecto ID: {project_id}")
+    print(f"DEBUG GERENTE: Buscando con Competencia/Relación ID: {competence_id}")
     
     if not project_id or not competence_id:
         return jsonify({"msg": "Falta el contexto: project_id y competence_id son obligatorios"}), 400
 
-    # 2. Configuramos el tiempo (Venezuela UTC-4) de forma precisa
-    # Obtenemos solo la FECHA (date) para evitar problemas de comparación con horas
     ahora_venezuela = datetime.utcnow() - timedelta(hours=4)
     today = ahora_venezuela.date()
 
-    # 3. Consulta
-    query = Activity.query.filter_by(
-        project_id=project_id, 
-        project_competence_id=competence_id
+    query = Activity.query.join(ProjectCompetence).filter(
+        Activity.project_id == project_id,
+        ProjectCompetence.competence_id == competence_id
     )
 
     activities = query.all()
