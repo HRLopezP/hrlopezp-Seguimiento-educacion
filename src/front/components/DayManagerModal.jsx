@@ -128,7 +128,7 @@ const DayManagerModal = ({
                                                     <small className="text-muted d-block mb-1">
                                                         <i className="fas fa-map-marker-alt me-1" style={{ color: '#10b981' }}></i>
                                                         <span className={act.province_name ? "fw-medium text-dark" : "fst-italic opacity-75"}>
-                                                            {act.province_name ? `${act.province_name}${act.municipality_name ? ` • ${act.municipality_name}` : ''}` : 'Ubicación no definida'}
+                                                            {act.province_name ? `${act.province_name}${act.municipality_name ? ` • ${act.municipality_name}• ${act.parish_name}` : ''}` : 'Ubicación no definida'}
                                                         </span>
                                                     </small>
                                                 </div>
