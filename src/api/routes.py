@@ -2527,9 +2527,6 @@ def get_manager_supervision_activities():
     project_id = request.args.get('project_id')
     competence_id = request.args.get('competence_id')
 
-    print(f"DEBUG GERENTE: Buscando Proyecto ID: {project_id}")
-    print(f"DEBUG GERENTE: Buscando con Competencia/Relación ID: {competence_id}")
-    
     if not project_id or not competence_id:
         return jsonify({"msg": "Falta el contexto: project_id y competence_id son obligatorios"}), 400
 

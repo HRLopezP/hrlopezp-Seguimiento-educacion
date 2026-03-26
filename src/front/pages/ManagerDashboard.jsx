@@ -7,6 +7,7 @@ import DayManagerModal from "../components/DayManagerModal";
 import ActivityWizard from "../components/ActivityWizard";
 import AchievementTracker from "../components/AchievementTracker";
 import Swal from 'sweetalert2';
+import "../styles/managerDashboard.css"
 import { toast } from "sonner";
 
 export const ManagerDashboard = () => {
@@ -26,17 +27,30 @@ export const ManagerDashboard = () => {
     const [activityHistory, setActivityHistory] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [selectedUsers, setSelectedUsers] = useState([]);
+    const [selectedProvinces, setSelectedProvinces] = useState([]);
 
     const filteredActivities = useMemo(() => {
-        if (selectedUsers.length === 0) return activities; // Si no hay nadie marcado, mostramos todo o nada (tú decides)
-        return activities.filter(act => selectedUsers.includes(act.responsible?.id));
-    }, [activities, selectedUsers]);
+        return activities.filter(act => {
+            // Regla 1: ¿Pasa el filtro de usuarios?
+            const matchesUser = selectedUsers.length === 0 ||
+                selectedUsers.includes(act.responsible.id);
 
+            // Regla 2: ¿Pasa el filtro de provincias?
+            const matchesProvince = selectedProvinces.length === 0 ||
+                selectedProvinces.includes(act.province_name);
+
+            return matchesUser && matchesProvince;
+        });
+    }, [activities, selectedUsers, selectedProvinces]);
+
+    const availableProvinces = useMemo(() => {
+        const provinces = activities.map(act => act.province_name);
+        return [...new Set(provinces)].filter(Boolean).sort();
+    }, [activities]);
 
     const activitiesForThatDay = useMemo(() => {
         if (!selectedDate) return [];
         return filteredActivities.filter(act => {
-            // Aseguramos que comparamos peras con peras (asumiendo formato YYYY-MM-DD)
             const dateA = act.implementation_date;
             const dateB = act.period?.start;
             return dateA === selectedDate || dateB === selectedDate;
@@ -46,7 +60,7 @@ export const ManagerDashboard = () => {
     const closeModals = () => {
         setModals({ manager: false, wizard: false, tracker: false });
         setSelectedActivity(null);
-        setActivityHistory([]); // ¡Importante limpiar esto!
+        setActivityHistory([]);
     };
 
     const loadActivities = useCallback(async (ctx) => {
@@ -59,7 +73,6 @@ export const ManagerDashboard = () => {
                 const data = await res.json();
                 setActivities(data);
 
-                // Solo inicializamos los usuarios si la lista está vacía (para no resetear el filtro del gerente)
                 setSelectedUsers(prev => {
                     if (prev.length > 0) return prev;
                     return [...new Set(data.map(a => a.responsible?.id))].filter(Boolean);
@@ -231,6 +244,48 @@ export const ManagerDashboard = () => {
                                                 </label>
                                             </div>
                                         ))}
+                                    </div>
+                                    <div className="col-md-12">
+                                        <label className="small fw-bold text-muted mb-2 d-block">Provincias con Actividad</label>
+
+                                        {/* Contenedor de etiquetas seleccionadas */}
+                                        <div className="d-flex flex-wrap border rounded p-2 bg-white mb-2" style={{ minHeight: '42px' }}>
+                                            {selectedProvinces.length === 0 && (
+                                                <span className="text-muted small p-1">Todas las provincias</span>
+                                            )}
+                                            {selectedProvinces.map(prov => (
+                                                <span
+                                                    key={prov}
+                                                    className="filter-chip"
+                                                    onClick={() => setSelectedProvinces(prev => prev.filter(p => p !== prov))}
+                                                >
+                                                    {prov} <i className="fas fa-times"></i>
+                                                </span>
+                                            ))}
+                                        </div>
+
+                                        {/* Lista desplegable simple para seleccionar */}
+                                        <select
+                                            className="form-select form-select-sm shadow-none"
+                                            value=""
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (val && !selectedProvinces.includes(val)) {
+                                                    setSelectedProvinces([...selectedProvinces, val]);
+                                                }
+                                            }}
+                                        >
+                                            <option value="" disabled>Agregar provincia...</option>
+                                            {availableProvinces.map(prov => (
+                                                <option
+                                                    key={prov}
+                                                    value={prov}
+                                                    disabled={selectedProvinces.includes(prov)}
+                                                >
+                                                    {prov} {selectedProvinces.includes(prov) ? '✓' : ''}
+                                                </option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
 
