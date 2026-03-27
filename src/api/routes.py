@@ -879,7 +879,7 @@ def create_project():
 
 @api.route('/manager/projects', methods=['GET'])
 @jwt_required()
-@manager_required
+@roles_required("Administrador", "Gerente", "Monitoreo")
 def get_manager_projects():
     projects = Project.query.all()
     results = []
@@ -1786,9 +1786,19 @@ def create_achievement():
 
         activity.status = ActivityStatus.EN_REVISION
         db.session.add(new_record)
-        db.session.commit()
+        db.session.flush()
 
-        db.session.refresh(new_record)
+        audit_entry = SystemChangeLog(
+            entity_type="AchievementRecord",
+            entity_id=new_record.id,
+            user_id=user_id,
+            field_changed="status",
+            old_value="N/A",
+            new_value="Creado / En Revisión"
+        )
+        db.session.add(audit_entry)
+        
+        db.session.commit()
 
         return jsonify({
             "message": "Logro registrado exitosamente",
@@ -1797,7 +1807,6 @@ def create_achievement():
 
     except Exception as e:
         db.session.rollback()
-        print(f"DEBUG SIGSSEP ERROR: {str(e)}") 
         return jsonify({"message": f"Error en el servidor: {str(e)}"}), 500
 
 # 2-E
@@ -1812,38 +1821,67 @@ def patch_achievement(id):
         return jsonify({"message": "No se pueden editar logros de una actividad ya aprobada"}), 403
     
     data = request.json
-    
-    if 'men_reached' in data: record.men_reached = float(data['men_reached'])
-    if 'women_reached' in data: record.women_reached = float(data['women_reached'])
-    if 'disability_reached' in data: record.disability_reached = float(data['disability_reached'])
-    if 'attended_count' in data: record.attended_count = float(data['attended_count'])
-    if 'approved_count' in data: record.approved_count = float(data['approved_count'])
-    if 'observations' in data: record.observations = data['observations']
-    if 'evidence_url' in data:
-        new_url = data.get('evidence_url')
-        new_public_id = data.get('evidence_public_id')
-
-        if new_url and new_url != record.evidence_url:
-            if record.evidence_public_id:
-                CloudinaryService.delete_file(record.evidence_public_id)
-                print(f"DEBUG: Solicitado borrado de ID: {record.evidence_public_id}")
-            record.evidence_url = new_url
-            record.evidence_public_id = new_public_id 
-            
-    activity.status = ActivityStatus.EN_REVISION
-    record.monitoring_comment = None
-
-    record.updated_by_id = user_id
+    # 1. Agregamos TODOS los campos que quieres vigilar
+    fields_to_track = [
+        'men_reached', 'women_reached', 'disability_reached', 
+        'attended_count', 'approved_count', 'observations'
+    ]
 
     try:
+        for field in fields_to_track:
+            if field in data:
+                old_val = str(getattr(record, field) or "")
+                new_val = str(data[field])
+                
+                if old_val != new_val:
+                    # Guardamos el rastro en el historial
+                    audit = SystemChangeLog(
+                        entity_type="AchievementRecord",
+                        entity_id=record.id,
+                        user_id=user_id,
+                        field_changed=field,
+                        old_value=old_val,
+                        new_value=new_val
+                    )
+                    db.session.add(audit)
+                    # Actualizamos el valor dinámicamente
+                    setattr(record, field, data[field])
+
+        # 2. Lógica especial para la evidencia (Cloudinary)
+        if 'evidence_url' in data:
+            new_url = data.get('evidence_url')
+            new_public_id = data.get('evidence_public_id')
+
+            if new_url and new_url != record.evidence_url:
+                # Si hay una imagen vieja, la borramos
+                if record.evidence_public_id:
+                    CloudinaryService.delete_file(record.evidence_public_id)
+                
+                # Registramos el cambio de URL en auditoría
+                audit_img = SystemChangeLog(
+                    entity_type="AchievementRecord",
+                    entity_id=record.id,
+                    user_id=user_id,
+                    field_changed="evidence_url",
+                    old_value=record.evidence_url,
+                    new_value=new_url
+                )
+                db.session.add(audit_img)
+                
+                record.evidence_url = new_url
+                record.evidence_public_id = new_public_id 
+
+        # 3. Reset de revisión
+        activity.status = ActivityStatus.EN_REVISION
+        record.monitoring_comment = None
+        record.updated_by_id = user_id
+
         db.session.commit()
-        return jsonify({
-            "message": "Logro actualizado y archivos gestionados",
-            "record": record.serialize()
-        }), 200
+        return jsonify({"message": "Logro actualizado y auditado", "record": record.serialize()}), 200
+
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": f"Error en base de datos: {str(e)}"}), 500
+        return jsonify({"message": f"Error: {str(e)}"}), 500
     
 # 3-B
 @api.route('/achievements/<int:id>', methods=['DELETE'])
@@ -2144,32 +2182,39 @@ def create_activitys():
     user_id = get_jwt_identity()
     data = request.json
 
-    required_fields = ['description', 'indicator_id',
-                       'location_id', 'project_id', 'start_date', 'end_date']
+    required_fields = ['description', 'indicator_id', 'location_id', 'project_id', 'start_date', 'end_date']
     if not all(field in data for field in required_fields):
-        return jsonify({"msg": "Faltan campos obligatorios para la planificación"}), 400
+        return jsonify({"msg": "Faltan campos obligatorios"}), 400
 
     try:
-        total_meta = data.get('planned_target') or data.get(
-            'planned_total') or 0
+        total_meta = data.get('planned_target') or data.get('planned_total') or 0
+        
+        # 1. Buscamos el indicador para validar que existe
+        indicador = Indicator.query.get(data['indicator_id'])
+        if not indicador:
+            return jsonify({"msg": "Indicador no encontrado"}), 404
 
+        # 2. Creamos la actividad
         new_activity = Activity(
             description=data.get('description', ''),
             observations=data.get('observations', ''),
-            start_date=datetime.strptime(
-                data['start_date'].split('T')[0], '%Y-%m-%d'),
-            end_date=datetime.strptime(
-                data['end_date'].split('T')[0], '%Y-%m-%d'),
+            start_date=datetime.strptime(data['start_date'].split('T')[0], '%Y-%m-%d'),
+            end_date=datetime.strptime(data['end_date'].split('T')[0], '%Y-%m-%d'),
             planned_target=float(total_meta),
             planned_men=float(data.get('planned_men', 0)),
             planned_women=float(data.get('planned_women', 0)),
-
             status=ActivityStatus.PLANIFICADA,
-            indicator_id=int(data['indicator_id']),
+
+            # --- CORRECCIÓN FINAL DE CABLES ---
+            indicator_id=indicador.id_indicator,
             project_id=int(data['project_id']),
             location_id=int(data['location_id']),
-            project_competence_id=int(data['project_competence_id']) if data.get(
-                'project_competence_id') else None,
+            
+            # Usamos el project_competence_id que viene del frontend (el Selector de Contexto)
+            # que es exactamente lo que hacía el endpoint viejo que sí te servía
+            project_competence_id=data.get('project_competence_id'), 
+            # ----------------------------------
+            
             created_by_id=user_id
         )
 
@@ -2181,12 +2226,11 @@ def create_activitys():
             "activity": new_activity.serialize()
         }), 201
 
-    except ValueError as ve:
-        return jsonify({"msg": "Error en formato de datos (fecha o números)", "error": str(ve)}), 400
     except Exception as e:
         db.session.rollback()
         print(f"Error en create_activity: {str(e)}")
-        return jsonify({"msg": "Error interno al guardar planificación", "error": str(e)}), 500
+        return jsonify({"msg": "Error interno", "error": str(e)}), 500
+
 
 #Función auxiliar para usar en el siguiente endpoint
 def create_log(entity_id, field_name, old, new, user_id):
@@ -2306,19 +2350,20 @@ def get_activities():
     project_id = request.args.get('project_id')
     competence_id = request.args.get('competence_id')
     
-    # Calculamos hoy en Venezuela para que el Oficial vea lo mismo que el Manager
     hoy_venezuela = (datetime.utcnow() - timedelta(hours=4)).date()
 
-    query = Activity.query.filter_by(created_by_id=user_id)
+    query = Activity.query.filter(Activity.created_by_id == user_id)
 
     if project_id:
-        query = query.filter_by(project_id=project_id)
+        query = query.filter(Activity.project_id == project_id)
+        
     if competence_id:
-        query = query.filter_by(project_competence_id=competence_id)
+        # Aquí está el truco: Unimos Activity -> Indicator -> ProjectCompetence
+        query = query.join(Indicator).join(ProjectCompetence).filter(
+            ProjectCompetence.competence_id == competence_id
+        )
 
     activities = query.all()
-
-    # IMPORTANTE: Pasamos hoy_venezuela al serialize
     results = [act.serialize(today_date=hoy_venezuela) for act in activities]
 
     return jsonify(results), 200
@@ -2479,22 +2524,18 @@ def get_activity_achievements(activity_id):
 @jwt_required()
 @manager_required
 def get_manager_supervision_activities():
-    # 1. Capturamos el contexto
     project_id = request.args.get('project_id')
     competence_id = request.args.get('competence_id')
-    
+
     if not project_id or not competence_id:
         return jsonify({"msg": "Falta el contexto: project_id y competence_id son obligatorios"}), 400
 
-    # 2. Configuramos el tiempo (Venezuela UTC-4) de forma precisa
-    # Obtenemos solo la FECHA (date) para evitar problemas de comparación con horas
     ahora_venezuela = datetime.utcnow() - timedelta(hours=4)
     today = ahora_venezuela.date()
 
-    # 3. Consulta
-    query = Activity.query.filter_by(
-        project_id=project_id, 
-        project_competence_id=competence_id
+    query = Activity.query.join(ProjectCompetence).filter(
+        Activity.project_id == project_id,
+        ProjectCompetence.competence_id == competence_id
     )
 
     activities = query.all()
@@ -2514,7 +2555,12 @@ def get_manager_supervision_activities():
         # --- 4. LÓGICA DE ESTADOS DINÁMICOS REFORZADA ---
         status_actual = data.get('status')
         # Agregamos 'Vencida' a protegidos si ya viene así del modelo para no re-calcular
-        estados_protegidos = ['Aprobada', 'En Revisión', 'Rechazada', 'Cancelada', 'Completada']
+        estados_protegidos = [
+            ActivityStatus.APROBADA.value, 
+            ActivityStatus.EN_REVISION.value, 
+            ActivityStatus.RECHAZADA.value, 
+            ActivityStatus.CANCELADA.value
+        ]
 
         if status_actual not in estados_protegidos:
             # Normalizamos fechas de la actividad a .date()
@@ -2534,7 +2580,7 @@ def get_manager_supervision_activities():
     return jsonify(results), 200
 
 #Auditoría o historial de actividades
-@api.route('/manager/activities/<int:activity_id>/history', methods=['GET']) # Ajusté la ruta a /activities/
+@api.route('/manager/activities/<int:activity_id>/history', methods=['GET']) 
 @jwt_required()
 def get_activity_full_history(activity_id):
     activity = Activity.query.get(activity_id)
@@ -2607,51 +2653,259 @@ def delete_activity_manager(activity_id):
 
 #Aprobar o rechazar logro
 @api.route('/activities/<int:id>/review', methods=['PATCH'])
+@jwt_required()
 @roles_required("Administrador", "Gerente", "Monitoreo")
 def review_activity(id):
-    # 1. Verificar que quien firma es un Gerente (Seguridad)
-    # Aquí podrías usar un decorador personalizado o verificar el rol del token
     user_id = get_jwt_identity()
-    
     activity = Activity.query.get_or_404(id)
+
+    old_status = activity.status.value if activity.status else "N/A"
     data = request.json
-    
-    # Extraemos lo que envía el Gerente
-    new_status = data.get('status') # 'Aprobada' o 'Rechazada'
-    comment = data.get('monitoring_comment', '') # El feedback
+    new_status_str = data.get('status')
+    comment = data.get('monitoring_comment', '').strip()
 
-    # 2. Validaciones de negocio
-    if new_status not in ['Aprobada', 'Rechazada']:
-        return jsonify({"message": "Estado de revisión no válido"}), 400
-
-    if not activity.achievements:
-        return jsonify({"message": "No se puede revisar una actividad sin logros registrados"}), 400
-
-    # 3. Aplicar los cambios
-    # Actualizamos el estatus de la actividad principal
-    if new_status == 'Aprobada':
+    # --- NUEVA LÓGICA DE ESTADOS ---
+    if new_status_str == "Aprobada":
         activity.status = ActivityStatus.APROBADA
-    else:
-        activity.status = ActivityStatus.RECHAZADA
+    elif new_status_str == "Rechazada":
         if not comment:
-            return jsonify({"message": "Es obligatorio incluir un motivo para el rechazo"}), 400
+            return jsonify({"message": "El motivo es obligatorio para rechazar"}), 400
+        activity.status = ActivityStatus.RECHAZADA
+    elif new_status_str == "En Revisión": 
+        if not comment:
+            return jsonify({"message": "Debe indicar la razón por la cual revierte la aprobación"}), 400
+        activity.status = ActivityStatus.EN_REVISION
+    else:
+        return jsonify({"message": "Estado no válido"}), 400
 
-    # 4. Guardar el comentario en el ÚLTIMO logro (el que se está revisando)
-    # Como definimos que es 1 a 1 por ejecución, tomamos el último de la lista
-    last_achievement = activity.achievements[-1]
-    last_achievement.monitoring_comment = comment
+    # Buscamos el último registro de logro enviado
+    last_ach = AchievementRecord.query.filter_by(activity_id=id).order_by(AchievementRecord.id.desc()).first()
     
-    # Auditoría de quién revisó
-    activity.updated_by_id = user_id
+    if last_ach:
+        last_ach.monitoring_comment = comment
+        last_ach.updated_by_id = user_id 
 
     try:
+        # Auditoría general del sistema
+        audit = SystemChangeLog(
+            entity_type="Activity",
+            entity_id=activity.id_activity,
+            user_id=user_id,
+            field_changed="status",
+            old_value=old_status,
+            new_value=activity.status.value,
+            comment=comment
+        )
+        db.session.add(audit)
         db.session.commit()
+        
         return jsonify({
-            "message": f"Actividad {new_status} exitosamente",
-            "status": activity.status.value,
-            "monitoring_comment": last_achievement.monitoring_comment
+            "message": f"Estado actualizado a {activity.status.value} correctamente",
+            "status": activity.status.value
         }), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": f"Error al procesar la revisión: {str(e)}"}), 500
+        return jsonify({"message": "Error interno al procesar la revisión"}), 500
+    
+
+#Monitoreo-Auditoría de logros
+@api.route('/audit/inbox', methods=['GET'])
+@jwt_required()
+@roles_required("Administrador", "Gerente", "Monitoreo")
+def get_audit_inbox():
+    # 1. Parámetros de Paginación y Filtros
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    
+    # Filtros de búsqueda
+    status_str = request.args.get('status', ActivityStatus.EN_REVISION.value)
+    project_id = request.args.get('project_id', type=int)
+
+    if status_str == "Aprobada" and not project_id:
+        return jsonify({"msg": "Debe seleccionar un proyecto para ver los logros aprobados"}), 400
+    
+    competence_id = request.args.get('competence_id', type=int)
+    search_code = request.args.get('search_code') # Para buscar por código de indicador
+
+    # Convertimos el string de status al miembro del Enum
+    status_filter = next((s for s in ActivityStatus if s.value == status_str), ActivityStatus.EN_REVISION)
+
+    # 2. Construcción de la Query base
+    query = Activity.query.options(
+        joinedload(Activity.indicator).joinedload(Indicator.template),
+        joinedload(Activity.location),
+        joinedload(Activity.achievements),
+        joinedload(Activity.creator) # Para mostrar el responsable
+    ).filter(Activity.status == status_filter)
+
+    # 3. Aplicación de filtros dinámicos
+    if project_id:
+        query = query.filter(Activity.project_id == project_id)
+    
+    if competence_id:
+        query = query.filter(Activity.project_competence_id == competence_id)
+
+    if search_code:
+        # Buscamos en el template del indicador el código (case insensitive)
+        query = query.join(Indicator).join(IndicatorTemplate).filter(
+            IndicatorTemplate.code.ilike(f"%{search_code}%")
+        )
+
+    # 4. Filtro de seguridad por Rol
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if user.rol.name_rol == "Gerente":
+        query = query.join(ProjectCompetence).filter(ProjectCompetence.manager_id == user_id)
+
+    # 5. Ejecución con Paginación
+    pagination = query.order_by(Activity.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+
+    # 6. Serialización plana (Sin la jerarquía que confundía)
+    results = []
+    for act in pagination.items:
+        data = act.serialize()
+        # Inyectamos datos extra necesarios para la tabla plana
+        data["project_name"] = act.indicator.project.project_name if act.indicator.project else "N/A"
+        data["indicator_code"] = act.indicator.template.code if act.indicator.template else "N/A"
+        data["responsible"] = f"{act.creator.name} {act.creator.lastname}" if act.creator else "Desconocido"
+        results.append(data)
+
+    return jsonify({
+        "total_results": pagination.total,
+        "total_pages": pagination.pages,
+        "current_page": pagination.page,
+        "data": results
+    }), 200
+
+
+#Para el globito de mensaje
+@api.route('/notifications/counts', methods=['GET'])
+@jwt_required()
+def get_notifications_counts():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"msg": "Usuario no encontrado"}), 404
+
+    role = user.rol.name_rol
+    counts = {
+        "pending_review": 0,  # Para Monitoreo/Gerente/Admin
+        "rejected": 0         # Para Oficial/Gerente
+    }
+
+    # --- LÓGICA PARA MONITOREO / ADMINISTRADOR ---
+    # Ven todas las que están "En Revisión" en el sistema
+    if role in ["Monitoreo", "Administrador"]:
+        counts["pending_review"] = Activity.query.filter_by(
+            status=ActivityStatus.EN_REVISION
+        ).count()
+
+    # --- LÓGICA PARA EL GERENTE ---
+    # Ve lo pendiente y lo rechazado SOLO de su competencia
+    elif role == "Gerente":
+        # Pendientes por revisar en su competencia
+        counts["pending_review"] = Activity.query.join(ProjectCompetence)\
+            .filter(
+                ProjectCompetence.manager_id == user_id,
+                Activity.status == ActivityStatus.EN_REVISION
+            ).count()
+        
+        # Total de rechazadas en su competencia (para supervisar)
+        counts["rejected"] = Activity.query.join(ProjectCompetence)\
+            .filter(
+                ProjectCompetence.manager_id == user_id,
+                Activity.status == ActivityStatus.RECHAZADA
+            ).count()
+
+    # --- LÓGICA PARA EL OFICIAL ---
+    # Solo ve sus propias actividades rechazadas
+    elif role == "Oficial":
+        counts["rejected"] = Activity.query.filter_by(
+            user_id=user_id,
+            status=ActivityStatus.RECHAZADA
+        ).count()
+
+    return jsonify(counts), 200
+
+
+#historial de un logro para todos
+@api.route('/audit/history/<entity_type>/<int:entity_id>', methods=['GET'])
+@jwt_required()
+def get_audit_history(entity_type, entity_id):
+    # Trae todos los cambios ordenados por fecha para ver la "historia"
+    logs = SystemChangeLog.query.filter_by(
+        entity_type=entity_type,
+        entity_id=entity_id
+    ).order_by(SystemChangeLog.change_date.desc()).all()
+    
+    return jsonify([log.serialize() for log in logs]), 200
+
+
+#Historial del logro desde su creación
+@api.route('/audit/achievement-full-history/<int:activity_id>', methods=['GET'])
+@jwt_required()
+def get_achievement_timeline(activity_id):
+    # 1. Buscamos el logro y la actividad
+    achievement = AchievementRecord.query.filter_by(activity_id=activity_id).first()
+    if not achievement:
+        return jsonify({"timeline": [], "msg": "No hay logros registrados aún"}), 200
+
+    # 2. Buscamos logs de DOS fuentes:
+    # A) Logs del Logro (ediciones de números)
+    # B) Logs de la Actividad (cambios de estado: Aprobada/Rechazada)
+    logs = SystemChangeLog.query.filter(
+        db.or_(
+            db.and_(SystemChangeLog.entity_type == "AchievementRecord", SystemChangeLog.entity_id == achievement.id),
+            db.and_(SystemChangeLog.entity_type == "Activity", SystemChangeLog.entity_id == activity_id)
+        )
+    ).order_by(SystemChangeLog.change_date.asc()).all()
+
+    # 3. Construimos la línea de tiempo
+    timeline = []
+    
+    # Evento inicial (Creación por el Oficial)
+    timeline.append({
+        "event": "Creación de Logro",
+        "user": f"{achievement.creator.name} {achievement.creator.lastname}" if achievement.creator else "Oficial",
+        "date": achievement.execution_date.strftime("%Y-%m-%d %H:%M:%S") if achievement.execution_date else "N/A",
+        "details": f"Ingresó inicialmente: {achievement.men_reached} H / {achievement.women_reached} M",
+        "type": "create"
+    })
+
+    # Agregamos todas las acciones posteriores
+    for log in logs:
+        # Identificamos si es un cambio de estado o una edición de datos
+        is_status = log.field_changed == "status"
+        
+        event_label = "Actualización de Datos"
+        event_type = "edition"
+        
+        if is_status:
+            event_type = "status_change"
+            if log.new_value == "Aprobada":
+                event_label = "Logro Aprobado"
+            elif log.new_value == "Rechazada":
+                event_label = "Logro Rechazado"
+            elif log.new_value == "En Revisión":
+                event_label = "Revertido a Revisión"
+            else:
+                event_label = f"Estado: {log.new_value}"
+
+        timeline.append({
+            "event": event_label,
+            "user": f"{log.user.name} {log.user.lastname}" if log.user else "Sistema",
+            "date": log.change_date.strftime("%Y-%m-%d %H:%M:%S"),
+            "field": log.field_changed,
+            "old": log.old_value,
+            "new": log.new_value,
+            "comment": log.comment, # AQUÍ APARECERÁ EL MOTIVO DEL RECHAZO
+            "type": event_type
+        })
+
+    return jsonify({
+        "achievement_id": achievement.id,
+        "timeline": timeline
+    }), 200
 

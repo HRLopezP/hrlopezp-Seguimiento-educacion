@@ -41,7 +41,7 @@ const ActivityWizard = ({ selectedDate, proyectoId, competenciaId, initialData, 
 
     const filteredIndicators = useMemo(() => {
         return indicadores.filter(ind => {
-            const isSameCompetence = String(ind.project_competence_id) === String(competenciaId);
+            const isSameCompetence = String(ind.competence_id) === String(competenciaId);
             const matchesSearch = ind.indicator_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 ind.indicator_name.toLowerCase().includes(searchTerm.toLowerCase());
 
