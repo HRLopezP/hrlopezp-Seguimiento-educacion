@@ -1,0 +1,66 @@
+/* Navbar Premium Styles */
+.main-navbar {
+    background-color: var(--card-bg);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.brand-text {
+    color: var(--text-primary);
+    letter-spacing: 1px;
+}
+
+/* Color Oxford para el icono de luna en modo claro */
+.text-oxford { color: #1b263b; }
+
+/* Efecto NavLink Activo */
+.main-navbar .nav-link {
+    border-radius: 8px;
+    padding: 0.5rem 1rem !important;
+    transition: all 0.3s ease;
+}
+
+.main-navbar .nav-link.active {
+    background-color: rgba(82, 183, 136, 0.1); /* Fondo esmeralda sutil */
+    color: var(--accent-color) !important;
+    font-weight: 600;
+}
+
+.main-navbar .nav-link:hover:not(.active) {
+    color: var(--accent-color) !important;
+    transform: translateY(-1px);
+}
+
+/* Botón de Perfil Estilizado */
+.profile-dropdown-btn {
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    transition: all 0.3s ease;
+}
+
+.profile-dropdown-btn:hover {
+    border-color: var(--accent-color);
+    background-color: var(--card-bg);
+}
+
+.navbar-avatar-small {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+/* Ajustes Dropdown en Modo Oscuro */
+[data-theme="dark"] .dropdown-menu {
+    background-color: #1b263b; /* Azul Oxford */
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="dark"] .dropdown-item {
+    color: #e0e1dd;
+}
+
+[data-theme="dark"] .dropdown-item:hover {
+    background-color: rgba(82, 183, 136, 0.15);
+    color: #52b788;
+}
