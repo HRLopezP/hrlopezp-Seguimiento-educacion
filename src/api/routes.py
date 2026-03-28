@@ -1572,14 +1572,12 @@ def get_project_indicatores(project_id):
 @api.route('/verification-means', methods=['GET'])
 @jwt_required()
 def get_verification_means():
-    query = MasterVerificationMean.query.order_by(MasterVerificationMean.id_mvm.asc())
+    query = MasterVerificationMean.query.order_by(MasterVerificationMean.id.asc())
     
-    # Si no viene el parámetro 'page' en la URL, devolvemos todo (para selectores)
     if not request.args.get('page'):
         means = query.all()
         return jsonify([m.serialize() for m in means]), 200
         
-    # Si viene 'page', paginamos (para la vista de gestión)
     data = paginate_query(query, lambda m: m.serialize())
     return jsonify(data), 200
 

@@ -4,18 +4,23 @@ import Swal from 'sweetalert2';
 import { apiFetch } from "../../utils/api";
 import "../styles/auth.css";
 import "../styles/roleManagement.css";
+import Pagination from "../components/Pagination"
 
 const VerificationMeansManagement = () => {
     const [means, setMeans] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
 
-    // 1. Obtener los medios desde el nuevo endpoint
-    const fetchMeans = async () => {
+    const fetchMeans = async (page = 1) => {
         try {
-            const res = await apiFetch("/verification-means");
+            setLoading(true);
+            const res = await apiFetch(`/verification-means?page=${page}`);
             if (res?.ok) {
                 const data = await res.json();
-                setMeans(data);
+                setMeans(data.items || []);
+                setTotalPages(data.total_pages || 1);
+                setCurrentPage(data.current_page || 1);
             }
         } catch (error) {
             toast.error("Error al conectar con el catálogo de medios");
@@ -25,10 +30,14 @@ const VerificationMeansManagement = () => {
     };
 
     useEffect(() => {
-        fetchMeans();
-    }, []);
+        fetchMeans(currentPage);
+    }, [currentPage]);
 
-    // 2. Modal dinámico (Crear/Editar) con mejoras visuales
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+    };
+
+
     const handleOpenModal = async (mean = null) => {
         const isEditing = !!mean;
 
@@ -48,7 +57,7 @@ const VerificationMeansManagement = () => {
             inputPlaceholder: 'Ej. Listas de asistencia, Registro fotográfico...',
             showCancelButton: true,
             confirmButtonText: isEditing ? 'Guardar Cambios' : 'Registrar Medio',
-            confirmButtonColor: '#3b82f6', // Azul para diferenciarlo de competencias
+            confirmButtonColor: '#3b82f6',
             cancelButtonColor: '#1B263B',
             background: 'var(--card-bg)',
             color: 'var(--text-primary)',
@@ -73,7 +82,7 @@ const VerificationMeansManagement = () => {
 
                 if (res?.ok) {
                     toast.success(`Medio ${isEditing ? 'actualizado' : 'creado'} correctamente`);
-                    fetchMeans();
+                    fetchMeans(currentPage);
                 } else {
                     const errorData = await res.json();
                     toast.error(errorData.message || "Error en la operación");
@@ -84,7 +93,7 @@ const VerificationMeansManagement = () => {
         }
     };
 
-    // 3. Eliminar con advertencia de integridad
+
     const handleDelete = async (mean) => {
         const result = await Swal.fire({
             title: '¿Eliminar este medio?',
@@ -103,7 +112,7 @@ const VerificationMeansManagement = () => {
                 const res = await apiFetch(`/verification-means/${mean.id}`, { method: "DELETE" });
                 if (res?.ok) {
                     toast.success("Medio eliminado del catálogo");
-                    fetchMeans();
+                    fetchMeans(currentPage);
                 } else {
                     const errorData = await res.json();
                     toast.error(errorData.message || "No se pudo eliminar");
@@ -129,6 +138,9 @@ const VerificationMeansManagement = () => {
                         <div>
                             <h2 className="management-title">Catálogo de Evidencias</h2>
                             <p className="management-subtitle">Define los medios de verificación oficiales para el seguimiento técnico</p>
+                            <span className="badge bg-emerald-soft text-emerald px-3 py-2">
+                                Mostrando {means.length} medios de verificaión de esta página.
+                            </span>
                         </div>
                         <button className="btn btn-primary px-4 py-2 rounded-pill shadow-sm" onClick={() => handleOpenModal()}>
                             <i className="fas fa-plus-circle me-2"></i>Nuevo Medio
@@ -146,7 +158,13 @@ const VerificationMeansManagement = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {means.length > 0 ? means.map((mean) => (
+                                    {loading ? (
+                                        <tr>
+                                            <td colSpan="3" className="text-center p-5">
+                                                <div className="spinner-border text-emerald"></div>
+                                            </td>
+                                        </tr>
+                                    ) : means.length > 0 ? means.map((mean) => (
                                         <tr key={mean.id}>
                                             <td className="ps-4 text-muted small">#{mean.id}</td>
                                             <td>
@@ -180,6 +198,11 @@ const VerificationMeansManagement = () => {
                                 </tbody>
                             </table>
                         </div>
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={handlePageChange}
+                        />
                     </div>
                 </div>
             </div>
