@@ -3,7 +3,7 @@ This module takes care of starting the API Server, Loading the DB and Adding the
 """
 from flask import Flask, request, jsonify, url_for, Blueprint, json
 from api.models import db, User, Rol, Competence, ProjectStatus, ActivityCatalog, SystemChangeLog, AchievementRecord, ActivityStatus, TheoryTemplate, ResultTemplate, IndicatorTemplate, Project, ProjectCompetence, Activity, IndicatorLocationGoal, Location, Indicator, Province, Municipality, Parish, ProjectProvinceGoal, ProjectTheory, ProjectResult, MasterVerificationMean
-from api.utils import generate_sitemap, APIException,  val_email, val_password, generate_reset_token, confirm_reset_token
+from api.utils import generate_sitemap, APIException, paginate_query, val_email, val_password, generate_reset_token, confirm_reset_token
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
@@ -243,8 +243,10 @@ def reset_password():
 @jwt_required()
 @manager_required
 def get_all_users():
-    users = User.query.all()
-    return jsonify([user.serialize() for user in users]), 200
+    query = User.query.order_by(User.id_user.desc())
+    data = paginate_query(query, lambda user: user.serialize())
+    
+    return jsonify(data), 200
 
 
 # 2. Activar o desactivar un usuario
@@ -881,10 +883,10 @@ def create_project():
 @jwt_required()
 @roles_required("Administrador", "Gerente", "Monitoreo")
 def get_manager_projects():
-    projects = Project.query.all()
-    results = []
+    query = Project.query.order_by(Project.id_project.desc())
 
-    for project in projects:
+    # Esta función procesará solo los proyectos que salgan en la página actual
+    def process_project(project):
         total_goal = sum(ind.target_total for ind in project.indicators) or 1
         total_achieved = 0
 
@@ -907,11 +909,12 @@ def get_manager_projects():
         project_data = project.serialize()
         project_data["progress"] = min(progress_percentage, 100)
         project_data["total_achieved"] = total_achieved
+        return project_data
 
-        results.append(project_data)
-
-    db.session.commit()
-    return jsonify(results), 200
+    data = paginate_query(query, process_project)
+    
+    db.session.commit() # Guardamos si algún status cambió a COMPLETADO
+    return jsonify(data), 200
 
 
 @api.route('/manager/projects/<int:id>', methods=['GET'])
@@ -1569,8 +1572,16 @@ def get_project_indicatores(project_id):
 @api.route('/verification-means', methods=['GET'])
 @jwt_required()
 def get_verification_means():
-    means = MasterVerificationMean.query.all()
-    return jsonify([m.serialize() for m in means]), 200
+    query = MasterVerificationMean.query.order_by(MasterVerificationMean.id_mvm.asc())
+    
+    # Si no viene el parámetro 'page' en la URL, devolvemos todo (para selectores)
+    if not request.args.get('page'):
+        means = query.all()
+        return jsonify([m.serialize() for m in means]), 200
+        
+    # Si viene 'page', paginamos (para la vista de gestión)
+    data = paginate_query(query, lambda m: m.serialize())
+    return jsonify(data), 200
 
 
 # 2-C
@@ -2447,8 +2458,11 @@ def get_activity_catalog():
             )
         )
     
-    activities = query.all()
-    return jsonify([a.serialize() for a in activities]), 200
+    query = query.order_by(ActivityCatalog.description.asc())
+    
+    # Aplicamos paginación
+    data = paginate_query(query, lambda a: a.serialize())
+    return jsonify(data), 200
 
 #2-C
 @api.route('/activity-catalog', methods=['POST'])
