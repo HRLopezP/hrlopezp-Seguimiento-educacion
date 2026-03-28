@@ -1,17 +1,17 @@
 import React from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { NavLink, Link, useNavigate } from "react-router-dom";
 import useGlobalReducer from "../hooks/useGlobalReducer";
 
 export const Navbar = () => {
     const { store, dispatch } = useGlobalReducer();
     const navigate = useNavigate();
 
-    const canManageUsers = store.user?.rol_name === "Gerente" || store.user?.rol_name === "Administrador";
-
-    // Verificamos si el usuario tiene competencias específicas asignadas
-    const hasCompetence = (compName) => {
-        return store.user?.competences?.some(c => c.name === compName);
-    };
+    // Lógica de Roles y Permisos (Usando store.user?.rol_name)
+    const role = store.user?.rol_name;
+    const isManager = role === "Gerente" || role === "Administrador";
+    const isMonitor = role === "Monitoreo";
+    // Oficial es cualquier rol logueado que no sea Gerente ni Monitoreo
+    const isOfficial = store.token && !isManager && !isMonitor;
 
     const toggleTheme = () => {
         dispatch({ type: "TOGGLE_THEME" });
@@ -30,36 +30,84 @@ export const Navbar = () => {
                     SIGSSEP
                 </Link>
 
-                {/* NUEVO: Menú Central Dinámico (Solo si hay token) */}
+                {/* --- SECCIÓN 1: MENÚ CENTRAL DINÁMICO (Solo si hay token) --- */}
                 {store.token && (
                     <div className="collapse navbar-collapse" id="navbarNav">
-                        <ul className="navbar-nav ms-4">
-                            <li className="nav-item">
-                                <Link className="nav-link" to="/dashboard">
-                                    <i className="fas fa-th-large me-1"></i> Tablero
-                                </Link>
-                            </li>
+                        <ul className="navbar-nav ms-4 gap-2">
+                            
+                            {/* 1. RUTAS DE GERENTE / ADMIN (Acceso Total Organizado) */}
+                            {isManager && (
+                                <>
+                                    <li className="nav-item">
+                                        <NavLink className="nav-link" to="/manager/dashboard">
+                                            <i className="fas fa-chart-line me-1"></i> Tablero
+                                        </NavLink>
+                                    </li>
+                                    <li className="nav-item">
+                                        <NavLink className="nav-link" to="/manager/projects">
+                                            <i className="fas fa-tasks me-1"></i> Proyectos
+                                        </NavLink>
+                                    </li>
+                                    <li className="nav-item">
+                                        {/* Este podría llevar un badge de notificaciones luego */}
+                                        <NavLink className="nav-link position-relative" to="/manager/audit-inbox">
+                                            <i className="fas fa-clipboard-check me-1"></i> Auditoría
+                                        </NavLink>
+                                    </li>
 
-                            {/* Renderizado basado en COMPETENCIAS */}
-                            {hasCompetence("Proyectos") && (
+                                    {/* Dropdown de Gestión Humana (Uso Frecuente) */}
+                                    <li className="nav-item dropdown">
+                                        <a className="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                            <i className="fas fa-users-cog me-1"></i> Organización
+                                        </a>
+                                        <ul className="dropdown-menu shadow-sm border-0 mt-2">
+                                            <li><NavLink className="dropdown-item" to="/manager/users">Usuarios</NavLink></li>
+                                            <li><NavLink className="dropdown-item" to="/manager/roles">Roles</NavLink></li>
+                                            <li><NavLink className="dropdown-item" to="/manager/competences">Competencias</NavLink></li>
+                                        </ul>
+                                    </li>
+
+                                    {/* Dropdown de Bancos y Catálogos (Uso Menos Frecuente) */}
+                                    <li className="nav-item dropdown">
+                                        <a className="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                            <i className="fas fa-database me-1"></i> Bancos
+                                        </a>
+                                        <ul className="dropdown-menu shadow-sm border-0 mt-2">
+                                            <li><NavLink className="dropdown-item" to="/manager/theories">Indicadores y Teorías</NavLink></li>
+                                            <li><NavLink className="dropdown-item" to="/manager/locations">Ubicaciones</NavLink></li>
+                                            <li><hr className="dropdown-divider" /></li>
+                                            <li><NavLink className="dropdown-item" to="/manager/catalogs/activities">Catálogo Actividades</NavLink></li>
+                                            <li><NavLink className="dropdown-item" to="/manager/catalogs/verification-means">Medios de Verificación</NavLink></li>
+                                        </ul>
+                                    </li>
+                                </>
+                            )}
+
+                            {/* 2. RUTA DE MONITOREO */}
+                            {isMonitor && (
                                 <li className="nav-item">
-                                    <Link className="nav-link" to="/projects">Proyectos</Link>
+                                    <NavLink className="nav-link" to="/manager/audit-inbox">
+                                        <i className="fas fa-clipboard-check me-1"></i> Auditoría de Logros
+                                    </NavLink>
                                 </li>
                             )}
 
-                            {/* Renderizado basado en ROL (Gestión Humana) */}
-                            {canManageUsers && (
+                            {/* 3. RUTA DE OFICIAL */}
+                            {isOfficial && (
                                 <li className="nav-item">
-                                    <Link className="nav-link text-emerald fw-semibold" to="/users">
-                                        <i className="fas fa-users-cog me-1"></i> Gestión
-                                    </Link>
+                                    <NavLink className="nav-link" to="/official/dashboard">
+                                        <i className="fas fa-calendar-alt me-1"></i> Mi Planificación
+                                    </NavLink>
                                 </li>
                             )}
                         </ul>
                     </div>
                 )}
 
+                {/* --- SECCIÓN 2: PARTE DERECHA (TEMA Y PERFIL ORIGINAL) --- */}
                 <div className="ms-auto d-flex align-items-center">
+                    
+                    {/* Botón de Tema (Mismo estilo) */}
                     <button className="btn border-0 me-3 theme-toggle-btn" onClick={toggleTheme} title="Cambiar modo">
                         {store.theme === "light" ? (
                             <i className="fa-solid fa-moon fs-5" style={{ color: "#1B263B" }}></i>
@@ -69,20 +117,23 @@ export const Navbar = () => {
                     </button>
 
                     {store.token ? (
+                        /* --- DROPDOWN DE PERFIL EXACTAMENTE COMO LO TENÍAS --- */
                         <div className="dropdown">
                             <button className="btn btn-outline-secondary dropdown-toggle d-flex align-items-center rounded-pill px-2 py-1" type="button" data-bs-toggle="dropdown">
                                 <img
                                     src={store.user?.image || "https://api.dicebear.com/7.x/avataaars/svg?seed=" + store.user?.name}
                                     alt="profile"
                                     className="navbar-avatar"
+                                    style={{ width: "28px", height: "28px", borderRadius: "50%", objectFit: "cover" }} // Aseguramos el estilo inline si no está en CSS
                                 />
                                 <span className="small d-none d-md-inline user-nav-name ms-2">{store.user?.name}</span>
                             </button>
                             <ul className="dropdown-menu dropdown-menu-end shadow border-0 mt-2 p-2">
                                 <li className="px-3 py-2">
                                     <small className="dropdown-label d-block mb-1">Sesión activa como:</small>
-                                    <span className={`badge ${store.user?.rol_name === 'Gerente' ? 'bg-oxford' : 'bg-emerald-soft'} w-100`}>
-                                        {store.user?.rol_name || "Oficial"}
+                                    {/* Usamos las clases bg-oxford / bg-emerald-soft que definiste en index.css */}
+                                    <span className={`badge ${role === 'Gerente' || role === 'Administrador' ? 'bg-oxford' : 'bg-emerald-soft'} w-100 role-badge`}>
+                                        {role || "Oficial"}
                                     </span>
                                 </li>
                                 <li><hr className="dropdown-divider" /></li>
@@ -99,6 +150,7 @@ export const Navbar = () => {
                             </ul>
                         </div>
                     ) : (
+                        /* Botones de Login/Registro (Mismo estilo) */
                         <div className="d-flex gap-2">
                             <Link to="/login" className="btn btn-login-nav rounded-pill px-4 shadow-sm">
                                 Ingresar
