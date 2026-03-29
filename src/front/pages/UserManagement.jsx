@@ -14,12 +14,29 @@ const UserManagement = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+    const [roleFilter, setRoleFilter] = useState("");
+    const [statusFilter, setStatusFilter] = useState("");
+
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
 
     const fetchData = async (page = 1) => {
         try {
             setLoading(true);
+            let url = `/manager/users?page=${page}`;
+            if (debouncedSearch) url += `&search=${encodeURIComponent(debouncedSearch)}`;
+            if (roleFilter) url += `&role_id=${roleFilter}`;
+            if (statusFilter) url += `&status=${statusFilter}`;
+
             const [usersRes, rolesRes, compRes] = await Promise.all([
-                apiFetch(`/manager/users?page=${page}`),
+                apiFetch(url),
                 apiFetch("/roles"),
                 apiFetch("/competences")
             ]);
@@ -38,7 +55,6 @@ const UserManagement = () => {
             setRoles(rolesData);
             setAllCompetences(compData);
         } catch (error) {
-            console.error("Error detallado:", error);
             toast.error("Error al cargar datos del sistema");
         } finally {
             setLoading(false);
@@ -49,9 +65,18 @@ const UserManagement = () => {
         fetchData(currentPage);
     }, [currentPage]);
 
+    useEffect(() => {
+        if (currentPage === 1) {
+            fetchData(1);
+        } else {
+            setCurrentPage(1);
+        }
+    }, [debouncedSearch, roleFilter, statusFilter]);
+
     const handlePageChange = (newPage) => {
         setCurrentPage(newPage);
     };
+
 
     const handleChangeRole = async (userId, roleId, roleName) => {
         const result = await Swal.fire({
@@ -231,6 +256,48 @@ const UserManagement = () => {
                                 <i className="fas fa-users me-2"></i>
                                 Total: <span className="fw-bold">{totalItems}</span> usuarios
                             </div>
+                        </div>
+                    </div>
+                    <div className="row g-3 mb-4 align-items-end">
+                        {/* Buscador por Texto */}
+                        <div className="col-12 col-md-4">
+                            <label className="form-label small fw-bold text-muted">Buscar Usuario</label>
+                            <div className="input-group shadow-sm rounded-3 overflow-hidden">
+                                <span className="input-group-text bg-white border-end-0"><i className="fas fa-search text-muted"></i></span>
+                                <input
+                                    type="text"
+                                    className="form-control border-start-0 ps-0"
+                                    placeholder="Nombre o apellido..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Filtro por Rol */}
+                        <div className="col-6 col-md-3">
+                            <label className="form-label small fw-bold text-muted">Filtrar por Rol</label>
+                            <select className="form-select shadow-sm" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+                                <option value="">Todos los roles</option>
+                                {roles.map(r => <option key={r.id} value={r.id}>{r.name_rol}</option>)}
+                            </select>
+                        </div>
+
+                        {/* Filtro por Estado */}
+                        <div className="col-6 col-md-3">
+                            <label className="form-label small fw-bold text-muted">Estado</label>
+                            <select className="form-select shadow-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                                <option value="">Todos los estados</option>
+                                <option value="active">Activos</option>
+                                <option value="inactive">Inactivos</option>
+                            </select>
+                        </div>
+
+                        {/* Botón para Limpiar Filtros */}
+                        <div className="col-12 col-md-2">
+                            <button className="btn btn-outline-secondary w-100 rounded-3" onClick={() => { setSearchTerm(""); setRoleFilter(""); setStatusFilter(""); }}>
+                                <i className="fas fa-eraser me-2"></i>Limpiar
+                            </button>
                         </div>
                     </div>
                     <div className="card-body p-0">

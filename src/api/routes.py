@@ -243,7 +243,32 @@ def reset_password():
 @jwt_required()
 @manager_required
 def get_all_users():
-    query = User.query.order_by(User.id_user.desc())
+    # 1. Iniciamos la consulta base
+    query = User.query
+
+    # 2. Capturamos los filtros de la URL (si vienen)
+    search = request.args.get('search', None)
+    role_id = request.args.get('role_id', None)
+    status = request.args.get('status', None)
+
+    # 3. Aplicamos lógica de filtrado
+    if search:
+        # Buscamos coincidencias en nombre O apellido (insensible a mayúsculas con .ilike)
+        query = query.filter(
+            (User.name.ilike(f'%{search}%')) | 
+            (User.lastname.ilike(f'%{search}%'))
+        )
+
+    if role_id:
+        query = query.filter(User.rol_id == role_id)
+
+    if status:
+        # Convertimos el string 'active'/'inactive' a Booleano
+        is_active = True if status == 'active' else False
+        query = query.filter(User.is_active == is_active)
+
+    # 4. Ordenamos por ID descendente (como lo tenías) y paginamos
+    query = query.order_by(User.id_user.desc())
     data = paginate_query(query, lambda user: user.serialize())
     
     return jsonify(data), 200
