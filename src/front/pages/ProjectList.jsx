@@ -14,19 +14,19 @@ const ProjectList = () => {
     const navigate = useNavigate();
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
 
     const fetchProjects = async (page = 1) => {
         try {
             setLoading(true);
-            // Ahora enviamos el parámetro ?page=
             const res = await apiFetch(`/manager/projects?page=${page}`);
             if (res && res.ok) {
                 const data = await res.json();
-                // IMPORTANTE: data ahora es un objeto { items: [], total_pages: X, ... }
                 setProjects(data.items || []);
                 setFilteredProjects(data.items || []);
                 setTotalPages(data.total_pages || 1);
                 setCurrentPage(data.current_page || 1);
+                setTotalItems(data.total_items || 0);
             } else {
                 toast.error("No se pudieron cargar los proyectos");
             }
@@ -98,6 +98,16 @@ const ProjectList = () => {
                         <div>
                             <h2 className="management-title">Gestión de Proyectos</h2>
                             <p className="management-subtitle">Supervisión y seguimiento en tiempo real</p>
+                            <div className="d-flex justify-content-between align-items-center mb-0 px-3">
+                                <div className="badge bg-emerald-soft text-emerald px-3 py-3">
+                                    <i className="fas fa-info-circle me-2 text-light"></i>
+                                    Mostrando <span className="fw-bold text-light">{filteredProjects.length}</span> proyectos de esta página
+                                </div>
+                                <div className="badge bg-oxford-soft text-oxford rounded-pill ms-5 px-3 py-3 shadow-xs">
+                                    <i className="fas fa-layer-group me-2"></i>
+                                    Total: <span className="fw-bold">{totalItems}</span> proyectos
+                                </div>
+                            </div>
                         </div>
                         <button
                             className="btn-action btn-activate"

@@ -11,6 +11,7 @@ const VerificationMeansManagement = () => {
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
 
     const fetchMeans = async (page = 1) => {
         try {
@@ -21,6 +22,7 @@ const VerificationMeansManagement = () => {
                 setMeans(data.items || []);
                 setTotalPages(data.total_pages || 1);
                 setCurrentPage(data.current_page || 1);
+                setTotalItems(data.total_items || 0);
             }
         } catch (error) {
             toast.error("Error al conectar con el catálogo de medios");
@@ -138,9 +140,16 @@ const VerificationMeansManagement = () => {
                         <div>
                             <h2 className="management-title">Catálogo de Evidencias</h2>
                             <p className="management-subtitle">Define los medios de verificación oficiales para el seguimiento técnico</p>
-                            <span className="badge bg-emerald-soft text-emerald px-3 py-2">
-                                Mostrando {means.length} medios de verificaión de esta página.
-                            </span>
+                            <div className="d-flex justify-content-between align-items-center mb-0 px-3">
+                                <div className="badge bg-emerald-soft text-emerald px-3 py-3">
+                                    <i className="fas fa-info-circle me-2 text-light"></i>
+                                    Mostrando <span className="fw-bold text-light">{means.length}</span> medios de verificación de esta página
+                                </div>
+                                <div className="badge bg-oxford-soft text-oxford rounded-pill ms-5 px-3 py-3 shadow-xs">
+                                    <i className="fas fa-folder-open me-2"></i>
+                                    Total: <span className="fw-bold">{totalItems}</span> medios de verificación
+                                </div>
+                            </div>
                         </div>
                         <button className="btn btn-primary px-4 py-2 rounded-pill shadow-sm" onClick={() => handleOpenModal()}>
                             <i className="fas fa-plus-circle me-2"></i>Nuevo Medio

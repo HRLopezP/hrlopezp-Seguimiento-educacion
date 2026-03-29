@@ -13,6 +13,7 @@ const UserManagement = () => {
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
 
     const fetchData = async (page = 1) => {
         try {
@@ -32,6 +33,7 @@ const UserManagement = () => {
             setUsers(usersData.items || []);
             setTotalPages(usersData.total_pages || 1);
             setCurrentPage(usersData.current_page || 1);
+            setTotalItems(usersData.total_items || 0);
 
             setRoles(rolesData);
             setAllCompetences(compData);
@@ -102,7 +104,7 @@ const UserManagement = () => {
                 });
                 if (res.ok) {
                     toast.success(`Usuario ${currentStatus ? 'suspendido' : 'activado'} con éxito`);
-                    fetchData(currentPage); 
+                    fetchData(currentPage);
                 }
             } catch (error) {
                 toast.error("Error al cambiar el estado del usuario");
@@ -220,9 +222,16 @@ const UserManagement = () => {
                     <div className="management-card-header">
                         <h2 className="management-title">Gestión de Usuarios</h2>
                         <p className="management-subtitle">Panel de control de acceso institucional</p>
-                        <span className="badge bg-emerald-soft text-emerald px-3 py-2">
-                            Mostrando {users.length} usuarios de esta página
-                        </span>
+                        <div className="d-flex justify-content-between align-items-center mb-0 px-3">
+                            <div className="badge bg-emerald-soft text-emerald px-3 py-3">
+                                <i className="fas fa-info-circle me-2 text-light"></i>
+                                Mostrando <span className="fw-bold text-light">{users.length}</span> usuarios de esta página
+                            </div>
+                            <div className="badge bg-oxford-soft text-oxford rounded-pill px-3 py-3 shadow-xs">
+                                <i className="fas fa-users me-2"></i>
+                                Total: <span className="fw-bold">{totalItems}</span> usuarios
+                            </div>
+                        </div>
                     </div>
                     <div className="card-body p-0">
                         <div className="table-responsive sigssep-table-container">

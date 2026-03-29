@@ -12,6 +12,7 @@ const ActivityCatalogManagement = () => {
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
 
     const fetchData = async (page = 1) => {
         setLoading(true);
@@ -26,6 +27,7 @@ const ActivityCatalogManagement = () => {
                 setActivities(data.items || []);
                 setTotalPages(data.total_pages || 1);
                 setCurrentPage(data.current_page || 1);
+                setTotalItems(data.total_items || 0);
             }
 
             if (resComp?.ok) {
@@ -152,9 +154,16 @@ const ActivityCatalogManagement = () => {
                         <div>
                             <h2 className="management-title text-white">Catálogo de Actividades</h2>
                             <p className="management-subtitle text-light">Define las actividades estándar para que los oficiales seleccionen al planificar</p>
-                            <span className="badge bg-emerald-soft text-emerald px-3 py-2">
-                                Mostrando {activities.length} actividades de esta página
-                            </span>
+                            <div className="d-flex justify-content-between align-items-center mb-0 px-3">
+                                <div className="badge bg-emerald-soft text-emerald px-3 py-3">
+                                    <i className="fas fa-info-circle me-2 text-light"></i>
+                                    Mostrando <span className="fw-bold text-light">{activities.length}</span> actividades de esta página
+                                </div>
+                                <div className="badge bg-oxford-soft text-oxford rounded-pill px-3 py-3 shadow-xs">
+                                    <i className="fas fa-clipboard-list me-2"></i>
+                                    Total: <span className="fw-bold">{totalItems}</span> actividades
+                                </div>
+                            </div>
                         </div>
                         <button className="btn-action btn-activate" onClick={() => handleOpenModal()} style={{ backgroundColor: '#10b981', border: 'none' }}>
                             <i className="fas fa-plus-circle me-2"></i>Nueva Actividad Sugerida
