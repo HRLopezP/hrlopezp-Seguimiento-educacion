@@ -12,11 +12,18 @@ const VerificationMeansManagement = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
 
     const fetchMeans = async (page = 1) => {
         try {
             setLoading(true);
-            const res = await apiFetch(`/verification-means?page=${page}`);
+
+            // Construimos la URL con página y búsquedaamortiguada
+            let url = `/verification-means?page=${page}`;
+            if (debouncedSearch) url += `&search=${encodeURIComponent(debouncedSearch)}`;
+
+            const res = await apiFetch(url);
             if (res?.ok) {
                 const data = await res.json();
                 setMeans(data.items || []);
@@ -32,13 +39,30 @@ const VerificationMeansManagement = () => {
     };
 
     useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
+
+
+    useEffect(() => {
         fetchMeans(currentPage);
     }, [currentPage]);
+
+
+    useEffect(() => {
+        if (currentPage === 1) {
+            fetchMeans(1);
+        } else {
+            setCurrentPage(1);
+        }
+    }, [debouncedSearch]);
+
 
     const handlePageChange = (newPage) => {
         setCurrentPage(newPage);
     };
-
 
     const handleOpenModal = async (mean = null) => {
         const isEditing = !!mean;
@@ -154,6 +178,30 @@ const VerificationMeansManagement = () => {
                         <button className="btn btn-primary px-4 py-2 rounded-pill shadow-sm" onClick={() => handleOpenModal()}>
                             <i className="fas fa-plus-circle me-2"></i>Nuevo Medio
                         </button>
+                    </div>
+                    {/* BARRA DE BÚSQUEDA (CON DEBOUNCE APLICADO) */}
+                    <div className="p-3 bg-transparent border-bottom border-light">
+                        <div className="row">
+                            <div className="col-md-6 col-lg-5">
+                                <div className="input-group project-search-group shadow-sm rounded-pill overflow-hidden">
+                                    <span className="input-group-text bg-white border-end-0">
+                                        <i className="fas fa-search text-primary"></i>
+                                    </span>
+                                    <input
+                                        type="text"
+                                        className="form-control border-start-0 ps-0"
+                                        placeholder="Buscar medio de verificación..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                    {searchTerm && (
+                                        <button className="btn btn-white border-start-0 text-muted" onClick={() => setSearchTerm("")}>
+                                            <i className="fas fa-times-circle"></i>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div className="card-body p-0">
                         <div className="table-responsive">
