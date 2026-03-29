@@ -3,25 +3,35 @@ import { toast, Toaster } from "sonner";
 import Swal from 'sweetalert2';
 import { apiFetch } from "../../utils/api";
 import "../styles/auth.css";
-import "../styles/roleManagement.css"; 
+import "../styles/roleManagement.css";
+import Pagination from "../components/Pagination"
 
 const ActivityCatalogManagement = () => {
     const [activities, setActivities] = useState([]);
     const [competences, setCompetences] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
 
-    const fetchData = async () => {
+    const fetchData = async (page = 1) => {
         setLoading(true);
         try {
-            // Cargamos actividades y competencias en paralelo para el selector del modal
             const [resAct, resComp] = await Promise.all([
-                apiFetch("/activity-catalog"),
+                apiFetch(`/activity-catalog?page=${page}`),
                 apiFetch("/competences")
             ]);
 
-            if (resAct?.ok) setActivities(await resAct.json());
-            if (resComp?.ok) setCompetences(await resComp.json());
-            
+            if (resAct?.ok) {
+                const data = await resAct.json();
+                setActivities(data.items || []);
+                setTotalPages(data.total_pages || 1);
+                setCurrentPage(data.current_page || 1);
+            }
+
+            if (resComp?.ok) {
+                setCompetences(await resComp.json());
+            }
+
         } catch (error) {
             toast.error("Error al conectar con el servidor de catálogo");
         } finally {
@@ -30,14 +40,17 @@ const ActivityCatalogManagement = () => {
     };
 
     useEffect(() => {
-        fetchData();
-    }, []);
+        fetchData(currentPage);
+    }, [currentPage]);
+
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+    };
 
     const handleOpenModal = async (activity = null) => {
         const isEditing = !!activity;
-        
-        // Creamos las opciones para el select de competencias
-        const competenceOptions = competences.map(c => 
+
+        const competenceOptions = competences.map(c =>
             `<option value="${c.id}" ${activity?.competence_id === c.id ? 'selected' : ''}>${c.name}</option>`
         ).join('');
 
@@ -86,7 +99,7 @@ const ActivityCatalogManagement = () => {
 
                 if (res?.ok) {
                     toast.success(`Catálogo actualizado con éxito`);
-                    fetchData();
+                    fetchData(currentPage);
                 } else {
                     const errorData = await res.json();
                     toast.error(errorData.msg || "Error en la operación");
@@ -113,7 +126,7 @@ const ActivityCatalogManagement = () => {
                 const res = await apiFetch(`/activity-catalog/${activity.id}`, { method: "DELETE" });
                 if (res?.ok) {
                     toast.success("Actividad eliminada del catálogo");
-                    fetchData();
+                    fetchData(currentPage);
                 } else {
                     const error = await res.json();
                     toast.error(error.msg);
@@ -139,6 +152,9 @@ const ActivityCatalogManagement = () => {
                         <div>
                             <h2 className="management-title text-white">Catálogo de Actividades</h2>
                             <p className="management-subtitle text-light">Define las actividades estándar para que los oficiales seleccionen al planificar</p>
+                            <span className="badge bg-emerald-soft text-emerald px-3 py-2">
+                                Mostrando {activities.length} actividades de esta página
+                            </span>
                         </div>
                         <button className="btn-action btn-activate" onClick={() => handleOpenModal()} style={{ backgroundColor: '#10b981', border: 'none' }}>
                             <i className="fas fa-plus-circle me-2"></i>Nueva Actividad Sugerida
@@ -156,7 +172,13 @@ const ActivityCatalogManagement = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {activities.length > 0 ? activities.map((act) => (
+                                    {loading ? (
+                                        <tr>
+                                            <td colSpan="3" className="text-center p-5">
+                                                <div className="spinner-border text-emerald"></div>
+                                            </td>
+                                        </tr>
+                                    ) : activities.length > 0 ? activities.map((act) => (
                                         <tr key={act.id}>
                                             <td className="text-muted small font-monospace">ACT-{act.id}</td>
                                             <td>
@@ -187,6 +209,11 @@ const ActivityCatalogManagement = () => {
                                 </tbody>
                             </table>
                         </div>
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={handlePageChange}
+                        />
                     </div>
                 </div>
             </div>
