@@ -58,6 +58,7 @@ const AuditInbox = () => {
   }, [user, userRole]);
 
   // 2. CARGA DE PROYECTOS 
+  // 2. CARGA DE PROYECTOS 
   useEffect(() => {
     const loadProjects = async () => {
       let url = "/manager/projects";
@@ -68,14 +69,19 @@ const AuditInbox = () => {
       const res = await apiFetch(url);
       if (res.ok) {
         const data = await res.json();
-        setProyectos(data);
+        // ANTES: setProyectos(data); 
+        // AHORA: Si data tiene la propiedad 'items' (paginado), la usamos. 
+        // Si no, usamos data directamente (por si el endpoint no paginara).
+        setProyectos(data.items || data);
       }
     };
     loadProjects();
   }, [filters.competenciaId]);
 
+
   // 3. OBTENCIÓN DE DATOS
   const fetchAuditData = useCallback(async () => {
+    // 1. Validación de seguridad original para Aprobadas
     if (currentTab === "Aprobada" && !filters.proyectoId) {
       setActivities([]);
       setLoading(false);
@@ -84,27 +90,42 @@ const AuditInbox = () => {
 
     setLoading(true);
     try {
-      const query = new URLSearchParams({
+      // 2. Construimos los parámetros base que funcionan en todas las pestañas
+      const params = new URLSearchParams({
         status: currentTab,
         page: page,
         per_page: 10,
-        ...(filters.proyectoId && { project_id: filters.proyectoId }),
-        ...(filters.competenciaId && { competence_id: filters.competenciaId }),
-        ...(filters.search_code && { search_code: filters.search_code })
       });
 
-      const res = await apiFetch(`/audit/inbox?${query}`);
+      // 3. El buscador de código siempre se incluye si tiene texto
+      if (filters.search_code) {
+        params.append("search_code", filters.search_code);
+      }
+
+      // 4. ESCUDO DE FILTROS: Proyecto y Competencia SOLO si es la pestaña Aprobada
+      if (currentTab === "Aprobada") {
+        if (filters.proyectoId) params.append("project_id", filters.proyectoId);
+        if (filters.competenciaId) params.append("competence_id", filters.competenciaId);
+      }
+
+      // 5. Petición al servidor usando el objeto params construido
+      const res = await apiFetch(`/audit/inbox?${params.toString()}`);
+
       if (res.ok) {
         const result = await res.json();
-        setActivities(result.data);
-        setTotalPages(result.total_pages);
+        setActivities(result.data || []);
+        setTotalPages(result.total_pages || 1);
+      } else {
+        toast.error("Error en la respuesta del servidor");
       }
     } catch (error) {
+      console.error("Error en fetchAuditData:", error);
       toast.error("Error al conectar con el servidor");
     } finally {
       setLoading(false);
     }
-  }, [currentTab, page, filters]);
+  }, [currentTab, page, filters, apiFetch]); 
+
 
   useEffect(() => {
     fetchAuditData();
@@ -143,7 +164,7 @@ const AuditInbox = () => {
               onClick={() => { setCurrentTab(tab.id); setPage(1); }}
             >
               <i className={`fas ${tab.id === 'En Revisión' ? 'fa-clock' :
-                  tab.id === 'Aprobada' ? 'fa-check-circle' : 'fa-times-circle'
+                tab.id === 'Aprobada' ? 'fa-check-circle' : 'fa-times-circle'
                 } me-2`}></i>
               {tab.label}
             </button>

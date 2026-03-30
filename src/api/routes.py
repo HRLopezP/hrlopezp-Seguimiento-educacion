@@ -2906,7 +2906,9 @@ def get_audit_inbox():
         query = query.filter(Activity.project_id == project_id)
 
     if competence_id:
-        query = query.filter(Activity.project_competence_id == competence_id)
+        query = query.join(ProjectCompetence).filter(
+            ProjectCompetence.competence_id == competence_id
+        )
 
     if search_code:
         # Buscamos en el template del indicador el código (case insensitive)
