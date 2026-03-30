@@ -8,6 +8,7 @@ import ActivityWizard from "../components/ActivityWizard";
 import AchievementTracker from "../components/AchievementTracker";
 import Swal from 'sweetalert2';
 import "../styles/managerDashboard.css"
+import { STATUS_CONFIG } from "../../utils/statusHelper"
 import { toast } from "sonner";
 
 export const ManagerDashboard = () => {
@@ -28,20 +29,23 @@ export const ManagerDashboard = () => {
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [selectedUsers, setSelectedUsers] = useState([]);
     const [selectedProvinces, setSelectedProvinces] = useState([]);
+    const [selectedStatuses, setSelectedStatuses] = useState([]);
+    const allStatuses = Object.keys(STATUS_CONFIG);
 
     const filteredActivities = useMemo(() => {
         return activities.filter(act => {
-            // Regla 1: ¿Pasa el filtro de usuarios?
             const matchesUser = selectedUsers.length === 0 ||
                 selectedUsers.includes(act.responsible.id);
 
-            // Regla 2: ¿Pasa el filtro de provincias?
             const matchesProvince = selectedProvinces.length === 0 ||
                 selectedProvinces.includes(act.province_name);
 
-            return matchesUser && matchesProvince;
+            const matchesStatus = selectedStatuses.length === 0 ||
+                selectedStatuses.includes(act.status);
+
+            return matchesUser && matchesProvince && matchesStatus;
         });
-    }, [activities, selectedUsers, selectedProvinces]);
+    }, [activities, selectedUsers, selectedProvinces, selectedStatuses]);
 
     const availableProvinces = useMemo(() => {
         const provinces = activities.map(act => act.province_name);
@@ -220,13 +224,12 @@ export const ManagerDashboard = () => {
                 </header>
 
                 <ContextSelector onContextChange={setContext} />
-
-                {/* SI HAY CONTEXTO: Mostramos el Dashboard */}
                 {context ? (
                     <div className="row mt-4" style={{ opacity: loading.activities ? 0.6 : 1, transition: 'opacity 0.3s' }}>
                         {activeTab === 'planning' ? (
                             <>
                                 <div className="col-md-2">
+                                    {/* Filtro por usuario */}
                                     <div className="card shadow-sm border-0 p-3 mb-3" style={{ borderRadius: '15px' }}>
                                         <h6 className="fw-bold mb-3 small text-uppercase">Filtrar Equipo</h6>
                                         {availableUsers.length === 0 && <small className="text-muted">Sin actividades registradas</small>}
@@ -245,10 +248,52 @@ export const ManagerDashboard = () => {
                                             </div>
                                         ))}
                                     </div>
+                                    {/* Filtro por status */}
+                                    <div className="accordion-item border-0 mb-4">
+                                        <h2 className="accordion-header" id="headingStatus">
+                                            <button className="accordion-button ps-3 py-2 shadow-none bg-white text-dark fw-bold small text-uppercase collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStatus" aria-expanded="false" aria-controls="collapseStatus">
+                                                <i className="fas fa-tasks me-2 text-muted"></i>Estatus
+                                            </button>
+                                        </h2>
+                                        <div id="collapseStatus" className="accordion-collapse collapse" aria-labelledby="headingStatus" data-bs-parent="#filtersAccordion">
+                                            <div className="accordion-body ps-3 pt-1 pb-3">
+                                                {allStatuses.map(status => {
+                                                    const config = STATUS_CONFIG[status];
+                                                    return (
+                                                        <div key={status} className="form-check mb-1 d-flex align-items-center">
+                                                            <input
+                                                                className="form-check-input me-2"
+                                                                type="checkbox"
+                                                                checked={selectedStatuses.includes(status)}
+                                                                onChange={() => {
+                                                                    setSelectedStatuses(prev =>
+                                                                        prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+                                                                    );
+                                                                }}
+                                                                id={`status-${status}`}
+                                                            />
+                                                            {/* PUNTITO: Usamos el color de tu helper */}
+                                                            <span
+                                                                className="rounded-circle me-2"
+                                                                style={{
+                                                                    width: '10px',
+                                                                    height: '10px',
+                                                                    backgroundColor: config.calendarColor,
+                                                                    border: `1px solid ${config.textColor}44` // Un borde muy suave del mismo tono
+                                                                }}
+                                                            ></span>
+                                                            <label className="form-check-label small cursor-pointer flex-grow-1" htmlFor={`status-${status}`}>
+                                                                {status}
+                                                            </label>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {/* Filtro por provincias */}
                                     <div className="col-md-12">
                                         <label className="small fw-bold text-muted mb-2 d-block">Provincias con Actividad</label>
-
-                                        {/* Contenedor de etiquetas seleccionadas */}
                                         <div className="d-flex flex-wrap border rounded p-2 bg-white mb-2" style={{ minHeight: '42px' }}>
                                             {selectedProvinces.length === 0 && (
                                                 <span className="text-muted small p-1">Todas las provincias</span>
@@ -263,7 +308,6 @@ export const ManagerDashboard = () => {
                                                 </span>
                                             ))}
                                         </div>
-
                                         {/* Lista desplegable simple para seleccionar */}
                                         <select
                                             className="form-select form-select-sm shadow-none"
