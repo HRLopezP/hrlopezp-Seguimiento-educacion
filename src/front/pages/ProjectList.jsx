@@ -8,48 +8,63 @@ import Pagination from "../components/Pagination"
 
 const ProjectList = () => {
     const [projects, setProjects] = useState([]);
-    const [filteredProjects, setFilteredProjects] = useState([]);
-    const [searchTerm, setSearchTerm] = useState("");
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
 
+    const [searchTerm, setSearchTerm] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+
     const fetchProjects = async (page = 1) => {
         try {
             setLoading(true);
-            const res = await apiFetch(`/manager/projects?page=${page}`);
-            if (res && res.ok) {
+            let url = `/manager/projects?page=${page}`;
+            if (debouncedSearch) url += `&search=${encodeURIComponent(debouncedSearch)}`;
+
+            const res = await apiFetch(url);
+            if (res?.ok) {
                 const data = await res.json();
                 setProjects(data.items || []);
-                setFilteredProjects(data.items || []);
                 setTotalPages(data.total_pages || 1);
                 setCurrentPage(data.current_page || 1);
                 setTotalItems(data.total_items || 0);
-            } else {
-                toast.error("No se pudieron cargar los proyectos");
             }
         } catch (error) {
-            console.error("Error en fetchProjects:", error);
-            toast.error("Error de conexión con el servidor");
+            toast.error("Error al cargar la lista de proyectos");
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
+
+    useEffect(() => {
         fetchProjects(currentPage);
     }, [currentPage]);
 
-
     useEffect(() => {
-        const filtered = projects.filter(p =>
-            p.project_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.unique_code.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-        setFilteredProjects(filtered);
-    }, [searchTerm, projects]);
+        if (currentPage === 1) {
+            fetchProjects(1);
+        } else {
+            setCurrentPage(1);
+        }
+    }, [debouncedSearch]);
+
+
+    // useEffect(() => {
+    //     const filtered = projects.filter(p =>
+    //         p.project_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    //         p.unique_code.toLowerCase().includes(searchTerm.toLowerCase())
+    //     );
+    //     setFilteredProjects(filtered);
+    // }, [searchTerm, projects]);
 
     const handlePageChange = (newPage) => {
         setCurrentPage(newPage);
@@ -96,12 +111,12 @@ const ProjectList = () => {
                 <div className="card management-card-unified shadow-lg">
                     <div className="management-card-header d-flex justify-content-between align-items-center">
                         <div>
-                            <h2 className="management-title">Gestión de Proyectos</h2>
-                            <p className="management-subtitle">Supervisión y seguimiento en tiempo real</p>
+                            <h2 className="project-list-title">Portafolio de Proyectos</h2>
+                            <p className="project-list-subtitle">Seguimiento y gestión del impacto en tiempo real</p>
                             <div className="d-flex justify-content-between align-items-center mb-0 px-3">
                                 <div className="badge bg-emerald-soft text-emerald px-3 py-3">
                                     <i className="fas fa-info-circle me-2 text-light"></i>
-                                    Mostrando <span className="fw-bold text-light">{filteredProjects.length}</span> proyectos de esta página
+                                    Mostrando <span className="fw-bold text-light">{projects.length}</span> proyectos de esta página
                                 </div>
                                 <div className="badge bg-oxford-soft text-oxford rounded-pill ms-5 px-3 py-3 shadow-xs">
                                     <i className="fas fa-layer-group me-2"></i>
@@ -116,21 +131,26 @@ const ProjectList = () => {
                             <i className="fas fa-plus-circle me-2"></i>Nuevo Proyecto
                         </button>
                     </div>
-                    {/* Filtro/Buscador*/}
-                    <div className="p-3 bg-transparent">
+                    {/* BARRA DE BÚSQUEDA PROFESIONAL */}
+                    <div className="p-3 bg-transparent border-bottom border-light">
                         <div className="row">
-                            <div className="col-md-5">
-                                <div className="input-group project-search-group shadow-sm">
-                                    <span className="input-group-text bg-transparent border-end-0">
-                                        <i className="fas fa-search text-emerald"></i>
+                            <div className="col-md-6">
+                                <div className="input-group project-search-group shadow-sm rounded-pill overflow-hidden">
+                                    <span className="input-group-text bg-white border-end-0">
+                                        <i className="fas fa-search text-primary"></i>
                                     </span>
                                     <input
                                         type="text"
                                         className="form-control border-start-0 ps-0"
-                                        placeholder="Buscar por nombre, código o donante..."
+                                        placeholder="Buscar por nombre o código de proyecto..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
+                                    {searchTerm && (
+                                        <button className="btn btn-white border-start-0 text-muted" onClick={() => setSearchTerm("")}>
+                                            <i className="fas fa-times-circle"></i>
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -151,7 +171,7 @@ const ProjectList = () => {
                                 <tbody>
                                     {loading ? (
                                         <tr><td colSpan="5" className="text-center p-5"><div className="spinner-border text-emerald"></div></td></tr>
-                                    ) : filteredProjects.length > 0 ? filteredProjects.map((p) => (
+                                    ) : projects.length > 0 ? projects.map((p) => (
                                         <tr key={p.id}
                                             className={`project-row-hover ${p.isDeleting ? 'row-fade-out' : ''}`}>
                                             <td className="ps-4 fw-bold text-emerald">{p.code}</td>

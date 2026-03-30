@@ -911,9 +911,20 @@ def create_project():
 @jwt_required()
 @roles_required("Administrador", "Gerente", "Monitoreo")
 def get_manager_projects():
-    query = Project.query.order_by(Project.id_project.desc())
+    search = request.args.get('search', None)
+    
+    query = Project.query
 
-    # Esta función procesará solo los proyectos que salgan en la página actual
+    if search:
+        query = query.filter(
+            or_(
+                Project.project_name.ilike(f'%{search}%'),
+                Project.code.ilike(f'%{search}%')
+            )
+        )
+
+    query = query.order_by(Project.id_project.desc())
+
     def process_project(project):
         total_goal = sum(ind.target_total for ind in project.indicators) or 1
         total_achieved = 0
@@ -923,11 +934,10 @@ def get_manager_projects():
                 indicator_id=indicator.id_indicator,
                 status=ActivityStatus.APROBADA
             ).all()
-            total_achieved += sum(
-                (rec.men_reached or 0) + (rec.women_reached or 0)
-                for act in activities
-                for rec in act.achievements
-            )
+            
+            for act in activities:
+                for rec in act.achievements:
+                    total_achieved += (rec.men_reached or 0) + (rec.women_reached or 0)
 
         progress_percentage = round((total_achieved / total_goal) * 100, 2)
 
@@ -941,7 +951,7 @@ def get_manager_projects():
 
     data = paginate_query(query, process_project)
 
-    db.session.commit()  # Guardamos si algún status cambió a COMPLETADO
+    db.session.commit() 
     return jsonify(data), 200
 
 
