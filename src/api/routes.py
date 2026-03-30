@@ -2874,56 +2874,51 @@ def review_activity(id):
 @jwt_required()
 @roles_required("Administrador", "Gerente", "Monitoreo")
 def get_audit_inbox():
-    # 1. Parámetros de Paginación y Filtros
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
 
-    # Filtros de búsqueda
     status_str = request.args.get('status', ActivityStatus.EN_REVISION.value)
     project_id = request.args.get('project_id', type=int)
+    competence_id = request.args.get('competence_id', type=int)
+    search_code = request.args.get('search_code')
 
     if status_str == "Aprobada" and not project_id:
         return jsonify({"msg": "Debe seleccionar un proyecto para ver los logros aprobados"}), 400
 
-    competence_id = request.args.get('competence_id', type=int)
-    # Para buscar por código de indicador
-    search_code = request.args.get('search_code')
+    status_filter = next((s for s in ActivityStatus if s.value == status_str), ActivityStatus.EN_REVISION)
 
-    # Convertimos el string de status al miembro del Enum
-    status_filter = next((s for s in ActivityStatus if s.value ==
-                         status_str), ActivityStatus.EN_REVISION)
-
-    # 2. Construcción de la Query base
-    query = Activity.query.options(
+    # --- REESTRUCTURACIÓN DE LA QUERY ---
+    
+    # 1. Iniciamos la query y hacemos el JOIN con ProjectCompetence UNA SOLA VEZ
+    # Usamos contains_eager o simplemente el join para poder filtrar
+    query = Activity.query.join(ProjectCompetence).options(
         joinedload(Activity.indicator).joinedload(Indicator.template),
         joinedload(Activity.location),
         joinedload(Activity.achievements),
-        joinedload(Activity.creator)  # Para mostrar el responsable
+        joinedload(Activity.creator)
     ).filter(Activity.status == status_filter)
 
-    # 3. Aplicación de filtros dinámicos
+    # 2. Filtros de búsqueda (Ahora ya podemos usar ProjectCompetence sin miedo)
     if project_id:
         query = query.filter(Activity.project_id == project_id)
 
     if competence_id:
-        query = query.join(ProjectCompetence).filter(
-            ProjectCompetence.competence_id == competence_id
-        )
+        query = query.filter(ProjectCompetence.competence_id == competence_id)
 
     if search_code:
-        # Buscamos en el template del indicador el código (case insensitive)
         query = query.join(Indicator).join(IndicatorTemplate).filter(
             IndicatorTemplate.code.ilike(f"%{search_code}%")
         )
 
-    # 4. Filtro de seguridad por Rol
+    # 3. Filtro de seguridad por Rol (Sin duplicar el JOIN)
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
+    
     if user.rol.name_rol == "Gerente":
-        query = query.join(ProjectCompetence).filter(
-            ProjectCompetence.manager_id == user_id)
+        # Como el join ya se hizo arriba, aquí solo aplicamos el filtro del manager
+        query = query.filter(ProjectCompetence.manager_id == user_id)
 
-    # 5. Ejecución con Paginación
+    # 4. Ejecución
     pagination = query.order_by(Activity.created_at.desc()).paginate(
         page=page, per_page=per_page, error_out=False
     )
