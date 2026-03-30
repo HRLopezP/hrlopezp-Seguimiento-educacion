@@ -13,12 +13,20 @@ const ActivityCatalogManagement = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+    const [selectedCompetence, setSelectedCompetence] = useState("");
 
     const fetchData = async (page = 1) => {
         setLoading(true);
         try {
+            // Construimos la URL con filtros
+            let url = `/activity-catalog?page=${page}`;
+            if (debouncedSearch) url += `&search=${encodeURIComponent(debouncedSearch)}`;
+            if (selectedCompetence) url += `&competence_id=${selectedCompetence}`;
+
             const [resAct, resComp] = await Promise.all([
-                apiFetch(`/activity-catalog?page=${page}`),
+                apiFetch(url),
                 apiFetch("/competences")
             ]);
 
@@ -33,7 +41,6 @@ const ActivityCatalogManagement = () => {
             if (resComp?.ok) {
                 setCompetences(await resComp.json());
             }
-
         } catch (error) {
             toast.error("Error al conectar con el servidor de catálogo");
         } finally {
@@ -42,8 +49,23 @@ const ActivityCatalogManagement = () => {
     };
 
     useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
+
+    useEffect(() => {
         fetchData(currentPage);
     }, [currentPage]);
+
+    useEffect(() => {
+        if (currentPage === 1) {
+            fetchData(1);
+        } else {
+            setCurrentPage(1);
+        }
+    }, [debouncedSearch, selectedCompetence]);
 
     const handlePageChange = (newPage) => {
         setCurrentPage(newPage);
@@ -168,6 +190,62 @@ const ActivityCatalogManagement = () => {
                         <button className="btn-action btn-activate" onClick={() => handleOpenModal()} style={{ backgroundColor: '#10b981', border: 'none' }}>
                             <i className="fas fa-plus-circle me-2"></i>Nueva Actividad Sugerida
                         </button>
+                    </div>
+                    {/* BARRA DE FILTROS */}
+                    <div className="p-3 bg-transparent border-bottom border-light">
+                        <div className="row g-3">
+                            <div className="col-md-6 mt-4">
+                                <div className="input-group project-search-group shadow-sm rounded-pill overflow-hidden mt-2">
+                                    <span className="input-group-text bg-white border-end-0 text-emerald"><i className="fas fa-search"></i></span>
+                                    <input
+                                        type="text"
+                                        className="form-control border-start-0 ps-0"
+                                        placeholder="Buscar por descripción..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                            <div className="col-md-4 mt-1">
+                                <label className="form-label small fw-bold text-muted d-block text-start">
+                                    Filtrar por Competencia
+                                </label>
+                                <select
+                                    className="form-select shadow-sm rounded-pill"
+                                    value={selectedCompetence}
+                                    onChange={(e) => setSelectedCompetence(e.target.value)}
+                                    style={{ color: 'var(--text-primary)' }}
+                                >
+                                    <option value="" style={{ color: '#1B263B', backgroundColor: '#ffffff' }}>
+                                        Todas las competencias (Incluye General)
+                                    </option>
+
+                                    {competences && competences.length > 0 ? (
+                                        competences.map((c) => (
+                                            <option
+                                                key={c.id_competence || c.id} 
+                                                value={c.id_competence || c.id} 
+                                                style={{
+                                                    color: '#1B263B',          
+                                                    backgroundColor: '#ffffff'
+                                                }}
+                                            >
+                                                {c.name_competence || c.name}
+                                            </option>
+                                        ))
+                                    ) : (
+                                        <option disabled style={{ color: '#1B263B', backgroundColor: '#ffffff' }}>
+                                            Cargando competencias...
+                                        </option>
+                                    )}
+                                </select>
+                            </div>
+                            <div className="col-md-2">
+                                <button className="btn btn-outline-secondary w-100 rounded-pill" onClick={() => { setSearchTerm(""); setSelectedCompetence(""); }}>
+                                    Limpiar
+                                </button>
+                            </div>
+                        </div>
                     </div>
                     <div className="card-body p-0">
                         <div className="table-responsive">

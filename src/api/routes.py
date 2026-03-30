@@ -2559,10 +2559,20 @@ def get_project_indicators(project_id):
 @api.route('/activity-catalog', methods=['GET'])
 @jwt_required()
 def get_activity_catalog():
-    competence_id = request.args.get('competence_id')
+    # 1. Capturamos los parámetros de la URL
+    competence_id = request.args.get('competence_id', None)
+    search = request.args.get('search', None)
+    
+    # 2. Iniciamos la consulta base
     query = ActivityCatalog.query
 
+    # 3. Aplicamos filtro de búsqueda si existe
+    if search:
+        query = query.filter(ActivityCatalog.description.ilike(f'%{search}%'))
+
+    # 4. Aplicamos filtro de competencia
     if competence_id:
+        # Filtramos por la competencia seleccionada O las que son generales (None)
         query = query.filter(
             or_(
                 ActivityCatalog.competence_id == competence_id,
@@ -2570,10 +2580,12 @@ def get_activity_catalog():
             )
         )
 
+    # 5. Ordenamos alfabéticamente por descripción
     query = query.order_by(ActivityCatalog.description.asc())
 
-    # Aplicamos paginación
+    # 6. Aplicamos paginación profesional
     data = paginate_query(query, lambda a: a.serialize())
+    
     return jsonify(data), 200
 
 # 2-C
