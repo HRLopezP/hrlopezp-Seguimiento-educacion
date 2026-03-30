@@ -178,15 +178,26 @@ const DayManagerModal = ({
                                                                             </button>
                                                                         </>
                                                                     )}
-
                                                                     {/* Botón Logros (Emerald Green) */}
                                                                     <button
                                                                         className="btn btn-sm text-white ms-2 shadow-sm"
                                                                         style={{ backgroundColor: '#10b981', borderRadius: '8px' }}
                                                                         onClick={() => onRegisterAchievement(act)}
                                                                     >
-                                                                        <i className="fas fa-check-circle me-1"></i>
-                                                                        {act.status === 'Rechazada' ? 'Corregir' : 'Logros'}
+                                                                        <i className={`fas ${act.status === 'Rechazada'
+                                                                                ? 'fa-exclamation-triangle' 
+                                                                                : act.status === 'En Revisión'
+                                                                                    ? 'fa-edit'             
+                                                                                    : 'fa-check-circle'     
+                                                                            } me-1`}></i>
+
+                                                                        {/* Texto Dinámico */}
+                                                                        {act.status === 'Rechazada'
+                                                                            ? 'Corregir'
+                                                                            : act.status === 'En Revisión'
+                                                                                ? 'Editar Logros'
+                                                                                : 'Logros'
+                                                                        }
                                                                     </button>
                                                                 </>
                                                             )}
