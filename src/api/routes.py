@@ -2906,25 +2906,22 @@ def get_notifications_counts():
     counts = {
         "pending_review": 0,
         "rejected": 0,
-        "details": [] # Para el desglose del Gerente
+        "details": [] 
     }
 
-    # --- LÓGICA PARA MONITOREO / ADMIN ---
+    # 1. GESTIÓN TOTAL: Monitoreo y Administrador (Ven todo lo pendiente de revisión)
     if role in ["Monitoreo", "Administrador"]:
         counts["pending_review"] = Activity.query.filter_by(
             status=ActivityStatus.EN_REVISION
         ).count()
 
-    # --- LÓGICA PARA GERENTE (Desglose por Competencia) ---
+    # 2. GESTIÓN POR COMPETENCIA: Gerente
     elif role == "Gerente":
-        # Buscamos todas las competencias que este gerente tiene asignadas en proyectos
         assignments = ProjectCompetence.query.filter_by(manager_id=user_id).all()
-        
         total_pending = 0
         total_rejected = 0
         
         for asn in assignments:
-            # Contamos por cada "llave" (Proyecto + Competencia)
             pending = Activity.query.filter_by(
                 project_competence_id=asn.id_pc,
                 status=ActivityStatus.EN_REVISION
@@ -2944,16 +2941,16 @@ def get_notifications_counts():
                 })
             
             total_pending += pending
-            total_total_rejected += rejected
+            total_rejected += rejected
             
         counts["pending_review"] = total_pending
         counts["rejected"] = total_rejected
 
-    # --- LÓGICA PARA OFICIAL (Sus propios rechazos) ---
-    elif role == "Oficial":
-        # Filtramos por 'created_by_id' que es quien subió el logro
+    # 3. TODOS LOS DEMÁS: (Oficial, Coordinador, etc.) 
+    # Ven sus propios logros rechazados
+    else:
         counts["rejected"] = Activity.query.filter_by(
-            created_by_id=user_id, 
+            user_id=user_id,
             status=ActivityStatus.RECHAZADA
         ).count()
 
@@ -2964,13 +2961,23 @@ def get_notifications_counts():
 @jwt_required()
 def get_my_activities():
     user_id = get_jwt_identity()
-    status_filter = request.args.get('status') # Opcional: 'Rechazada', 'En Revisión', etc.
+    status_str = request.args.get("status", "En Revisión")
+
+    # Mapeo de texto del frontend a valores del Enum
+    status_mapping = {
+        "En Revisión": ActivityStatus.EN_REVISION,
+        "Aprobada": ActivityStatus.APROBADA,
+        "Rechazada": ActivityStatus.RECHAZADA
+    }
     
-    query = Activity.query.filter_by(created_by_id=user_id)
+    status_enum = status_mapping.get(status_str, ActivityStatus.EN_REVISION)
+
+    # Quitamos la restricción de rol. Cualquier usuario que haya 
+    # creado actividades puede ver sus propios logros reportados.
+    query = Activity.query.filter_by(
+        created_by_id=user_id,
+        status=status_enum
+    )
     
-    if status_filter:
-        query = query.filter(Activity.status == status_filter)
-        
     activities = query.order_by(Activity.updated_at.desc()).all()
-    
-    return jsonify([a.serialize() for a in activities]), 200
+    return jsonify([act.serialize() for act in activities]), 200

@@ -30,6 +30,7 @@ import { OfficialDashboard } from "./pages/OfficialDashboard";
 import { ManagerDashboard } from "./pages/ManagerDashboard"
 import AuditInbox from "./pages/AuditInbox";
 import Profile from "./pages/Profile";
+import OfficialInbox from "./pages/OfficialInbox"
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -176,6 +177,15 @@ export const router = createBrowserRouter(
         element={
           <OfficialRoute>
             <OfficialDashboard />
+          </OfficialRoute>
+        }
+      />
+
+      <Route
+        path="/official/my-activities"
+        element={
+          <OfficialRoute>
+            <OfficialInbox />
           </OfficialRoute>
         }
       />

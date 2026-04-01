@@ -2,6 +2,9 @@ import React, { useEffect, useState } from "react";
 import useGlobalReducer from '../hooks/useGlobalReducer';
 import OfficialReviewModal from "../components/OfficialReviewModal";
 import AchievementTracker from "../components/AchievementTracker";
+import { useLocation } from "react-router-dom";
+import { apiFetch } from "../../utils/api";
+import { toast, Toaster } from "sonner";
 
 const OfficialInbox = () => {
     const { store } = useGlobalReducer();
@@ -10,20 +13,33 @@ const OfficialInbox = () => {
     const [selectedActivity, setSelectedActivity] = useState(null);
     const [showDetail, setShowDetail] = useState(false);
     const [showEdit, setShowEdit] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const location = useLocation();
 
-    // Carga de datos
     const fetchMyActivities = async () => {
-        // Para "Aprobadas" podrías pedir filtros, para los otros dos cargamos directo
-        // usando el endpoint que definimos en el backend
-        const url = `${import.meta.env.VITE_BACKEND_URL}/api/my-activities?status=${currentTab}`;
-        const resp = await fetch(url, {
-            headers: { "Authorization": `Bearer ${store.token}` }
-        });
-        const data = await resp.json();
-        setActivities(data);
+        setLoading(true);
+        try {
+            const resp = await apiFetch(`/my-activities?status=${currentTab}`);
+            if (resp.ok) {
+                const data = await resp.json();
+                setActivities(data);
+            } else {
+                toast.error("No se pudieron cargar tus logros.");
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    useEffect(() => { fetchMyActivities(); }, [currentTab]);
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const statusParam = params.get("status");
+        if (statusParam) setCurrentTab(statusParam);
+        fetchMyActivities();
+    }, [currentTab, location]);
+
 
     const handleOpenDetail = (act) => {
         setSelectedActivity(act);
@@ -36,15 +52,24 @@ const OfficialInbox = () => {
         setShowEdit(true);    // Abrimos el editor (AchievementTracker)
     };
 
+    useEffect(() => {
+        // Si venimos del Navbar con ?status=Rechazada, cambiamos la pestaña automáticamente
+        const params = new URLSearchParams(location.search);
+        const statusParam = params.get("status");
+        if (statusParam) {
+            setCurrentTab(statusParam);
+        }
+    }, [location]);
+
     return (
         <div className="container mt-4">
             <h4 className="text-oxford mb-4">Mi Bandeja de Logros</h4>
-            
+
             {/* Nav Tabs similares a AuditInbox */}
             <ul className="nav nav-tabs mb-3">
                 {["En Revisión", "Rechazada", "Aprobada"].map(tab => (
                     <li className="nav-item" key={tab}>
-                        <button 
+                        <button
                             className={`nav-link ${currentTab === tab ? 'active fw-bold' : ''}`}
                             onClick={() => setCurrentTab(tab)}
                         >
@@ -85,20 +110,20 @@ const OfficialInbox = () => {
             {/* MODALES */}
             {selectedActivity && (
                 <>
-                    <OfficialReviewModal 
-                        show={showDetail} 
+                    <OfficialReviewModal
+                        show={showDetail}
                         onHide={() => setShowDetail(false)}
                         activity={selectedActivity}
                         currentTab={currentTab}
                         onEditClick={handleOpenEdit}
                     />
-                    
+
                     {showEdit && (
                         <div className="modal show d-block" tabIndex="-1">
                             <div className="modal-dialog modal-lg shadow-lg">
                                 <div className="modal-content">
-                                    <AchievementTracker 
-                                        activity={selectedActivity} 
+                                    <AchievementTracker
+                                        activity={selectedActivity}
                                         onClose={() => setShowEdit(false)}
                                         onRefresh={() => {
                                             setShowEdit(false);

@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import useGlobalReducer from "../hooks/useGlobalReducer"; // Usamos tu hook
+import useGlobalReducer from "../hooks/useGlobalReducer";
+import { apiFetch } from "../../utils/api"
 
 const NotificationBadge = () => {
     const { store } = useGlobalReducer(); // Accedemos al store global
     const [counts, setCounts] = useState({ pending_review: 0, rejected: 0, details: [] });
-    
+
     // Obtenemos el rol desde el store (según tu lógica de login)
-    const role = store.user?.rol_name; 
+    const role = store.user?.rol_name;
 
     const fetchCounts = async () => {
-        const API_URL = import.meta.env.VITE_BACKEND_URL;
         try {
-            const resp = await fetch(`${API_URL}/api/notifications/counts`, {
-                headers: { 
+            const resp = await apiFetch(`/notifications/counts`, {
+                headers: {
                     "Authorization": `Bearer ${store.token}`,
                     "Content-Type": "application/json"
                 }
@@ -30,54 +30,56 @@ const NotificationBadge = () => {
     useEffect(() => {
         if (store.token) {
             fetchCounts();
-            // Actualización automática cada 5 minutos para mantener al usuario al día
             const interval = setInterval(fetchCounts, 300000);
             return () => clearInterval(interval);
         }
     }, [store.token]);
 
-    // Lógica de visibilidad basada en los roles definidos en tu backend
     const hasPending = ["Monitoreo", "Administrador", "Gerente"].includes(role) && counts.pending_review > 0;
     const hasRejected = ["Oficial", "Gerente"].includes(role) && counts.rejected > 0;
     const totalNotifications = (hasPending ? counts.pending_review : 0) + (hasRejected ? counts.rejected : 0);
 
     return (
         <div className="nav-item dropdown d-flex align-items-center mx-2">
-            <button 
-                className="btn btn-link position-relative p-0 border-0 shadow-none text-white" 
+            <button
+                className="btn btn-link position-relative p-0 border-0 shadow-none"
                 data-bs-toggle="dropdown"
+                style={{ color: store.theme === 'light' ? 'var(--oxford-grey)' : 'white' }}
                 aria-expanded="false"
             >
                 <i className="fa-solid fa-bell fs-5"></i>
-                
+
                 {totalNotifications > 0 && (
-                    <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
-                          style={{ fontSize: '0.65rem', border: '2px solid var(--oxford-grey, #343a40)' }}>
+                    <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                        style={{ fontSize: '0.65rem', border: '2px solid var(--oxford-grey, #343a40)' }}>
                         {totalNotifications}
                     </span>
                 )}
             </button>
 
-            <ul className="dropdown-menu dropdown-menu-end shadow border-0 mt-3 p-0" 
+            <ul className="dropdown-menu dropdown-menu-end shadow border-0 mt-3 p-0"
                 style={{ minWidth: '280px', borderRadius: '12px', overflow: 'hidden' }}>
-                
+
                 <li className="p-3 border-bottom bg-light">
                     <div className="d-flex justify-content-between align-items-center">
                         <span className="fw-bold text-dark small">Notificaciones Operativas</span>
                         <span className="badge bg-secondary-subtle text-secondary small">SIGSSEP</span>
                     </div>
                 </li>
-                
+
                 <div className="notification-scroll" style={{ maxHeight: '350px', overflowY: 'auto' }}>
                     {hasPending && (
                         <li>
-                            <Link className="dropdown-item py-3 border-bottom d-flex align-items-center gap-3" to="/manager/audit-inbox">
-                                <div className="bg-success-subtle p-2 rounded-circle">
-                                    <i className="fa-solid fa-clipboard-check text-success"></i>
+                            <Link
+                                className="dropdown-item py-3 border-bottom d-flex align-items-center gap-3"
+                                to="/manager/audit-inbox"
+                            >
+                                <div className="bg-emerald-green-subtle p-2 rounded-circle">
+                                    <i className="fa-solid fa-clipboard-check text-emerald-green"></i>
                                 </div>
-                                <div className="flex-grow-1">
-                                    <p className="mb-0 small fw-bold">Logros por Revisar</p>
-                                    <small className="text-muted">Tienes {counts.pending_review} actividades esperando validación.</small>
+                                <div>
+                                    <p className="mb-0 small fw-bold">Logros por revisar</p>
+                                    <small className="text-muted">Hay {counts.pending_review} reportes esperando aprobación.</small>
                                 </div>
                             </Link>
                         </li>
@@ -85,19 +87,24 @@ const NotificationBadge = () => {
 
                     {hasRejected && (
                         <li>
-                            <Link className="dropdown-item py-3 border-bottom d-flex align-items-center gap-3" to="/my-activities?status=Rechazada">
+                            <Link
+                                className="dropdown-item py-3 border-bottom d-flex align-items-center gap-3"
+                                to={["Gerente", "Administrador", "Monitoreo"].includes(role)
+                                    ? "/manager/audit-inbox?tab=Rechazada" // Si es jefe, va al audit pero avisando que quiere ver rechazadas
+                                    : "/official/dashboard"} // Si es personal operativo, va a su dashboard
+                            >
                                 <div className="bg-danger-subtle p-2 rounded-circle">
                                     <i className="fa-solid fa-circle-exclamation text-danger"></i>
                                 </div>
-                                <div className="flex-grow-1">
+                                <div>
                                     <p className="mb-0 small fw-bold">Acción Requerida</p>
-                                    <small className="text-muted">Se han rechazado {counts.rejected} de tus reportes.</small>
+                                    <small className="text-muted">Tienes {counts.rejected} reportes rechazados.</small>
                                 </div>
                             </Link>
                         </li>
                     )}
 
-                    {/* Desglose detallado para el Gerente [basado en tu lógica de endpoint.py] */}
+                    {/* Desglose detallado para el Gerente */}
                     {role === "Gerente" && counts.details?.length > 0 && (
                         <div className="bg-light p-2">
                             <small className="text-muted px-2 py-1 d-block fw-bold" style={{ fontSize: '0.7rem' }}>DETALLE POR COMPETENCIA</small>
@@ -120,7 +127,7 @@ const NotificationBadge = () => {
                         </li>
                     )}
                 </div>
-                
+
                 <li className="bg-light p-2 text-center">
                     <small className="text-muted" style={{ fontSize: '0.7rem' }}>SIGSSEP v1.0 - Gestión en Tiempo Real</small>
                 </li>

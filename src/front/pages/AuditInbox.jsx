@@ -4,6 +4,7 @@ import useGlobalReducer from '../hooks/useGlobalReducer';
 import { apiFetch } from "../../utils/api";
 import ReviewModal from "../components/ReviewModal";
 import "../styles/roleManagement.css";
+import { useLocation } from "react-router-dom";
 
 const AuditInbox = () => {
   const { store } = useGlobalReducer();
@@ -18,6 +19,7 @@ const AuditInbox = () => {
   const [currentTab, setCurrentTab] = useState("En Revisión");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const location = useLocation();
 
   const [filters, setFilters] = useState({
     competenciaId: '',
@@ -144,6 +146,14 @@ const AuditInbox = () => {
       search_code: ''
     });
   };
+
+  useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const tab = params.get("tab");
+        if (tab === "Rechazada") {
+            setCurrentTab("Rechazada");
+        }
+    }, [location]);
 
 
   return (
