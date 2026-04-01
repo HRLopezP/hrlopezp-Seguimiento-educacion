@@ -2,15 +2,73 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { apiFetch } from "../../utils/api";
-import "../styles/projectDetail.css"; // Reutilizamos con orgullo
+import "../styles/projectDetail.css";
 import { toast, Toaster } from 'sonner';
+import Pagination from "../components/Pagination"
 
 const ProjectList = () => {
     const [projects, setProjects] = useState([]);
-    const [filteredProjects, setFilteredProjects] = useState([]);
-    const [searchTerm, setSearchTerm] = useState("");
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+
+    const [searchTerm, setSearchTerm] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+
+    const fetchProjects = async (page = 1) => {
+        try {
+            setLoading(true);
+            let url = `/manager/projects?page=${page}`;
+            if (debouncedSearch) url += `&search=${encodeURIComponent(debouncedSearch)}`;
+
+            const res = await apiFetch(url);
+            if (res?.ok) {
+                const data = await res.json();
+                setProjects(data.items || []);
+                setTotalPages(data.total_pages || 1);
+                setCurrentPage(data.current_page || 1);
+                setTotalItems(data.total_items || 0);
+            }
+        } catch (error) {
+            toast.error("Error al cargar la lista de proyectos");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        fetchProjects(currentPage);
+    }, [currentPage]);
+
+    useEffect(() => {
+        if (currentPage === 1) {
+            fetchProjects(1);
+        } else {
+            setCurrentPage(1);
+        }
+    }, [debouncedSearch]);
+
+
+    // useEffect(() => {
+    //     const filtered = projects.filter(p =>
+    //         p.project_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    //         p.unique_code.toLowerCase().includes(searchTerm.toLowerCase())
+    //     );
+    //     setFilteredProjects(filtered);
+    // }, [searchTerm, projects]);
+
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+    };
 
     const handleDeleteProject = async (projectId, projectName) => {
         const result = await Swal.fire({
@@ -20,9 +78,8 @@ const ProjectList = () => {
             showCancelButton: true,
             confirmButtonText: 'Sí, eliminar',
             cancelButtonText: 'Cancelar',
-            // Colores de tu marca
-            confirmButtonColor: '#ae2012', // El rojo profundo que definimos
-            cancelButtonColor: '#1b263b',  // Tu Azul Oxford (Seriedad)
+            confirmButtonColor: '#ae2012',
+            cancelButtonColor: '#1b263b',
             background: document.documentElement.getAttribute('data-theme') === 'dark' ? '#1b263b' : '#ffffff',
             color: document.documentElement.getAttribute('data-theme') === 'dark' ? '#ffffff' : '#1b263b',
             customClass: {
@@ -33,91 +90,67 @@ const ProjectList = () => {
 
         if (result.isConfirmed) {
             try {
-                const res = await apiFetch(`/projects/${projectId}`, { method: 'DELETE' });
-                if (res?.ok) {
-
-                    setProjects(prev => prev.map(p =>
-                        p.id === projectId ? { ...p, isDeleting: true } : p
-                    ));
-                    toast.success("Proyecto eliminado con éxito");
-                    setTimeout(() => {
-                        setProjects(prev => prev.filter(p => p.id !== projectId));
-                    }, 500);
-                    // Actualizamos la lista local eliminando el proyecto borrado
-
+                const res = await apiFetch(`/manager/projects/${projectId}`, { method: "DELETE" });
+                if (res && res.ok) {
+                    toast.success("Proyecto eliminado correctamente");
+                    fetchProjects(currentPage);
                 } else {
-                    toast.error("Error al intentar eliminar el proyecto");
+                    toast.error("No se pudo eliminar el proyecto");
                 }
             } catch (error) {
-                toast.error("Error de conexión");
+                toast.error("Error al eliminar el proyecto");
             }
         }
     };
 
-    useEffect(() => {
-        const fetchProjects = async () => {
-            try {
-                const res = await apiFetch("/manager/projects");
-                if (res && res.ok) {
-                    const data = await res.json();
-                    setProjects(data);
-                    setFilteredProjects(data);
-                } else {
-                    toast.error("No se pudieron cargar los proyectos");
-                }
-            } catch (error) {
-                console.error("Error en fetchProjects:", error);
-                toast.error("Error de conexión con el servidor");
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchProjects();
-    }, []);
-
-    useEffect(() => {
-        const results = projects.filter(p =>
-            p.project_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.donor_name?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-        setFilteredProjects(results);
-    }, [searchTerm, projects]);
 
     return (
-        <div className="management-page-container"> {/* Cambiado para usar el fondo correcto */}
+        <div className="management-page-container">
             <Toaster richColors position="top-right" />
             <div className="container mt-4">
                 <div className="card management-card-unified shadow-lg">
-                    {/* Header Estilo Management */}
                     <div className="management-card-header d-flex justify-content-between align-items-center">
                         <div>
-                            <h2 className="management-title">Gestión de Proyectos</h2>
-                            <p className="management-subtitle">Supervisión y seguimiento en tiempo real</p>
+                            <h2 className="project-list-title">Portafolio de Proyectos</h2>
+                            <p className="project-list-subtitle">Seguimiento y gestión del impacto en tiempo real</p>
+                            <div className="d-flex justify-content-between align-items-center mb-0 px-3">
+                                <div className="badge bg-emerald-soft text-emerald px-3 py-3">
+                                    <i className="fas fa-info-circle me-2 text-light"></i>
+                                    Mostrando <span className="fw-bold text-light">{projects.length}</span> proyectos de esta página
+                                </div>
+                                <div className="badge bg-oxford-soft text-oxford rounded-pill ms-5 px-3 py-3 shadow-xs">
+                                    <i className="fas fa-layer-group me-2"></i>
+                                    Total: <span className="fw-bold">{totalItems}</span> proyectos
+                                </div>
+                            </div>
                         </div>
                         <button
-                            className="btn-action btn-activate" // Usamos tu clase de éxito
+                            className="btn-action btn-activate"
                             onClick={() => navigate('/manager/projects/create')}
                         >
                             <i className="fas fa-plus-circle me-2"></i>Nuevo Proyecto
                         </button>
                     </div>
-
-                    {/* Filtro/Buscador - Ajustado para no perderse en oscuro */}
-                    <div className="p-3 bg-transparent">
+                    {/* BARRA DE BÚSQUEDA PROFESIONAL */}
+                    <div className="p-3 bg-transparent border-bottom border-light">
                         <div className="row">
-                            <div className="col-md-5">
-                                <div className="input-group project-search-group shadow-sm">
-                                    <span className="input-group-text bg-transparent border-end-0">
-                                        <i className="fas fa-search text-emerald"></i>
+                            <div className="col-md-6">
+                                <div className="input-group project-search-group shadow-sm rounded-pill overflow-hidden">
+                                    <span className="input-group-text bg-white border-end-0">
+                                        <i className="fas fa-search text-primary"></i>
                                     </span>
                                     <input
                                         type="text"
                                         className="form-control border-start-0 ps-0"
-                                        placeholder="Buscar por nombre, código o donante..."
+                                        placeholder="Buscar por nombre o código de proyecto..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
+                                    {searchTerm && (
+                                        <button className="btn btn-white border-start-0 text-muted" onClick={() => setSearchTerm("")}>
+                                            <i className="fas fa-times-circle"></i>
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -137,12 +170,8 @@ const ProjectList = () => {
                                 </thead>
                                 <tbody>
                                     {loading ? (
-                                        <tr>
-                                            <td colSpan="5" className="text-center py-5">
-                                                <div className="spinner-border text-emerald" role="status"></div>
-                                            </td>
-                                        </tr>
-                                    ) : filteredProjects.map((p) => (
+                                        <tr><td colSpan="5" className="text-center p-5"><div className="spinner-border text-emerald"></div></td></tr>
+                                    ) : projects.length > 0 ? projects.map((p) => (
                                         <tr key={p.id}
                                             className={`project-row-hover ${p.isDeleting ? 'row-fade-out' : ''}`}>
                                             <td className="ps-4 fw-bold text-emerald">{p.code}</td>
@@ -187,7 +216,7 @@ const ProjectList = () => {
                                                         className="btn btn-sm btn-outline-danger rounded-pill shadow-sm"
                                                         title="Eliminar proyecto"
                                                         onClick={() => handleDeleteProject(p.id, p.project_name)}
-                                                        style={{ borderWidth: '2px' }} // Para que resalte un poco más la elegancia
+                                                        style={{ borderWidth: '2px' }}
                                                     >
                                                         <i className="fas fa-trash-alt"></i>
                                                     </button>
@@ -201,10 +230,17 @@ const ProjectList = () => {
                                                 </div>
                                             </td>
                                         </tr>
-                                    ))}
+                                    )) : (
+                                        <tr><td colSpan="5" className="text-center p-5 text-muted">No se encontraron proyectos registrados.</td></tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={handlePageChange}
+                        />
                     </div>
                 </div>
             </div>

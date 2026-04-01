@@ -3,25 +3,44 @@ import { toast, Toaster } from "sonner";
 import Swal from 'sweetalert2';
 import { apiFetch } from "../../utils/api";
 import "../styles/auth.css";
-import "../styles/roleManagement.css"; 
+import "../styles/roleManagement.css";
+import Pagination from "../components/Pagination"
 
 const ActivityCatalogManagement = () => {
     const [activities, setActivities] = useState([]);
     const [competences, setCompetences] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+    const [selectedCompetence, setSelectedCompetence] = useState("");
 
-    const fetchData = async () => {
+    const fetchData = async (page = 1) => {
         setLoading(true);
         try {
-            // Cargamos actividades y competencias en paralelo para el selector del modal
+            // Construimos la URL con filtros
+            let url = `/activity-catalog?page=${page}`;
+            if (debouncedSearch) url += `&search=${encodeURIComponent(debouncedSearch)}`;
+            if (selectedCompetence) url += `&competence_id=${selectedCompetence}`;
+
             const [resAct, resComp] = await Promise.all([
-                apiFetch("/activity-catalog"),
+                apiFetch(url),
                 apiFetch("/competences")
             ]);
 
-            if (resAct?.ok) setActivities(await resAct.json());
-            if (resComp?.ok) setCompetences(await resComp.json());
-            
+            if (resAct?.ok) {
+                const data = await resAct.json();
+                setActivities(data.items || []);
+                setTotalPages(data.total_pages || 1);
+                setCurrentPage(data.current_page || 1);
+                setTotalItems(data.total_items || 0);
+            }
+
+            if (resComp?.ok) {
+                setCompetences(await resComp.json());
+            }
         } catch (error) {
             toast.error("Error al conectar con el servidor de catálogo");
         } finally {
@@ -30,14 +49,32 @@ const ActivityCatalogManagement = () => {
     };
 
     useEffect(() => {
-        fetchData();
-    }, []);
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        fetchData(currentPage);
+    }, [currentPage]);
+
+    useEffect(() => {
+        if (currentPage === 1) {
+            fetchData(1);
+        } else {
+            setCurrentPage(1);
+        }
+    }, [debouncedSearch, selectedCompetence]);
+
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+    };
 
     const handleOpenModal = async (activity = null) => {
         const isEditing = !!activity;
-        
-        // Creamos las opciones para el select de competencias
-        const competenceOptions = competences.map(c => 
+
+        const competenceOptions = competences.map(c =>
             `<option value="${c.id}" ${activity?.competence_id === c.id ? 'selected' : ''}>${c.name}</option>`
         ).join('');
 
@@ -86,7 +123,7 @@ const ActivityCatalogManagement = () => {
 
                 if (res?.ok) {
                     toast.success(`Catálogo actualizado con éxito`);
-                    fetchData();
+                    fetchData(currentPage);
                 } else {
                     const errorData = await res.json();
                     toast.error(errorData.msg || "Error en la operación");
@@ -113,7 +150,7 @@ const ActivityCatalogManagement = () => {
                 const res = await apiFetch(`/activity-catalog/${activity.id}`, { method: "DELETE" });
                 if (res?.ok) {
                     toast.success("Actividad eliminada del catálogo");
-                    fetchData();
+                    fetchData(currentPage);
                 } else {
                     const error = await res.json();
                     toast.error(error.msg);
@@ -139,10 +176,76 @@ const ActivityCatalogManagement = () => {
                         <div>
                             <h2 className="management-title text-white">Catálogo de Actividades</h2>
                             <p className="management-subtitle text-light">Define las actividades estándar para que los oficiales seleccionen al planificar</p>
+                            <div className="d-flex justify-content-between align-items-center mb-0 px-3">
+                                <div className="badge bg-emerald-soft text-emerald px-3 py-3">
+                                    <i className="fas fa-info-circle me-2 text-light"></i>
+                                    Mostrando <span className="fw-bold text-light">{activities.length}</span> actividades de esta página
+                                </div>
+                                <div className="badge bg-oxford-soft text-oxford rounded-pill px-3 py-3 shadow-xs">
+                                    <i className="fas fa-clipboard-list me-2"></i>
+                                    Total: <span className="fw-bold">{totalItems}</span> actividades
+                                </div>
+                            </div>
                         </div>
                         <button className="btn-action btn-activate" onClick={() => handleOpenModal()} style={{ backgroundColor: '#10b981', border: 'none' }}>
                             <i className="fas fa-plus-circle me-2"></i>Nueva Actividad Sugerida
                         </button>
+                    </div>
+                    {/* BARRA DE FILTROS */}
+                    <div className="p-3 bg-transparent border-bottom border-light">
+                        <div className="row g-3">
+                            <div className="col-md-6 mt-4">
+                                <div className="input-group project-search-group shadow-sm rounded-pill overflow-hidden mt-2">
+                                    <span className="input-group-text bg-white border-end-0 text-emerald"><i className="fas fa-search"></i></span>
+                                    <input
+                                        type="text"
+                                        className="form-control border-start-0 ps-0"
+                                        placeholder="Buscar por descripción..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                            <div className="col-md-4 mt-1">
+                                <label className="form-label small fw-bold text-muted d-block text-start">
+                                    Filtrar por Competencia
+                                </label>
+                                <select
+                                    className="form-select shadow-sm rounded-pill"
+                                    value={selectedCompetence}
+                                    onChange={(e) => setSelectedCompetence(e.target.value)}
+                                    style={{ color: 'var(--text-primary)' }}
+                                >
+                                    <option value="" style={{ color: '#1B263B', backgroundColor: '#ffffff' }}>
+                                        Todas las competencias (Incluye General)
+                                    </option>
+
+                                    {competences && competences.length > 0 ? (
+                                        competences.map((c) => (
+                                            <option
+                                                key={c.id_competence || c.id} 
+                                                value={c.id_competence || c.id} 
+                                                style={{
+                                                    color: '#1B263B',          
+                                                    backgroundColor: '#ffffff'
+                                                }}
+                                            >
+                                                {c.name_competence || c.name}
+                                            </option>
+                                        ))
+                                    ) : (
+                                        <option disabled style={{ color: '#1B263B', backgroundColor: '#ffffff' }}>
+                                            Cargando competencias...
+                                        </option>
+                                    )}
+                                </select>
+                            </div>
+                            <div className="col-md-2">
+                                <button className="btn btn-outline-secondary w-100 rounded-pill" onClick={() => { setSearchTerm(""); setSelectedCompetence(""); }}>
+                                    Limpiar
+                                </button>
+                            </div>
+                        </div>
                     </div>
                     <div className="card-body p-0">
                         <div className="table-responsive">
@@ -156,7 +259,13 @@ const ActivityCatalogManagement = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {activities.length > 0 ? activities.map((act) => (
+                                    {loading ? (
+                                        <tr>
+                                            <td colSpan="3" className="text-center p-5">
+                                                <div className="spinner-border text-emerald"></div>
+                                            </td>
+                                        </tr>
+                                    ) : activities.length > 0 ? activities.map((act) => (
                                         <tr key={act.id}>
                                             <td className="text-muted small font-monospace">ACT-{act.id}</td>
                                             <td>
@@ -187,6 +296,11 @@ const ActivityCatalogManagement = () => {
                                 </tbody>
                             </table>
                         </div>
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={handlePageChange}
+                        />
                     </div>
                 </div>
             </div>

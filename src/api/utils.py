@@ -1,7 +1,8 @@
-from flask import jsonify, url_for
+from flask import jsonify, url_for, request
 import re
 import os
 from itsdangerous import URLSafeTimedSerializer
+
 
 class APIException(Exception):
     status_code = 400
@@ -18,10 +19,12 @@ class APIException(Exception):
         rv['message'] = self.message
         return rv
 
+
 def has_no_empty_params(rule):
     defaults = rule.defaults if rule.defaults is not None else ()
     arguments = rule.arguments if rule.arguments is not None else ()
     return len(defaults) >= len(arguments)
+
 
 def generate_sitemap(app):
     links = ['/admin/']
@@ -33,7 +36,8 @@ def generate_sitemap(app):
             if "/admin/" not in url:
                 links.append(url)
 
-    links_html = "".join(["<li><a href='" + y + "'>" + y + "</a></li>" for y in links])
+    links_html = "".join(["<li><a href='" + y + "'>" +
+                         y + "</a></li>" for y in links])
     return """
         <div style="text-align: center;">
         <img style="max-height: 80px" src='https://storage.googleapis.com/breathecode/boilerplates/rigo-baby.jpeg' />
@@ -43,12 +47,14 @@ def generate_sitemap(app):
         <p>Remember to specify a real endpoint path like: </p>
         <ul style="text-align: left;">"""+links_html+"</ul></div>"
 
+
 def val_email(correo: str) -> bool:
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     if re.fullmatch(pattern, correo):
         return True
     else:
         return False
+
 
 PASSWORD_REGEX = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()\-_=+{};:,<.\>]).{8,}$"
 
@@ -68,7 +74,7 @@ def val_password(password: str) -> bool:
     # Usamos re.fullmatch para asegurar que toda la cadena coincida con el patrón.
     if re.fullmatch(PASSWORD_REGEX, password):
         return True
-    
+
     return False
 
 
@@ -78,7 +84,8 @@ def generate_reset_token(email):
     # El token llevará el email y una marca de tiempo
     return serializer.dumps(email, salt="password-reset-salt")
 
-def confirm_reset_token(token, expiration=900): # 900 segundos = 15 minutos
+
+def confirm_reset_token(token, expiration=900):  # 900 segundos = 15 minutos
     serializer = URLSafeTimedSerializer(os.getenv("FLASK_APP_KEY"))
     try:
         email = serializer.loads(
@@ -89,3 +96,21 @@ def confirm_reset_token(token, expiration=900): # 900 segundos = 15 minutos
         return email
     except:
         return None
+
+
+def paginate_query(query, serialize_fn):
+    # 1. Obtenemos los parámetros de la URL: /api/ruta?page=1&per_page=10
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+
+    # 2. Usamos el método de SQLAlchemy para paginar
+    pagination_obj = query.paginate(
+        page=page, per_page=per_page, error_out=False)
+
+    # 3. Retornamos un diccionario con la estructura que el frontend espera
+    return {
+        "items": [serialize_fn(item) for item in pagination_obj.items],
+        "total_pages": pagination_obj.pages,
+        "current_page": pagination_obj.page,
+        "total_items": pagination_obj.total
+    }
