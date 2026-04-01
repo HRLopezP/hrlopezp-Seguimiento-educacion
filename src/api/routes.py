@@ -2820,49 +2820,6 @@ def get_audit_inbox():
     }), 200
 
 
-# Para el globito de mensaje
-@api.route('/notifications/counts', methods=['GET'])
-@jwt_required()
-def get_notifications_counts():
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({"msg": "Usuario no encontrado"}), 404
-
-    role = user.rol.name_rol
-    counts = {
-        "pending_review": 0,  
-        "rejected": 0         
-    }
-
-    if role in ["Monitoreo", "Administrador"]:
-        counts["pending_review"] = Activity.query.filter_by(
-            status=ActivityStatus.EN_REVISION
-        ).count()
-
-
-    elif role == "Gerente":
-        counts["pending_review"] = Activity.query.join(ProjectCompetence)\
-            .filter(
-                ProjectCompetence.manager_id == user_id,
-                Activity.status == ActivityStatus.EN_REVISION
-        ).count()
-
-        counts["rejected"] = Activity.query.join(ProjectCompetence)\
-            .filter(
-                ProjectCompetence.manager_id == user_id,
-                Activity.status == ActivityStatus.RECHAZADA
-        ).count()
-
-    elif role == "Oficial":
-        counts["rejected"] = Activity.query.filter_by(
-            user_id=user_id,
-            status=ActivityStatus.RECHAZADA
-        ).count()
-
-    return jsonify(counts), 200
-
-
 # historial de un logro para todos
 @api.route('/audit/history/<entity_type>/<int:entity_id>', methods=['GET'])
 @jwt_required()
@@ -2935,3 +2892,85 @@ def get_achievement_timeline(activity_id):
         "achievement_id": achievement.id,
         "timeline": timeline
     }), 200
+
+# Para el globito de mensaje
+@api.route('/notifications/counts', methods=['GET'])
+@jwt_required()
+def get_notifications_counts():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"msg": "Usuario no encontrado"}), 404
+
+    role = user.rol.name_rol
+    counts = {
+        "pending_review": 0,
+        "rejected": 0,
+        "details": [] # Para el desglose del Gerente
+    }
+
+    # --- LÓGICA PARA MONITOREO / ADMIN ---
+    if role in ["Monitoreo", "Administrador"]:
+        counts["pending_review"] = Activity.query.filter_by(
+            status=ActivityStatus.EN_REVISION
+        ).count()
+
+    # --- LÓGICA PARA GERENTE (Desglose por Competencia) ---
+    elif role == "Gerente":
+        # Buscamos todas las competencias que este gerente tiene asignadas en proyectos
+        assignments = ProjectCompetence.query.filter_by(manager_id=user_id).all()
+        
+        total_pending = 0
+        total_rejected = 0
+        
+        for asn in assignments:
+            # Contamos por cada "llave" (Proyecto + Competencia)
+            pending = Activity.query.filter_by(
+                project_competence_id=asn.id_pc,
+                status=ActivityStatus.EN_REVISION
+            ).count()
+            
+            rejected = Activity.query.filter_by(
+                project_competence_id=asn.id_pc,
+                status=ActivityStatus.RECHAZADA
+            ).count()
+            
+            if pending > 0 or rejected > 0:
+                counts["details"].append({
+                    "competence": asn.competence.name,
+                    "project_code": asn.project.code,
+                    "pending": pending,
+                    "rejected": rejected
+                })
+            
+            total_pending += pending
+            total_total_rejected += rejected
+            
+        counts["pending_review"] = total_pending
+        counts["rejected"] = total_rejected
+
+    # --- LÓGICA PARA OFICIAL (Sus propios rechazos) ---
+    elif role == "Oficial":
+        # Filtramos por 'created_by_id' que es quien subió el logro
+        counts["rejected"] = Activity.query.filter_by(
+            created_by_id=user_id, 
+            status=ActivityStatus.RECHAZADA
+        ).count()
+
+    return jsonify(counts), 200
+
+
+@api.route('/my-activities', methods=['GET'])
+@jwt_required()
+def get_my_activities():
+    user_id = get_jwt_identity()
+    status_filter = request.args.get('status') # Opcional: 'Rechazada', 'En Revisión', etc.
+    
+    query = Activity.query.filter_by(created_by_id=user_id)
+    
+    if status_filter:
+        query = query.filter(Activity.status == status_filter)
+        
+    activities = query.order_by(Activity.updated_at.desc()).all()
+    
+    return jsonify([a.serialize() for a in activities]), 200
