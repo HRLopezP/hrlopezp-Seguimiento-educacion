@@ -35,10 +35,16 @@ const OfficialInbox = () => {
 
     useEffect(() => {
         const params = new URLSearchParams(location.search);
-        const statusParam = params.get("status");
-        if (statusParam) setCurrentTab(statusParam);
-        fetchMyActivities();
-    }, [currentTab, location]);
+        const tab = params.get("tab");
+
+        if (tab === "Rechazada") {
+            setCurrentTab("Rechazada");
+        } else {
+            // Opcional: si quieres que por defecto siempre sea En Revisión 
+            // cuando no hay parámetros en la URL
+            setCurrentTab("En Revisión");
+        }
+    }, [location]);
 
 
     const handleOpenDetail = (act) => {

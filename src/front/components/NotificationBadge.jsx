@@ -35,8 +35,10 @@ const NotificationBadge = () => {
         }
     }, [store.token]);
 
-    const hasPending = ["Monitoreo", "Administrador", "Gerente"].includes(role) && counts.pending_review > 0;
-    const hasRejected = ["Oficial", "Gerente"].includes(role) && counts.rejected > 0;
+
+    const canAudit = ["Monitoreo", "Administrador", "Gerente"].includes(role);
+    const hasPending = canAudit && counts.pending_review > 0;
+    const hasRejected = counts.rejected > 0;
     const totalNotifications = (hasPending ? counts.pending_review : 0) + (hasRejected ? counts.rejected : 0);
 
     return (
@@ -89,9 +91,9 @@ const NotificationBadge = () => {
                         <li>
                             <Link
                                 className="dropdown-item py-3 border-bottom d-flex align-items-center gap-3"
-                                to={["Gerente", "Administrador", "Monitoreo"].includes(role)
-                                    ? "/manager/audit-inbox?tab=Rechazada" // Si es jefe, va al audit pero avisando que quiere ver rechazadas
-                                    : "/official/dashboard"} // Si es personal operativo, va a su dashboard
+                                to={canAudit
+                                    ? "/manager/audit-inbox?tab=Rechazada"
+                                    : "/official/dashboard?tab=Rechazada"}
                             >
                                 <div className="bg-danger-subtle p-2 rounded-circle">
                                     <i className="fa-solid fa-circle-exclamation text-danger"></i>

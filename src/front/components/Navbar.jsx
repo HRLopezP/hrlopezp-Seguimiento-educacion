@@ -10,7 +10,7 @@ export const Navbar = () => {
     const role = store.user?.rol_name;
     const isManager = role === "Gerente" || role === "Administrador";
     const isMonitor = role === "Monitoreo";
-    const isOfficial = store.token && !isManager && !isMonitor;
+    const isOperationalRole = store.token && !isManager && !isMonitor;
 
     const toggleTheme = () => {
         dispatch({ type: "TOGGLE_THEME" });
@@ -86,14 +86,14 @@ export const Navbar = () => {
                                 </li>
                             )}
                             {/* 3. RUTA DE OFICIAL */}
-                            {isOfficial && (
+                            {isOperationalRole &&(
                                 <li className="nav-item">
                                     <NavLink className="nav-link" to="/official/dashboard">
                                         <i className="fas fa-calendar-alt me-1"></i> Mi Planificación
                                     </NavLink>
                                 </li>
                             )}
-                            {isOfficial && (
+                            {isOperationalRole && (
                                 <li className="nav-item">
                                     <NavLink className="nav-link" to="/official/my-activities">
                                         <i className="fa-solid fa-inbox me-1"></i> Mis Logros

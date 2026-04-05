@@ -2488,21 +2488,29 @@ def get_project_indicators(project_id):
 def get_activity_catalog():
     competence_id = request.args.get('competence_id', None)
     search = request.args.get('search', None)
+    # Detectamos si el frontend quiere paginación
+    page = request.args.get('page', type=int) 
+
     query = ActivityCatalog.query
     if search:
         query = query.filter(ActivityCatalog.description.ilike(f'%{search}%'))
 
     if competence_id:
-        query = query.filter(
-            or_(
-                ActivityCatalog.competence_id == competence_id,
-                ActivityCatalog.competence_id == None
-            )
-        )
+        query = query.filter(or_(
+            ActivityCatalog.competence_id == competence_id,
+            ActivityCatalog.competence_id == None
+        ))
 
     query = query.order_by(ActivityCatalog.description.asc())
 
-    data = paginate_query(query, lambda a: a.serialize())
+    # Lógica inteligente:
+    if page:
+        # Si hay página, usamos tu función de paginación
+        data = paginate_query(query, lambda a: a.serialize())
+    else:
+        # Si NO hay página (como en el Wizard), devolvemos la lista simple
+        activities = query.all()
+        data = [a.serialize() for a in activities]
     
     return jsonify(data), 200
 
@@ -2950,7 +2958,7 @@ def get_notifications_counts():
     # Ven sus propios logros rechazados
     else:
         counts["rejected"] = Activity.query.filter_by(
-            user_id=user_id,
+            created_by_id=user_id, 
             status=ActivityStatus.RECHAZADA
         ).count()
 
@@ -2975,7 +2983,7 @@ def get_my_activities():
     # Quitamos la restricción de rol. Cualquier usuario que haya 
     # creado actividades puede ver sus propios logros reportados.
     query = Activity.query.filter_by(
-        created_by_id=user_id,
+        created_by_id=user_id, 
         status=status_enum
     )
     
