@@ -93,7 +93,7 @@ const NotificationBadge = () => {
                                 className="dropdown-item py-3 border-bottom d-flex align-items-center gap-3"
                                 to={canAudit
                                     ? "/manager/audit-inbox?tab=Rechazada"
-                                    : "/official/dashboard?tab=Rechazada"}
+                                    : "/official/my-activities"}
                             >
                                 <div className="bg-danger-subtle p-2 rounded-circle">
                                     <i className="fa-solid fa-circle-exclamation text-danger"></i>
