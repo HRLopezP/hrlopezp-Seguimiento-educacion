@@ -16,10 +16,12 @@ const AuditInbox = () => {
   const [loading, setLoading] = useState(true);
   const [competencias, setCompetencias] = useState([]);
   const [proyectos, setProyectos] = useState([]);
-  const [currentTab, setCurrentTab] = useState("En Revisión");
+  const location = useLocation();
+  const [currentTab, setCurrentTab] = useState(
+    new URLSearchParams(location.search).get('tab') || "En Revisión"
+  );
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const location = useLocation();
   const navigate = useNavigate();
 
   const [filters, setFilters] = useState({
@@ -48,7 +50,7 @@ const AuditInbox = () => {
     }, 300);
   };
 
-  
+
   useEffect(() => {
     if (userRole === "Gerente") {
       const userComps = user?.competences || [];
@@ -144,12 +146,25 @@ const AuditInbox = () => {
     });
   };
 
+  // useEffect(() => {
+  //   const params = new URLSearchParams(location.search);
+  //   const tabParam = params.get('tab');
+  //   if (tabParam && tabParam !== currentTab) {
+  //     setCurrentTab(tabParam);
+  //     setPage(1);
+  //   }
+  // }, [location.search]);
+
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const tabParam = params.get('tab');
-    if (tabParam && tabParam !== currentTab) {
-      setCurrentTab(tabParam);
+    const tabFromUrl = params.get('tab');
+
+    if (tabFromUrl && tabFromUrl !== currentTab) {
+      setCurrentTab(tabFromUrl);
       setPage(1);
+      // Limpiamos filtros para asegurar que cargue TODO lo del nuevo tab
+      setFilters({ competenciaId: '', proyectoId: '', search_code: "" });
     }
   }, [location.search]);
 
@@ -172,7 +187,7 @@ const AuditInbox = () => {
               onClick={() => handleTabChange(tab.id)}
             >
               <i className={`fas ${tab.id === 'En Revisión' ? 'fa-clock' :
-                  tab.id === 'Aprobada' ? 'fa-check-circle' : 'fa-times-circle'
+                tab.id === 'Aprobada' ? 'fa-check-circle' : 'fa-times-circle'
                 } me-2`}></i>
               {tab.label}
             </button>
