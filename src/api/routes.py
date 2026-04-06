@@ -2969,23 +2969,70 @@ def get_notifications_counts():
 @jwt_required()
 def get_my_activities():
     user_id = get_jwt_identity()
+    
     status_str = request.args.get("status", "En Revisión")
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    search_code = request.args.get("search_code", "")
+    proyecto_id = request.args.get("project_id", "")
 
-    # Mapeo de texto del frontend a valores del Enum
     status_mapping = {
         "En Revisión": ActivityStatus.EN_REVISION,
         "Aprobada": ActivityStatus.APROBADA,
         "Rechazada": ActivityStatus.RECHAZADA
     }
-    
     status_enum = status_mapping.get(status_str, ActivityStatus.EN_REVISION)
 
-    # Quitamos la restricción de rol. Cualquier usuario que haya 
-    # creado actividades puede ver sus propios logros reportados.
-    query = Activity.query.filter_by(
-        created_by_id=user_id, 
-        status=status_enum
+    query = Activity.query.filter(
+        Activity.created_by_id == user_id, 
+        Activity.status == status_enum
     )
+
+    if search_code:
+        query = query.join(Indicator).join(IndicatorTemplate).filter(
+            IndicatorTemplate.code.ilike(f"%{search_code}%")
+        )
     
-    activities = query.order_by(Activity.updated_at.desc()).all()
-    return jsonify([act.serialize() for act in activities]), 200
+    if proyecto_id and proyecto_id != "":
+        query = query.filter(Activity.project_id == int(proyecto_id))
+
+    query = query.order_by(Activity.updated_at.desc())
+
+    def process_activity(act):
+        data = act.serialize()
+        # 1. Proyecto
+        data["project_name"] = act.indicator.project.project_name if act.indicator and act.indicator.project else "N/A"
+        # 2. Código (desde el template del indicador)
+        if act.indicator and act.indicator.template:
+            data["indicator_code"] = act.indicator.template.code
+
+        if act.creator:
+            data["responsible"] = f"{act.creator.name} {act.creator.lastname}".strip()
+        else:
+            data["responsible"] = "Usuario no identificado"
+        # 3. Competencia
+        if act.project_competence and act.project_competence.competence:
+            data["competence_name"] = act.project_competence.competence.name
+        # 4. PROVINCIA (Nombre de relación exacto: province_ref)
+        if act.location and act.location.province_ref:
+            data["province_name"] = act.location.province_ref.name
+        else:
+            data["province_name"] = "No definida"
+            
+        return data
+
+    try:
+        data = paginate_query(query, process_activity)
+        return jsonify(data), 200
+    except Exception as e:
+        print(f"Error detectado en el servidor: {str(e)}")
+        return jsonify({"message": f"Error en el servidor: {str(e)}"}), 500
+    
+
+@api.route('/projects/list', methods=['GET'])
+@jwt_required()
+def get_projects_simple_list():
+    """Retorna una lista simple de proyectos para filtros, accesible por cualquier rol"""
+    # Solo traemos el id y el nombre para que sea ligero
+    projects = Project.query.order_by(Project.project_name.asc()).all()
+    return jsonify([{"id": p.id_project, "project_name": p.project_name} for p in projects]), 200

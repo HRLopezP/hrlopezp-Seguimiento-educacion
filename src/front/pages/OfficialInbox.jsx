@@ -1,146 +1,203 @@
-import React, { useEffect, useState } from "react";
-import useGlobalReducer from '../hooks/useGlobalReducer';
-import OfficialReviewModal from "../components/OfficialReviewModal";
-import AchievementTracker from "../components/AchievementTracker";
-import { useLocation } from "react-router-dom";
-import { apiFetch } from "../../utils/api";
+import React, { useEffect, useState, useCallback } from "react";
 import { toast, Toaster } from "sonner";
+import useGlobalReducer from '../hooks/useGlobalReducer';
+import { apiFetch } from "../../utils/api";
+import ReviewModal from "../components/ReviewModal";
+import { useLocation } from "react-router-dom";
 
 const OfficialInbox = () => {
     const { store } = useGlobalReducer();
-    const [activities, setActivities] = useState([]);
-    const [currentTab, setCurrentTab] = useState("En Revisión");
+    const [showModal, setShowModal] = useState(false);
     const [selectedActivity, setSelectedActivity] = useState(null);
-    const [showDetail, setShowDetail] = useState(false);
-    const [showEdit, setShowEdit] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const [activities, setActivities] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [proyectos, setProyectos] = useState([]);
+    const [currentTab, setCurrentTab] = useState("En Revisión");
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
     const location = useLocation();
 
-    const fetchMyActivities = async () => {
+    const [filters, setFilters] = useState({
+        proyectoId: '',
+        search_code: ""
+    });
+
+    // 1. CARGA DE PROYECTOS (Usando el nuevo endpoint accesible)
+    useEffect(() => {
+        const loadProjects = async () => {
+            const res = await apiFetch("/projects/list");
+            if (res.ok) setProyectos(await res.json());
+        };
+        loadProjects();
+    }, []);
+
+    // 2. OBTENCIÓN DE DATOS (Espejo de AuditInbox)
+    const fetchMyData = useCallback(async () => {
+        if (currentTab === "Aprobada" && !filters.proyectoId) {
+            setActivities([]);
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         try {
-            const resp = await apiFetch(`/my-activities?status=${currentTab}`);
-            if (resp.ok) {
-                const data = await resp.json();
-                setActivities(data);
-            } else {
-                toast.error("No se pudieron cargar tus logros.");
+            const params = new URLSearchParams({
+                status: currentTab,
+                page: page,
+                per_page: 10,
+                search_code: filters.search_code,
+                project_id: filters.proyectoId
+            });
+
+            const res = await apiFetch(`/my-activities?${params.toString()}`);
+            if (res.ok) {
+                const result = await res.json();
+                setActivities(result.items || []);
+                setTotalPages(result.total_pages || 1);
             }
         } catch (error) {
-            console.error(error);
+            toast.error("Error al conectar con el servidor");
         } finally {
             setLoading(false);
         }
-    };
+    }, [currentTab, page, filters]);
 
+    useEffect(() => { fetchMyData(); }, [fetchMyData]);
+
+    // Manejo de pestañas desde URL
     useEffect(() => {
         const params = new URLSearchParams(location.search);
-        const tab = params.get("tab");
-
-        if (tab === "Rechazada") {
-            setCurrentTab("Rechazada");
-        } else {
-            // Opcional: si quieres que por defecto siempre sea En Revisión 
-            // cuando no hay parámetros en la URL
-            setCurrentTab("En Revisión");
-        }
-    }, [location]);
-
-
-    const handleOpenDetail = (act) => {
-        setSelectedActivity(act);
-        setShowDetail(true);
-    };
-
-    const handleOpenEdit = (act) => {
-        setSelectedActivity(act);
-        setShowDetail(false); // Cerramos el detalle
-        setShowEdit(true);    // Abrimos el editor (AchievementTracker)
-    };
-
-    useEffect(() => {
-        // Si venimos del Navbar con ?status=Rechazada, cambiamos la pestaña automáticamente
-        const params = new URLSearchParams(location.search);
-        const statusParam = params.get("status");
-        if (statusParam) {
-            setCurrentTab(statusParam);
-        }
+        if (params.get("tab") === "Rechazada") setCurrentTab("Rechazada");
     }, [location]);
 
     return (
-        <div className="container mt-4">
-            <h4 className="text-oxford mb-4">Mi Bandeja de Logros</h4>
+        <div className="management-page-container">
+            <Toaster richColors position="top-right" />
 
-            {/* Nav Tabs similares a AuditInbox */}
-            <ul className="nav nav-tabs mb-3">
-                {["En Revisión", "Rechazada", "Aprobada"].map(tab => (
-                    <li className="nav-item" key={tab}>
-                        <button
-                            className={`nav-link ${currentTab === tab ? 'active fw-bold' : ''}`}
-                            onClick={() => setCurrentTab(tab)}
-                        >
-                            {tab}
-                        </button>
-                    </li>
-                ))}
-            </ul>
-
-            {/* Tabla de Resultados */}
-            <div className="card shadow-sm border-0">
-                <table className="table align-middle">
-                    <thead className="bg-light">
-                        <tr>
-                            <th>Código</th>
-                            <th>Descripción</th>
-                            <th>Fecha</th>
-                            <th className="text-center">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {activities.map(act => (
-                            <tr key={act.id_activity}>
-                                <td><span className="badge bg-secondary">{act.indicator?.code}</span></td>
-                                <td className="small">{act.description}</td>
-                                <td>{act.implementation_date}</td>
-                                <td className="text-center">
-                                    <button className="btn btn-sm btn-outline-primary" onClick={() => handleOpenDetail(act)}>
-                                        <i className="fa-solid fa-eye me-1"></i> Ver
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+            <div className="row mb-4 ms-5">
+                <div className="col-12">
+                    <h2 className="fw-bold" style={{ color: "var(--oxford-grey)" }}>
+                        <i className="fas fa-tasks me-2 text-emerald"></i>
+                        Mi Buzón de Actividades
+                    </h2>
+                    <p className="text-muted">Gestión y seguimiento de mis logros reportados</p>
+                </div>
             </div>
 
-            {/* MODALES */}
-            {selectedActivity && (
-                <>
-                    <OfficialReviewModal
-                        show={showDetail}
-                        onHide={() => setShowDetail(false)}
-                        activity={selectedActivity}
-                        currentTab={currentTab}
-                        onEditClick={handleOpenEdit}
-                    />
+            <div className="container mt-4">
+                {/* NAVEGACIÓN (IDÉNTICA) */}
+                <div className="audit-tabs-container">
+                    {[
+                        { id: "En Revisión", label: "En Revisión", class: "tab-revision" },
+                        { id: "Aprobada", label: "Aprobadas", class: "tab-aprobada" },
+                        { id: "Rechazada", label: "Rechazadas", class: "tab-rechazada" }
+                    ].map(tab => (
+                        <button
+                            key={tab.id}
+                            className={`audit-tab-btn ${currentTab === tab.id ? `active ${tab.class}` : ""}`}
+                            onClick={() => { setCurrentTab(tab.id); setPage(1); }}
+                        >
+                            <i className={`fas ${tab.id === 'En Revisión' ? 'fa-clock' : tab.id === 'Aprobada' ? 'fa-check-circle' : 'fa-times-circle'} me-2`}></i>
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
 
-                    {showEdit && (
-                        <div className="modal show d-block" tabIndex="-1">
-                            <div className="modal-dialog modal-lg shadow-lg">
-                                <div className="modal-content">
-                                    <AchievementTracker
-                                        activity={selectedActivity}
-                                        onClose={() => setShowEdit(false)}
-                                        onRefresh={() => {
-                                            setShowEdit(false);
-                                            fetchMyActivities();
-                                        }}
-                                    />
-                                </div>
+                <div className="card shadow-lg border-0">
+                    <div className="card-header bg-white p-3 border-bottom">
+                        <div className="row g-3 align-items-end">
+                            <div className="col-md-4">
+                                <label className="form-label small fw-bold text-muted">BÚSQUEDA POR CÓDIGO</label>
+                                <input
+                                    type="text"
+                                    className="form-control"
+                                    placeholder="Ej: IND-101"
+                                    value={filters.search_code}
+                                    onChange={(e) => { setFilters({ ...filters, search_code: e.target.value }); setPage(1); }}
+                                />
                             </div>
+
+                            {currentTab === "Aprobada" && (
+                                <div className="col-md-5">
+                                    <label className="form-label small fw-bold text-oxford">FILTRAR POR PROYECTO</label>
+                                    <select
+                                        className="form-select border-emerald"
+                                        value={filters.proyectoId}
+                                        onChange={(e) => { setFilters({ ...filters, proyectoId: e.target.value }); setPage(1); }}
+                                    >
+                                        <option value="">-- Seleccionar --</option>
+                                        {proyectos.map(p => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+                                    </select>
+                                </div>
+                            )}
                         </div>
-                    )}
-                </>
+                    </div>
+
+                    <div className="card-body p-0">
+                        <div className="table-responsive">
+                            <table className="table table-sigssep align-middle mb-0">
+                                <thead>
+                                    <tr className="bg-light">
+                                        <th className="ps-3">Indicador</th>
+                                        <th>Responsable</th>
+                                        <th>Proyecto</th>
+                                        <th>Competencia</th>
+                                        <th>Provincia</th>
+                                        <th>Fecha</th>
+                                        <th className="text-center">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {currentTab === "Aprobada" && !filters.proyectoId ? (
+                                        <tr><td colSpan="7" className="text-center p-5 text-muted">Selecciona un proyecto para ver tus logros aprobados.</td></tr>
+                                    ) : loading ? (
+                                        <tr><td colSpan="7" className="text-center p-5"><span className="spinner-border text-emerald"></span></td></tr>
+                                    ) : activities.length > 0 ? (
+                                        activities.map(act => (
+                                            <tr key={act.id}>
+                                                <td className="ps-4"><span className="badge bg-success">{act.indicator_code}</span></td>
+                                                <td className="fw-medium text-dark">{act.responsible}</td>
+                                                <td className="small text-muted">{act.project_name}</td>
+                                                <td className="small">{act.competence_name}</td>
+                                                <td className="small"><i className="fas fa-map-marker-alt text-danger me-1"></i>{act.province_name}</td>
+                                                <td className="small">{act.audit?.created_at ? act.audit.created_at.split(' ')[0] : act.created_at?.split('T')[0]}</td>
+                                                <td className="text-center">
+                                                    <button
+                                                        className="btn-action btn-view"
+                                                        onClick={() => { setSelectedActivity(act); setShowModal(true); }}
+                                                        style={{ backgroundColor: '#10b981', color: 'white' }}
+                                                    >
+                                                        <i className="fas fa-eye me-1"></i> Ver
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr><td colSpan="7" className="text-center p-5 text-muted">No se encontraron registros.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div className="card-footer bg-white d-flex justify-content-between align-items-center">
+                        <span className="small text-muted">Página {page} de {totalPages}</span>
+                        <div className="btn-group">
+                            <button className="btn btn-outline-secondary btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Anterior</button>
+                            <button className="btn btn-outline-secondary btn-sm" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Siguiente</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {selectedActivity && (
+                <ReviewModal
+                    show={showModal}
+                    onHide={() => setShowModal(false)}
+                    activity={selectedActivity}
+                    onReviewSuccess={fetchMyData}
+                    currentTab={currentTab}
+                />
             )}
         </div>
     );
