@@ -4,10 +4,8 @@ import useGlobalReducer from "../hooks/useGlobalReducer";
 import { apiFetch } from "../../utils/api"
 
 const NotificationBadge = () => {
-    const { store } = useGlobalReducer(); // Accedemos al store global
+    const { store } = useGlobalReducer(); 
     const [counts, setCounts] = useState({ pending_review: 0, rejected: 0, details: [] });
-
-    // Obtenemos el rol desde el store (según tu lógica de login)
     const role = store.user?.rol_name;
 
     const fetchCounts = async () => {
@@ -74,7 +72,7 @@ const NotificationBadge = () => {
                         <li>
                             <Link
                                 className="dropdown-item py-3 border-bottom d-flex align-items-center gap-3"
-                                to="/manager/audit-inbox"
+                                to="/manager/audit-inbox?tab=En Revisión"
                             >
                                 <div className="bg-emerald-green-subtle p-2 rounded-circle">
                                     <i className="fa-solid fa-clipboard-check text-emerald-green"></i>
@@ -94,7 +92,6 @@ const NotificationBadge = () => {
                                 to={canAudit
                                     ? "/manager/audit-inbox?tab=Rechazada"
                                     : "/official/my-activities"}
-                                // El 'state' le dice al componente qué pestaña abrir al llegar
                                 state={{ defaultTab: "Rechazada" }}
                             >
                                 <div className="bg-danger-subtle p-2 rounded-circle">
@@ -127,7 +124,7 @@ const NotificationBadge = () => {
                     {!hasPending && !hasRejected && (
                         <li className="p-4 text-center">
                             <i className="fa-solid fa-check-double text-muted mb-2 d-block fs-4"></i>
-                            <p className="mb-0 small text-muted">¡Todo al día, amiguito! No hay pendientes.</p>
+                            <p className="mb-0 small text-muted">¡Todo al día! No hay pendientes.</p>
                         </li>
                     )}
                 </div>

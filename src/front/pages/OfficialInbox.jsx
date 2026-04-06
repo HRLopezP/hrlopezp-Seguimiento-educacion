@@ -40,7 +40,6 @@ const OfficialInbox = () => {
     }, [location.state]);
 
 
-    // 1. CARGA DE PROYECTOS
     useEffect(() => {
         const loadProjects = async () => {
             const res = await apiFetch("/projects/list");
@@ -55,14 +54,12 @@ const OfficialInbox = () => {
     };
 
 
-    // 2. OBTENCIÓN DE DATOS (Espejo de AuditInbox)
     const fetchMyData = useCallback(async () => {
         if (currentTab === "Aprobada" && !filters.proyectoId) {
             setActivities([]);
             setLoading(false);
             return;
         }
-
         setLoading(true);
         try {
             const params = new URLSearchParams({
@@ -88,7 +85,7 @@ const OfficialInbox = () => {
 
     useEffect(() => { fetchMyData(); }, [fetchMyData]);
 
-    // Manejo de pestañas desde URL
+
     useEffect(() => {
         const params = new URLSearchParams(location.search);
         if (params.get("tab") === "Rechazada") setCurrentTab("Rechazada");
