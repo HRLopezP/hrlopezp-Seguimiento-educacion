@@ -12,10 +12,10 @@ const OfficialInbox = () => {
     const [activities, setActivities] = useState([]);
     const [loading, setLoading] = useState(true);
     const [proyectos, setProyectos] = useState([]);
-    const [currentTab, setCurrentTab] = useState("En Revisión");
+    const location = useLocation();
+    const [currentTab, setCurrentTab] = useState(location.state?.defaultTab || "En Revisión");
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const location = useLocation();
     const [competencias, setCompetencias] = useState([]);
 
     const [filters, setFilters] = useState({
@@ -32,6 +32,12 @@ const OfficialInbox = () => {
         };
         loadCompetences();
     }, []);
+
+    useEffect(() => {
+        if (location.state?.defaultTab) {
+            setCurrentTab(location.state.defaultTab);
+        }
+    }, [location.state]);
 
 
     // 1. CARGA DE PROYECTOS

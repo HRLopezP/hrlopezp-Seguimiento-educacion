@@ -94,6 +94,8 @@ const NotificationBadge = () => {
                                 to={canAudit
                                     ? "/manager/audit-inbox?tab=Rechazada"
                                     : "/official/my-activities"}
+                                // El 'state' le dice al componente qué pestaña abrir al llegar
+                                state={{ defaultTab: "Rechazada" }}
                             >
                                 <div className="bg-danger-subtle p-2 rounded-circle">
                                     <i className="fa-solid fa-circle-exclamation text-danger"></i>
