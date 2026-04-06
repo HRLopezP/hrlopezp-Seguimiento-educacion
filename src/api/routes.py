@@ -750,11 +750,18 @@ def update_indicator(id):
         if IndicatorTemplate.query.filter_by(code=new_code).first():
             return jsonify({"message": f"El código {new_code} ya existe"}), 400
         indicator.code = new_code
+    
+    indicator.name = data.get("name", indicator.name)
 
     indicator.description = data.get("description", indicator.description)
 
     db.session.commit()
-    return jsonify({"id": indicator.id, "code": indicator.code, "description": indicator.description}), 200
+    return jsonify({
+        "id": indicator.id, 
+        "code": indicator.code, 
+        "name": indicator.name, 
+        "description": indicator.description
+    }), 200
 
 
 @api.route('/indicators/<int:id>', methods=['DELETE'])
