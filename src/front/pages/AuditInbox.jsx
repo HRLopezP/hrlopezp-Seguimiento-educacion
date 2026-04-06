@@ -146,15 +146,6 @@ const AuditInbox = () => {
     });
   };
 
-  // useEffect(() => {
-  //   const params = new URLSearchParams(location.search);
-  //   const tabParam = params.get('tab');
-  //   if (tabParam && tabParam !== currentTab) {
-  //     setCurrentTab(tabParam);
-  //     setPage(1);
-  //   }
-  // }, [location.search]);
-
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -163,7 +154,6 @@ const AuditInbox = () => {
     if (tabFromUrl && tabFromUrl !== currentTab) {
       setCurrentTab(tabFromUrl);
       setPage(1);
-      // Limpiamos filtros para asegurar que cargue TODO lo del nuevo tab
       setFilters({ competenciaId: '', proyectoId: '', search_code: "" });
     }
   }, [location.search]);
