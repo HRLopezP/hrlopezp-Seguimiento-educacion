@@ -16,13 +16,25 @@ const OfficialInbox = () => {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const location = useLocation();
+    const [competencias, setCompetencias] = useState([]);
 
     const [filters, setFilters] = useState({
         proyectoId: '',
+        competenciaId: '',
         search_code: ""
     });
 
-    // 1. CARGA DE PROYECTOS (Usando el nuevo endpoint accesible)
+
+    useEffect(() => {
+        const loadCompetences = async () => {
+            const res = await apiFetch("/competences/list");
+            if (res.ok) setCompetencias(await res.json());
+        };
+        loadCompetences();
+    }, []);
+
+
+    // 1. CARGA DE PROYECTOS
     useEffect(() => {
         const loadProjects = async () => {
             const res = await apiFetch("/projects/list");
@@ -30,6 +42,12 @@ const OfficialInbox = () => {
         };
         loadProjects();
     }, []);
+
+    const handleReset = () => {
+        setFilters({ proyectoId: '', competenciaId: '', search_code: "" });
+        setPage(1);
+    };
+
 
     // 2. OBTENCIÓN DE DATOS (Espejo de AuditInbox)
     const fetchMyData = useCallback(async () => {
@@ -117,19 +135,39 @@ const OfficialInbox = () => {
                                 />
                             </div>
 
+                            {/* FILTRO COMPETENCIA: Solo visible en Aprobadas */}
                             {currentTab === "Aprobada" && (
-                                <div className="col-md-5">
-                                    <label className="form-label small fw-bold text-oxford">FILTRAR POR PROYECTO</label>
+                                <div className="col-md-3">
+                                    <label className="form-label small fw-bold">Competencia</label>
                                     <select
-                                        className="form-select border-emerald"
-                                        value={filters.proyectoId}
-                                        onChange={(e) => { setFilters({ ...filters, proyectoId: e.target.value }); setPage(1); }}
+                                        className="form-select border-azul-marino"
+                                        value={filters.competenciaId}
+                                        onChange={(e) => setFilters({ ...filters, competenciaId: e.target.value, proyectoId: '' })}
                                     >
-                                        <option value="">-- Seleccionar --</option>
-                                        {proyectos.map(p => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+                                        <option value="">Todas las competencias</option>
+                                        {competencias.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                 </div>
                             )}
+                            {/* FILTRO PROYECTO */}
+                            <div className="col-md-3">
+                                <label className="form-label small fw-bold text-oxford">FILTRAR POR PROYECTO</label>
+                                <select
+                                    className="form-select border-emerald"
+                                    value={filters.proyectoId}
+                                    onChange={(e) => { setFilters({ ...filters, proyectoId: e.target.value }); setPage(1); }}
+                                >
+                                    <option value="">-- Seleccionar --</option>
+                                    {proyectos.map(p => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+                                </select>
+                            </div>
+
+                            {/* BOTÓN LIMPIAR */}
+                            <div className="col-md-2">
+                                <button className="btn btn-outline-danger w-100" onClick={handleReset}>
+                                    <i className="fas fa-eraser me-2"></i> Limpiar
+                                </button>
+                            </div>
                         </div>
                     </div>
 

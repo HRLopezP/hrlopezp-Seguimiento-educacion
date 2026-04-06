@@ -2975,6 +2975,7 @@ def get_my_activities():
     per_page = request.args.get('per_page', 10, type=int)
     search_code = request.args.get("search_code", "")
     proyecto_id = request.args.get("project_id", "")
+    competencia_id = request.args.get("competence_id", "")
 
     status_mapping = {
         "En Revisión": ActivityStatus.EN_REVISION,
@@ -2987,6 +2988,10 @@ def get_my_activities():
         Activity.created_by_id == user_id, 
         Activity.status == status_enum
     )
+
+    if status_str == "Aprobada":
+        if competencia_id and competencia_id != "":
+            query = query.filter(Activity.project_competence_id == int(competencia_id))
 
     if search_code:
         query = query.join(Indicator).join(IndicatorTemplate).filter(
@@ -3028,11 +3033,32 @@ def get_my_activities():
         print(f"Error detectado en el servidor: {str(e)}")
         return jsonify({"message": f"Error en el servidor: {str(e)}"}), 500
     
-
+#Filtrar proyectos para un usuario en OfficilInbox
 @api.route('/projects/list', methods=['GET'])
 @jwt_required()
 def get_projects_simple_list():
-    """Retorna una lista simple de proyectos para filtros, accesible por cualquier rol"""
-    # Solo traemos el id y el nombre para que sea ligero
-    projects = Project.query.order_by(Project.project_name.asc()).all()
-    return jsonify([{"id": p.id_project, "project_name": p.project_name} for p in projects]), 200
+    user_id = get_jwt_identity()
+    
+    projects = Project.query.join(Activity).filter(
+        Activity.created_by_id == user_id
+    ).order_by(Project.project_name.asc()).distinct().all()
+    
+    return jsonify([
+        {"id": p.id_project, "project_name": p.project_name} 
+        for p in projects
+    ]), 200
+
+#Filtrar competencias para un usuario en OfficilInbox
+@api.route('/competences/list', methods=['GET'])
+@jwt_required()
+def get_competences_list():
+    user_id = get_jwt_identity()
+    
+    competences = Competence.query.join(ProjectCompetence).join(Activity).filter(
+        Activity.created_by_id == user_id
+    ).order_by(Competence.name.asc()).distinct().all()
+    
+    return jsonify([
+        {"id": c.id_competence, "name": c.name} 
+        for c in competences
+    ]), 200
