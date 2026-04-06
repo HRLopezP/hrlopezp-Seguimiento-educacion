@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { toast, Toaster } from "sonner";
 import useGlobalReducer from '../hooks/useGlobalReducer';
 import { apiFetch } from "../../utils/api";
-import ReviewModal from "../components/ReviewModal";
+import OfficialReviewModal from "../components/OfficialReviewModal";
 import { useLocation } from "react-router-dom";
 
 const OfficialInbox = () => {
@@ -229,7 +229,7 @@ const OfficialInbox = () => {
             </div>
 
             {selectedActivity && (
-                <ReviewModal
+                <OfficialReviewModal
                     show={showModal}
                     onHide={() => setShowModal(false)}
                     activity={selectedActivity}
