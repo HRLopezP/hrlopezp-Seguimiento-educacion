@@ -8,7 +8,6 @@ const QuickHealthDash = () => {
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('criticos');
 
-    // Función de cálculo de porcentaje (Reutilizada del summary)
     const calcPct = (ind) => {
         const isOutcome = ind.type?.toLowerCase() === 'outcome';
         return isOutcome ? (ind.global_achieved || 0) :
@@ -16,21 +15,34 @@ const QuickHealthDash = () => {
     };
 
     const loadData = async (selection) => {
+        // Verificamos que tengamos ambos IDs para que la ruta no se rompa
+        if (!selection.proyectoId || !selection.competenciaId) return;
+
         setLoading(true);
         try {
-            const response = await apiFetch(`/official/indicators?project_id=${selection.proyectoId}`);
+            // USANDO EL ENDPOINT CORRECTO SEGÚN OFFICIALDASHBOARD
+            const response = await apiFetch(
+                `/project/${selection.proyectoId}/progress-summary?competence_id=${selection.competenciaId}`
+            );
+
             if (response && response.ok) {
                 const data = await response.json();
-                setIndicators(data);
+
+                // Según tu OfficialDashboard, la data llega como un array directo
+                // que luego se pasa al componente ProgressSummary
+                setIndicators(Array.isArray(data) ? data : []);
+            } else {
+                console.error("Error en la respuesta del servidor:", response.status);
             }
         } catch (error) {
-            toast.error("Error al cargar indicadores");
+            console.error("Error al conectar con el servidor:", error);
+            toast.error("No se pudo conectar con el servidor");
         } finally {
             setLoading(false);
         }
     };
 
-    // Clasificación de indicadores por rangos solicitados
+
     const groups = {
         criticos: indicators.filter(i => calcPct(i) <= 25),
         bajos: indicators.filter(i => calcPct(i) > 25 && calcPct(i) <= 50),
@@ -52,7 +64,7 @@ const QuickHealthDash = () => {
                             <span className="badge bg-dark-subtle text-dark" style={{ fontSize: '10px' }}>{ind.type}</span>
                         </div>
                         <h6 className="fw-bold text-truncate mb-3" title={ind.name}>{ind.name}</h6>
-                        
+
                         <div className="bg-light rounded-3 p-2 d-flex justify-content-around align-items-center">
                             <div className="text-center">
                                 <div className="fw-black fs-5" style={{ color: getStatusColor(pct) }}>{pct.toFixed(1)}%</div>
@@ -80,13 +92,13 @@ const QuickHealthDash = () => {
         if (p <= 25) return "#e74c3c"; // Crítico
         if (p <= 50) return "#f39c12"; // Bajo
         if (p <= 80) return "#3498db"; // Progreso
-        return "#27ae60"; // Avanzado (Emerald Green)
+        return "#27ae60"; // Avanzado 
     };
 
     return (
         <div className="container-fluid py-4 fade-in">
             <h3 className="fw-black mb-4"><i className="fas fa-heartbeat text-emerald me-2"></i>Estado de Salud de Indicadores</h3>
-            
+
             <ContextSelector onContextChange={loadData} />
 
             {indicators.length > 0 && (
@@ -95,7 +107,7 @@ const QuickHealthDash = () => {
                     <ul className="nav nav-pills nav-fill mb-4 bg-white p-2 rounded-4 shadow-sm border">
                         {Object.keys(groups).map(key => (
                             <li className="nav-item" key={key}>
-                                <button 
+                                <button
                                     className={`nav-link rounded-3 text-uppercase fw-bold ${activeTab === key ? 'active bg-emerald shadow' : 'text-muted'}`}
                                     onClick={() => setActiveTab(key)}
                                     style={{ fontSize: '12px' }}

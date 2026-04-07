@@ -31,6 +31,7 @@ import { ManagerDashboard } from "./pages/ManagerDashboard"
 import AuditInbox from "./pages/AuditInbox";
 import Profile from "./pages/Profile";
 import OfficialInbox from "./pages/OfficialInbox"
+import QuickHealthDash from "./pages/QuickHealthDash";
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -186,6 +187,15 @@ export const router = createBrowserRouter(
         element={
           <OfficialRoute>
             <OfficialInbox />
+          </OfficialRoute>
+        }
+      />
+
+      <Route
+        path="/official/health-status"
+        element={
+          <OfficialRoute>
+            <QuickHealthDash />
           </OfficialRoute>
         }
       />
