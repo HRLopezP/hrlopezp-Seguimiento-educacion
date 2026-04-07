@@ -750,11 +750,18 @@ def update_indicator(id):
         if IndicatorTemplate.query.filter_by(code=new_code).first():
             return jsonify({"message": f"El código {new_code} ya existe"}), 400
         indicator.code = new_code
+    
+    indicator.name = data.get("name", indicator.name)
 
     indicator.description = data.get("description", indicator.description)
 
     db.session.commit()
-    return jsonify({"id": indicator.id, "code": indicator.code, "description": indicator.description}), 200
+    return jsonify({
+        "id": indicator.id, 
+        "code": indicator.code, 
+        "name": indicator.name, 
+        "description": indicator.description
+    }), 200
 
 
 @api.route('/indicators/<int:id>', methods=['DELETE'])
@@ -2488,21 +2495,29 @@ def get_project_indicators(project_id):
 def get_activity_catalog():
     competence_id = request.args.get('competence_id', None)
     search = request.args.get('search', None)
+    # Detectamos si el frontend quiere paginación
+    page = request.args.get('page', type=int) 
+
     query = ActivityCatalog.query
     if search:
         query = query.filter(ActivityCatalog.description.ilike(f'%{search}%'))
 
     if competence_id:
-        query = query.filter(
-            or_(
-                ActivityCatalog.competence_id == competence_id,
-                ActivityCatalog.competence_id == None
-            )
-        )
+        query = query.filter(or_(
+            ActivityCatalog.competence_id == competence_id,
+            ActivityCatalog.competence_id == None
+        ))
 
     query = query.order_by(ActivityCatalog.description.asc())
 
-    data = paginate_query(query, lambda a: a.serialize())
+    # Lógica inteligente:
+    if page:
+        # Si hay página, usamos tu función de paginación
+        data = paginate_query(query, lambda a: a.serialize())
+    else:
+        # Si NO hay página (como en el Wizard), devolvemos la lista simple
+        activities = query.all()
+        data = [a.serialize() for a in activities]
     
     return jsonify(data), 200
 
@@ -2820,49 +2835,6 @@ def get_audit_inbox():
     }), 200
 
 
-# Para el globito de mensaje
-@api.route('/notifications/counts', methods=['GET'])
-@jwt_required()
-def get_notifications_counts():
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({"msg": "Usuario no encontrado"}), 404
-
-    role = user.rol.name_rol
-    counts = {
-        "pending_review": 0,  
-        "rejected": 0         
-    }
-
-    if role in ["Monitoreo", "Administrador"]:
-        counts["pending_review"] = Activity.query.filter_by(
-            status=ActivityStatus.EN_REVISION
-        ).count()
-
-
-    elif role == "Gerente":
-        counts["pending_review"] = Activity.query.join(ProjectCompetence)\
-            .filter(
-                ProjectCompetence.manager_id == user_id,
-                Activity.status == ActivityStatus.EN_REVISION
-        ).count()
-
-        counts["rejected"] = Activity.query.join(ProjectCompetence)\
-            .filter(
-                ProjectCompetence.manager_id == user_id,
-                Activity.status == ActivityStatus.RECHAZADA
-        ).count()
-
-    elif role == "Oficial":
-        counts["rejected"] = Activity.query.filter_by(
-            user_id=user_id,
-            status=ActivityStatus.RECHAZADA
-        ).count()
-
-    return jsonify(counts), 200
-
-
 # historial de un logro para todos
 @api.route('/audit/history/<entity_type>/<int:entity_id>', methods=['GET'])
 @jwt_required()
@@ -2935,3 +2907,165 @@ def get_achievement_timeline(activity_id):
         "achievement_id": achievement.id,
         "timeline": timeline
     }), 200
+
+# Para el globito de mensaje
+@api.route('/notifications/counts', methods=['GET'])
+@jwt_required()
+def get_notifications_counts():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"msg": "Usuario no encontrado"}), 404
+
+    role = user.rol.name_rol
+    counts = {
+        "pending_review": 0,
+        "rejected": 0,
+        "details": [] 
+    }
+
+    # 1. GESTIÓN TOTAL: Monitoreo y Administrador (Ven todo lo pendiente de revisión)
+    if role in ["Monitoreo", "Administrador"]:
+        counts["pending_review"] = Activity.query.filter_by(
+            status=ActivityStatus.EN_REVISION
+        ).count()
+
+    # 2. GESTIÓN POR COMPETENCIA: Gerente
+    elif role == "Gerente":
+        assignments = ProjectCompetence.query.filter_by(manager_id=user_id).all()
+        total_pending = 0
+        total_rejected = 0
+        
+        for asn in assignments:
+            pending = Activity.query.filter_by(
+                project_competence_id=asn.id_pc,
+                status=ActivityStatus.EN_REVISION
+            ).count()
+            
+            rejected = Activity.query.filter_by(
+                project_competence_id=asn.id_pc,
+                status=ActivityStatus.RECHAZADA
+            ).count()
+            
+            if pending > 0 or rejected > 0:
+                counts["details"].append({
+                    "competence": asn.competence.name,
+                    "project_code": asn.project.code,
+                    "pending": pending,
+                    "rejected": rejected
+                })
+            
+            total_pending += pending
+            total_rejected += rejected
+            
+        counts["pending_review"] = total_pending
+        counts["rejected"] = total_rejected
+
+    # 3. TODOS LOS DEMÁS: (Oficial, Coordinador, etc.) 
+    # Ven sus propios logros rechazados
+    else:
+        counts["rejected"] = Activity.query.filter_by(
+            created_by_id=user_id, 
+            status=ActivityStatus.RECHAZADA
+        ).count()
+
+    return jsonify(counts), 200
+
+
+@api.route('/my-activities', methods=['GET'])
+@jwt_required()
+def get_my_activities():
+    user_id = get_jwt_identity()
+    
+    status_str = request.args.get("status", "En Revisión")
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
+    search_code = request.args.get("search_code", "")
+    proyecto_id = request.args.get("project_id", "")
+    competencia_id = request.args.get("competence_id", "")
+
+    status_mapping = {
+        "En Revisión": ActivityStatus.EN_REVISION,
+        "Aprobada": ActivityStatus.APROBADA,
+        "Rechazada": ActivityStatus.RECHAZADA
+    }
+    status_enum = status_mapping.get(status_str, ActivityStatus.EN_REVISION)
+
+    query = Activity.query.filter(
+        Activity.created_by_id == user_id, 
+        Activity.status == status_enum
+    )
+
+    if status_str == "Aprobada":
+        if competencia_id and competencia_id != "":
+            query = query.filter(Activity.project_competence_id == int(competencia_id))
+
+    if search_code:
+        query = query.join(Indicator).join(IndicatorTemplate).filter(
+            IndicatorTemplate.code.ilike(f"%{search_code}%")
+        )
+    
+    if proyecto_id and proyecto_id != "":
+        query = query.filter(Activity.project_id == int(proyecto_id))
+
+    query = query.order_by(Activity.updated_at.desc())
+
+    def process_activity(act):
+        data = act.serialize()
+        # 1. Proyecto
+        data["project_name"] = act.indicator.project.project_name if act.indicator and act.indicator.project else "N/A"
+        # 2. Código (desde el template del indicador)
+        if act.indicator and act.indicator.template:
+            data["indicator_code"] = act.indicator.template.code
+
+        if act.creator:
+            data["responsible"] = f"{act.creator.name} {act.creator.lastname}".strip()
+        else:
+            data["responsible"] = "Usuario no identificado"
+        # 3. Competencia
+        if act.project_competence and act.project_competence.competence:
+            data["competence_name"] = act.project_competence.competence.name
+        # 4. PROVINCIA (Nombre de relación exacto: province_ref)
+        if act.location and act.location.province_ref:
+            data["province_name"] = act.location.province_ref.name
+        else:
+            data["province_name"] = "No definida"
+            
+        return data
+
+    try:
+        data = paginate_query(query, process_activity)
+        return jsonify(data), 200
+    except Exception as e:
+        print(f"Error detectado en el servidor: {str(e)}")
+        return jsonify({"message": f"Error en el servidor: {str(e)}"}), 500
+    
+#Filtrar proyectos para un usuario en OfficilInbox
+@api.route('/projects/list', methods=['GET'])
+@jwt_required()
+def get_projects_simple_list():
+    user_id = get_jwt_identity()
+    
+    projects = Project.query.join(Activity).filter(
+        Activity.created_by_id == user_id
+    ).order_by(Project.project_name.asc()).distinct().all()
+    
+    return jsonify([
+        {"id": p.id_project, "project_name": p.project_name} 
+        for p in projects
+    ]), 200
+
+#Filtrar competencias para un usuario en OfficilInbox
+@api.route('/competences/list', methods=['GET'])
+@jwt_required()
+def get_competences_list():
+    user_id = get_jwt_identity()
+    
+    competences = Competence.query.join(ProjectCompetence).join(Activity).filter(
+        Activity.created_by_id == user_id
+    ).order_by(Competence.name.asc()).distinct().all()
+    
+    return jsonify([
+        {"id": c.id_competence, "name": c.name} 
+        for c in competences
+    ]), 200

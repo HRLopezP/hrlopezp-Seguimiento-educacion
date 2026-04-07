@@ -21,7 +21,7 @@ const ReviewModal = ({ show, onHide, activity, onReviewSuccess, currentTab }) =>
 
     useEffect(() => {
         if (show) {
-            setViewMode('detail'); // Resetear a detalle al abrir
+            setViewMode('detail'); 
             if (currentAchievement?.monitoring_comment) {
                 setComment(currentAchievement.monitoring_comment);
             } else {

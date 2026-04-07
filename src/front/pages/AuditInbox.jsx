@@ -4,6 +4,7 @@ import useGlobalReducer from '../hooks/useGlobalReducer';
 import { apiFetch } from "../../utils/api";
 import ReviewModal from "../components/ReviewModal";
 import "../styles/roleManagement.css";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const AuditInbox = () => {
   const { store } = useGlobalReducer();
@@ -15,15 +16,27 @@ const AuditInbox = () => {
   const [loading, setLoading] = useState(true);
   const [competencias, setCompetencias] = useState([]);
   const [proyectos, setProyectos] = useState([]);
-  const [currentTab, setCurrentTab] = useState("En Revisión");
+  const location = useLocation();
+  const [currentTab, setCurrentTab] = useState(
+    new URLSearchParams(location.search).get('tab') || "En Revisión"
+  );
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const navigate = useNavigate();
 
   const [filters, setFilters] = useState({
     competenciaId: '',
     proyectoId: '',
     search_code: ""
   });
+
+  const handleTabChange = (tabId) => {
+    setCurrentTab(tabId);
+    setPage(1);
+    setFilters(prev => ({ ...prev, proyectoId: '' }));
+    navigate(`?tab=${tabId}`, { replace: true });
+  };
+
 
   const handleOpenAudit = (activity) => {
     setSelectedActivity(activity);
@@ -32,14 +45,12 @@ const AuditInbox = () => {
 
   const handleCloseModal = () => {
     setShowModal(false);
-    // Damos 300ms para que la animación de Bootstrap termine 
-    // y limpie los atributos aria-hidden antes de borrar el dato
     setTimeout(() => {
       setSelectedActivity(null);
     }, 300);
   };
 
-  // 1. CARGA DE COMPETENCIAS SEGÚN ROL
+
   useEffect(() => {
     if (userRole === "Gerente") {
       const userComps = user?.competences || [];
@@ -57,8 +68,7 @@ const AuditInbox = () => {
     }
   }, [user, userRole]);
 
-  // 2. CARGA DE PROYECTOS 
-  // 2. CARGA DE PROYECTOS 
+
   useEffect(() => {
     const loadProjects = async () => {
       let url = "/manager/projects";
@@ -69,9 +79,6 @@ const AuditInbox = () => {
       const res = await apiFetch(url);
       if (res.ok) {
         const data = await res.json();
-        // ANTES: setProyectos(data); 
-        // AHORA: Si data tiene la propiedad 'items' (paginado), la usamos. 
-        // Si no, usamos data directamente (por si el endpoint no paginara).
         setProyectos(data.items || data);
       }
     };
@@ -79,9 +86,8 @@ const AuditInbox = () => {
   }, [filters.competenciaId]);
 
 
-  // 3. OBTENCIÓN DE DATOS
+
   const fetchAuditData = useCallback(async () => {
-    // 1. Validación de seguridad original para Aprobadas
     if (currentTab === "Aprobada" && !filters.proyectoId) {
       setActivities([]);
       setLoading(false);
@@ -90,25 +96,20 @@ const AuditInbox = () => {
 
     setLoading(true);
     try {
-      // 2. Construimos los parámetros base que funcionan en todas las pestañas
       const params = new URLSearchParams({
         status: currentTab,
         page: page,
         per_page: 10,
       });
 
-      // 3. El buscador de código siempre se incluye si tiene texto
       if (filters.search_code) {
         params.append("search_code", filters.search_code);
       }
 
-      // 4. ESCUDO DE FILTROS: Proyecto y Competencia SOLO si es la pestaña Aprobada
       if (currentTab === "Aprobada") {
         if (filters.proyectoId) params.append("project_id", filters.proyectoId);
         if (filters.competenciaId) params.append("competence_id", filters.competenciaId);
       }
-
-      // 5. Petición al servidor usando el objeto params construido
       const res = await apiFetch(`/audit/inbox?${params.toString()}`);
 
       if (res.ok) {
@@ -124,7 +125,7 @@ const AuditInbox = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentTab, page, filters, apiFetch]); 
+  }, [currentTab, page, filters, apiFetch]);
 
 
   useEffect(() => {
@@ -146,6 +147,18 @@ const AuditInbox = () => {
   };
 
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabFromUrl = params.get('tab');
+
+    if (tabFromUrl && tabFromUrl !== currentTab) {
+      setCurrentTab(tabFromUrl);
+      setPage(1);
+      setFilters({ competenciaId: '', proyectoId: '', search_code: "" });
+    }
+  }, [location.search]);
+
+
   return (
     <div className="management-page-container">
       <Toaster richColors position="top-right" />
@@ -161,7 +174,7 @@ const AuditInbox = () => {
             <button
               key={tab.id}
               className={`audit-tab-btn ${currentTab === tab.id ? `active ${tab.class}` : ""}`}
-              onClick={() => { setCurrentTab(tab.id); setPage(1); }}
+              onClick={() => handleTabChange(tab.id)}
             >
               <i className={`fas ${tab.id === 'En Revisión' ? 'fa-clock' :
                 tab.id === 'Aprobada' ? 'fa-check-circle' : 'fa-times-circle'
@@ -255,30 +268,23 @@ const AuditInbox = () => {
                   ) : activities.length > 0 ? (
                     activities.map(act => (
                       <tr key={act.id}>
-                        {/* 1. Código del Indicador */}
                         <td className="ps-4">
                           <span className="badge bg-success">
                             {act.indicator_code || act.indicator?.code}
                           </span>
                         </td>
-                        {/* 2. Responsable */}
                         <td className="fw-medium text-dark">{act.responsible}</td>
-                        {/* 3. Proyecto */}
                         <td className="small text-muted" style={{ maxWidth: '200px' }}>
                           {act.project_name}
                         </td>
-                        {/* 4. Competencia */}
                         <td className="small">{act.competence_name}</td>
-                        {/* 5. Ubicación (Provincia) */}
                         <td className="small">
                           <i className="fas fa-map-marker-alt text-danger me-1"></i>
                           {act.province_name || "No definida"}
                         </td>
-                        {/* 6. Fecha (de creación del logro) */}
                         <td className="small">
                           {act.audit?.created_at ? act.audit.created_at.split(' ')[0] : 'N/A'}
                         </td>
-                        {/* 7. Acciones */}
                         <td className="text-center">
                           <button
                             className={`btn-action ${currentTab === 'En Revisión' ? 'btn-activate' : 'btn-view'}`}

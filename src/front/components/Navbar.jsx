@@ -1,17 +1,16 @@
 import React from "react";
 import { NavLink, Link, useNavigate } from "react-router-dom";
 import useGlobalReducer from "../hooks/useGlobalReducer";
+import NotificationBadge from "./NotificationBadge";
 
 export const Navbar = () => {
     const { store, dispatch } = useGlobalReducer();
     const navigate = useNavigate();
 
-    // Lógica de Roles y Permisos (Usando store.user?.rol_name)
     const role = store.user?.rol_name;
     const isManager = role === "Gerente" || role === "Administrador";
     const isMonitor = role === "Monitoreo";
-    // Oficial es cualquier rol logueado que no sea Gerente ni Monitoreo
-    const isOfficial = store.token && !isManager && !isMonitor;
+    const isOperationalRole = store.token && !isManager && !isMonitor;
 
     const toggleTheme = () => {
         dispatch({ type: "TOGGLE_THEME" });
@@ -29,12 +28,10 @@ export const Navbar = () => {
                     <i className="fas fa-project-diagram me-2 text-emerald"></i>
                     SIGSSEP
                 </Link>
-
                 {/* --- SECCIÓN 1: MENÚ CENTRAL DINÁMICO (Solo si hay token) --- */}
                 {store.token && (
                     <div className="collapse navbar-collapse" id="navbarNav">
                         <ul className="navbar-nav ms-4 gap-2">
-                            
                             {/* 1. RUTAS DE GERENTE / ADMIN (Acceso Total Organizado) */}
                             {isManager && (
                                 <>
@@ -54,7 +51,6 @@ export const Navbar = () => {
                                             <i className="fas fa-clipboard-check me-1"></i> Auditoría
                                         </NavLink>
                                     </li>
-
                                     {/* Dropdown de Gestión Humana (Uso Frecuente) */}
                                     <li className="nav-item dropdown">
                                         <a className="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
@@ -66,7 +62,6 @@ export const Navbar = () => {
                                             <li><NavLink className="dropdown-item" to="/manager/competences">Competencias</NavLink></li>
                                         </ul>
                                     </li>
-
                                     {/* Dropdown de Bancos y Catálogos (Uso Menos Frecuente) */}
                                     <li className="nav-item dropdown">
                                         <a className="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
@@ -82,7 +77,6 @@ export const Navbar = () => {
                                     </li>
                                 </>
                             )}
-
                             {/* 2. RUTA DE MONITOREO */}
                             {isMonitor && (
                                 <li className="nav-item">
@@ -91,23 +85,29 @@ export const Navbar = () => {
                                     </NavLink>
                                 </li>
                             )}
-
                             {/* 3. RUTA DE OFICIAL */}
-                            {isOfficial && (
+                            {isOperationalRole &&(
                                 <li className="nav-item">
                                     <NavLink className="nav-link" to="/official/dashboard">
                                         <i className="fas fa-calendar-alt me-1"></i> Mi Planificación
                                     </NavLink>
                                 </li>
                             )}
+                            {isOperationalRole && (
+                                <li className="nav-item">
+                                    <NavLink className="nav-link" to="/official/my-activities">
+                                        <i className="fa-solid fa-inbox me-1"></i> Mis Logros
+                                    </NavLink>
+                                </li>
+                            )}
                         </ul>
                     </div>
                 )}
-
                 {/* --- SECCIÓN 2: PARTE DERECHA (TEMA Y PERFIL ORIGINAL) --- */}
                 <div className="ms-auto d-flex align-items-center">
-                    
-                    {/* Botón de Tema (Mismo estilo) */}
+                    {/* 3. Insertamos el Badge de Notificaciones si está logueado */}
+                    {store.token && <NotificationBadge />}
+                    {/* Botón de Tema */}
                     <button className="btn border-0 me-3 theme-toggle-btn" onClick={toggleTheme} title="Cambiar modo">
                         {store.theme === "light" ? (
                             <i className="fa-solid fa-moon fs-5" style={{ color: "#1B263B" }}></i>
@@ -115,9 +115,8 @@ export const Navbar = () => {
                             <i className="fa-solid fa-sun fs-5 text-warning"></i>
                         )}
                     </button>
-
                     {store.token ? (
-                        /* --- DROPDOWN DE PERFIL EXACTAMENTE COMO LO TENÍAS --- */
+                        /* --- DROPDOWN DE PERFIL --- */
                         <div className="dropdown">
                             <button className="btn btn-outline-secondary dropdown-toggle d-flex align-items-center rounded-pill px-2 py-1" type="button" data-bs-toggle="dropdown">
                                 <img
@@ -131,7 +130,6 @@ export const Navbar = () => {
                             <ul className="dropdown-menu dropdown-menu-end shadow border-0 mt-2 p-2">
                                 <li className="px-3 py-2">
                                     <small className="dropdown-label d-block mb-1">Sesión activa como:</small>
-                                    {/* Usamos las clases bg-oxford / bg-emerald-soft que definiste en index.css */}
                                     <span className={`badge ${role === 'Gerente' || role === 'Administrador' ? 'bg-oxford' : 'bg-emerald-soft'} w-100 role-badge`}>
                                         {role || "Oficial"}
                                     </span>
@@ -150,7 +148,7 @@ export const Navbar = () => {
                             </ul>
                         </div>
                     ) : (
-                        /* Botones de Login/Registro (Mismo estilo) */
+                        /* Botones de Login/Registro */
                         <div className="d-flex gap-2">
                             <Link to="/login" className="btn btn-login-nav rounded-pill px-4 shadow-sm">
                                 Ingresar
