@@ -32,6 +32,16 @@ export const Navbar = () => {
                 {store.token && (
                     <div className="collapse navbar-collapse" id="navbarNav">
                         <ul className="navbar-nav ms-4 gap-2">
+                            {/* ENLACE AL NUEVO COMPONENTE: ESTADO DE SALUD */}
+                            <li className="nav-item">
+                                <NavLink
+                                    className={({ isActive }) => `nav-link rounded-pill px-3 ${isActive ? 'active-sigssep' : ''}`}
+                                    to="/official/health-status"
+                                >
+                                    <i className="fas fa-heartbeat me-2 text-emerald"></i>
+                                    Pulso de Proyectos
+                                </NavLink>
+                            </li>
                             {/* 1. RUTAS DE GERENTE / ADMIN (Acceso Total Organizado) */}
                             {isManager && (
                                 <>
@@ -86,7 +96,7 @@ export const Navbar = () => {
                                 </li>
                             )}
                             {/* 3. RUTA DE OFICIAL */}
-                            {isOperationalRole &&(
+                            {isOperationalRole && (
                                 <li className="nav-item">
                                     <NavLink className="nav-link" to="/official/dashboard">
                                         <i className="fas fa-calendar-alt me-1"></i> Mi Planificación
