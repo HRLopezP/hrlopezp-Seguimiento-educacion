@@ -8,8 +8,6 @@ const QuickHealthDash = () => {
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('criticos');
 
-    // --- FUNCIONES DE APOYO ---
-
     const calcPct = (ind) => {
         const isOutcome = ind.type?.toLowerCase() === 'outcome';
         return isOutcome ? (ind.global_achieved || 0) :
@@ -57,13 +55,11 @@ const QuickHealthDash = () => {
         avanzados: indicators.filter(i => calcPct(i) > 80)
     };
 
-    // --- RENDERIZADO DE COMPONENTES ---
-
     const renderMiniCard = (ind) => {
         const pct = calcPct(ind);
         const colorData = getStatusColor(pct);
         const isOutcome = ind.type?.toLowerCase() === 'outcome';
-        const isDep = ind.is_dependent; // Extraemos si es dependiente del modelo
+        const isDep = ind.is_dependent; 
 
         return (
             <div key={ind.id} className="col-12 col-md-6 col-lg-4 mb-3">

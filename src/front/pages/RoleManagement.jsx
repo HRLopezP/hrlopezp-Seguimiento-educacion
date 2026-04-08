@@ -4,12 +4,15 @@ import Swal from 'sweetalert2';
 import { apiFetch } from "../../utils/api";
 import "../styles/auth.css";
 import "../styles/roleManagement.css";
+import useGlobalReducer from '../hooks/useGlobalReducer';
 
 const RoleManagement = () => {
+    const { store } = useGlobalReducer();
     const [roles, setRoles] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Función para cargar los roles desde la API
+    const currentUserRole = store.user?.name_rol;
+
     const fetchRoles = async () => {
         try {
             const res = await apiFetch("/roles");
@@ -28,25 +31,20 @@ const RoleManagement = () => {
         fetchRoles();
     }, []);
 
-    /**
-     * Lógica Unificada para Crear y Editar usando SweetAlert2
-     * Tal como en UserManagement, evitamos modales manuales.
-     */
+    
     const handleOpenRoleModal = async (role = null) => {
         const isEditing = !!role;
 
-        if (isEditing && role.name_rol === "Administrador") {
-            return toast.warning("El rol Administrador es vital y no debe ser modificado.");
+        if (isEditing && (role.name_rol === "Administrador" || role.name_rol === "Oficial")) {
+            return toast.warning("Este rol es vital para el sistema y no debe ser modificado.");
         }
 
-        // Definimos el estilo dinámico según la acción
         const iconHtml = isEditing
             ? `<div class="role-icon-container edit-mode"><i class="fas fa-user-tag"></i></div>`
             : `<div class="role-icon-container create-mode"><i class="fas fa-shield-alt"></i></div>`;
 
         const { value: newRoleName } = await Swal.fire({
             title: isEditing ? 'Actualizar Rol' : 'Nuevo Rol de Sistema',
-            // Inyectamos el icono arriba del input
             html: `
             ${iconHtml}
             <div style="margin-top: 15px;">
@@ -73,7 +71,6 @@ const RoleManagement = () => {
             }
         });
 
-        // Si el usuario confirmó y escribió algo
         if (newRoleName) {
             const method = isEditing ? "PUT" : "POST";
             const endpoint = isEditing ? `/roles/${role.id}` : "/roles";
@@ -108,7 +105,7 @@ const RoleManagement = () => {
             text: `Esta acción no se puede deshacer y podría afectar a los usuarios asignados a "${role.name_rol}".`,
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#ef4444', // Rojo para eliminar
+            confirmButtonColor: '#ef4444', 
             cancelButtonColor: '#1B263B',
             confirmButtonText: 'Sí, eliminar',
             cancelButtonText: 'Cancelar',
@@ -132,6 +129,27 @@ const RoleManagement = () => {
             }
         }
     };
+
+    const handleToggleAccess = async (role) => {
+        if (!role.id) return toast.error("Error: ID de rol no encontrado");
+
+        try {
+            const res = await apiFetch(`/roles/${role.id}/toggle-access`, {
+                method: "PATCH"
+            });
+            if (res && res.ok) {
+                const data = await res.json();
+                toast.success(data.message);
+                fetchRoles();
+            } else {
+                const err = await res.json();
+                toast.error(err.message || "Error al cambiar acceso");
+            }
+        } catch (error) {
+            toast.error("Error de conexión con el servidor");
+        }
+    };
+    
 
     if (loading) return (
         <div className="d-flex justify-content-center align-items-center" style={{ height: '80vh' }}>
@@ -163,6 +181,7 @@ const RoleManagement = () => {
                                     <tr>
                                         <th style={{ width: '80px' }}>ID</th>
                                         <th>Nombre del Rol</th>
+                                        <th className="text-center">Acceso Global</th>
                                         <th className="text-center">Acciones</th>
                                     </tr>
                                 </thead>
@@ -174,6 +193,19 @@ const RoleManagement = () => {
                                                 <span className="fw-semibold user-name-text">
                                                     {role.name_rol}
                                                 </span>
+                                            </td>
+                                            {/* INTERRUPTOR EN LA COLUMNA */}
+                                            <td className="text-center">
+                                                <div className="form-check form-switch d-flex justify-content-center">
+                                                    <input
+                                                        className="form-check-input ms-0"
+                                                        type="checkbox"
+                                                        style={{ width: '2.2em', height: '1.1em', cursor: 'pointer' }}
+                                                        checked={role.has_all_access || false}
+                                                        onChange={() => handleToggleAccess(role)}
+                                                        disabled={role.name_rol === "Administrador"}
+                                                    />
+                                                </div>
                                             </td>
                                             <td className="text-center">
                                                 <button

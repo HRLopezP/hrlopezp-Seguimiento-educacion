@@ -2196,7 +2196,7 @@ def get_audit_logs():
 
     return jsonify(results), 200
 
-
+#Mostrar las competencias según el rol
 @api.route('/official/competences', methods=['GET'])
 @jwt_required()
 def get_oficial_competencias():
@@ -2205,27 +2205,36 @@ def get_oficial_competencias():
 
     if not user:
         return jsonify({"msg": "Usuario no encontrado"}), 404
-    competencias = [
-        {"id": comp.id_competence, "name": comp.name}
-        for comp in user.competences
-    ]
+
+    is_master = user.rol and getattr(user.rol, 'has_all_access', False)
+
+    if is_master:
+        todas = Competence.query.all()
+        competencias = [{"id": c.id_competence, "name": c.name} for c in todas]
+    else:
+        competencias = [{"id": comp.id_competence, "name": comp.name} for comp in user.competences]
 
     return jsonify(competencias), 200
 
-
+#Mostrar los proyectos según el usuario y la competencia
 @api.route('/official/projects', methods=['GET'])
 @jwt_required()
 def get_proyectos_por_competencia():
     competencia_id = request.args.get('competencia_id')
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
 
     if not competencia_id:
         return jsonify({"msg": "Falta el ID de la competencia"}), 400
 
-    proyectos_ids = ProjectCompetence.query.filter_by(
-        competence_id=competencia_id).all()
+
+    if user.rol and user.rol.has_all_access:
+        relaciones = ProjectCompetence.query.filter_by(competence_id=competencia_id).all()
+    else:
+        relaciones = ProjectCompetence.query.filter_by(competence_id=competencia_id).all()
 
     proyectos_data = []
-    for rel in proyectos_ids:
+    for rel in relaciones:
         p = rel.project
         if p:
             proyectos_data.append({
@@ -2495,7 +2504,6 @@ def get_project_indicators(project_id):
 def get_activity_catalog():
     competence_id = request.args.get('competence_id', None)
     search = request.args.get('search', None)
-    # Detectamos si el frontend quiere paginación
     page = request.args.get('page', type=int) 
 
     query = ActivityCatalog.query
@@ -2510,12 +2518,9 @@ def get_activity_catalog():
 
     query = query.order_by(ActivityCatalog.description.asc())
 
-    # Lógica inteligente:
     if page:
-        # Si hay página, usamos tu función de paginación
         data = paginate_query(query, lambda a: a.serialize())
     else:
-        # Si NO hay página (como en el Wizard), devolvemos la lista simple
         activities = query.all()
         data = [a.serialize() for a in activities]
     
@@ -2924,13 +2929,11 @@ def get_notifications_counts():
         "details": [] 
     }
 
-    # 1. GESTIÓN TOTAL: Monitoreo y Administrador (Ven todo lo pendiente de revisión)
     if role in ["Monitoreo", "Administrador"]:
         counts["pending_review"] = Activity.query.filter_by(
             status=ActivityStatus.EN_REVISION
         ).count()
 
-    # 2. GESTIÓN POR COMPETENCIA: Gerente
     elif role == "Gerente":
         assignments = ProjectCompetence.query.filter_by(manager_id=user_id).all()
         total_pending = 0
@@ -2961,8 +2964,6 @@ def get_notifications_counts():
         counts["pending_review"] = total_pending
         counts["rejected"] = total_rejected
 
-    # 3. TODOS LOS DEMÁS: (Oficial, Coordinador, etc.) 
-    # Ven sus propios logros rechazados
     else:
         counts["rejected"] = Activity.query.filter_by(
             created_by_id=user_id, 
@@ -3012,9 +3013,7 @@ def get_my_activities():
 
     def process_activity(act):
         data = act.serialize()
-        # 1. Proyecto
         data["project_name"] = act.indicator.project.project_name if act.indicator and act.indicator.project else "N/A"
-        # 2. Código (desde el template del indicador)
         if act.indicator and act.indicator.template:
             data["indicator_code"] = act.indicator.template.code
 
@@ -3022,10 +3021,8 @@ def get_my_activities():
             data["responsible"] = f"{act.creator.name} {act.creator.lastname}".strip()
         else:
             data["responsible"] = "Usuario no identificado"
-        # 3. Competencia
         if act.project_competence and act.project_competence.competence:
             data["competence_name"] = act.project_competence.competence.name
-        # 4. PROVINCIA (Nombre de relación exacto: province_ref)
         if act.location and act.location.province_ref:
             data["province_name"] = act.location.province_ref.name
         else:
@@ -3069,3 +3066,29 @@ def get_competences_list():
         {"id": c.id_competence, "name": c.name} 
         for c in competences
     ]), 200
+
+
+#endpoint para habilitar interruptor de competencias
+@api.route('/roles/<int:role_id>/toggle-access', methods=['PATCH'])
+@jwt_required()
+def toggle_role_access(role_id):
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    
+    if not user or user.rol.name_rol != "Administrador":
+        return jsonify({"message": "Acceso denegado. Solo el Administrador puede cambiar jerarquías."}), 403
+
+    role = Rol.query.get(role_id)
+    if not role:
+        return jsonify({"message": "Rol no encontrado"}), 404
+    
+    if role.name_rol == "Administrador":
+        return jsonify({"message": "No puedes modificar el acceso del Administrador base"}), 400
+    
+    role.has_all_access = not role.has_all_access
+    db.session.commit()
+
+    return jsonify({
+        "message": f"Acceso total {'activado' if role.has_all_access else 'desactivado'}",
+        "has_all_access": role.has_all_access
+    }), 200
