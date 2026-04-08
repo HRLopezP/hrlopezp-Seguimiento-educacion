@@ -12,39 +12,32 @@ const QuickHealthDash = () => {
 
     const calcPct = (ind) => {
         const isOutcome = ind.type?.toLowerCase() === 'outcome';
-        // Si es outcome, el valor ya suele venir como porcentaje
         return isOutcome ? (ind.global_achieved || 0) :
             (ind.global_target > 0 ? (ind.global_achieved / ind.global_target) * 100 : 0);
     };
 
     const getStatusColor = (value) => {
-        // Detecta si es el nombre de la pestaña (string) o un porcentaje (number)
         const key = typeof value === 'string' ? value :
             (value <= 25 ? 'criticos' :
                 value <= 50 ? 'bajos' :
                     value <= 80 ? 'progreso' : 'avanzados');
 
         const statusMap = {
-            criticos: { hex: "#ef4444", bootstrap: "bg-danger" },   // Rojo
-            bajos: { hex: "#f39c12", bootstrap: "bg-warning" },    // Naranja/Amarillo
-            progreso: { hex: "#3a86ff", bootstrap: "bg-primary" },  // Azul
-            avanzados: { hex: "#10b981", bootstrap: "bg-emerald" }  // Esmeralda (SIGSSEP)
+            criticos: { hex: "#ef4444", bootstrap: "bg-danger" },
+            bajos: { hex: "#f39c12", bootstrap: "bg-warning" },
+            progreso: { hex: "#3a86ff", bootstrap: "bg-primary" },
+            avanzados: { hex: "#10b981", bootstrap: "bg-emerald" }
         };
-
         return statusMap[key] || { hex: "#6c757d", bootstrap: "bg-secondary" };
     };
 
-    // --- LÓGICA DE DATOS ---
-
     const loadData = async (selection) => {
         if (!selection.proyectoId || !selection.competenciaId) return;
-
         setLoading(true);
         try {
             const response = await apiFetch(
                 `/project/${selection.proyectoId}/progress-summary?competence_id=${selection.competenciaId}`
             );
-
             if (response && response.ok) {
                 const data = await response.json();
                 setIndicators(Array.isArray(data) ? data : []);
@@ -70,6 +63,7 @@ const QuickHealthDash = () => {
         const pct = calcPct(ind);
         const colorData = getStatusColor(pct);
         const isOutcome = ind.type?.toLowerCase() === 'outcome';
+        const isDep = ind.is_dependent; // Extraemos si es dependiente del modelo
 
         return (
             <div key={ind.id} className="col-12 col-md-6 col-lg-4 mb-3">
@@ -79,7 +73,6 @@ const QuickHealthDash = () => {
                         borderRadius: '12px'
                     }}>
 
-                    {/* MEJORA 1: Encabezado Oxford Grey */}
                     <div className="card-header bg-oxford py-2 px-3 d-flex justify-content-between align-items-center"
                         style={{ borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
                         <code className="text-white opacity-75 small fw-bold">{ind.code}</code>
@@ -93,31 +86,66 @@ const QuickHealthDash = () => {
                             {ind.name}
                         </h6>
 
-                        <div className="bg-light rounded-3 p-2 d-flex justify-content-around align-items-center">
+                        {/* LOGRO VS META GLOBAL */}
+                        <div className="bg-light rounded-3 p-3 mb-3 d-flex justify-content-around align-items-center border">
                             <div className="text-center">
-                                {/* Usamos el color hexadecimal dinámico para el número */}
+                                <small className="d-block text-muted text-uppercase fw-bold" style={{ fontSize: '8px' }}>Logro</small>
                                 <div className="fw-black fs-5" style={{ color: colorData.hex }}>
-                                    {pct.toFixed(1)}%
+                                    {ind.global_achieved}{isOutcome ? '%' : ''}
                                 </div>
-                                <small className="text-muted uppercase-label" style={{ fontSize: '8px' }}>Avance</small>
+                                {!isOutcome && (
+                                    <small className="fw-bold d-block" style={{ color: colorData.hex, fontSize: '10px', opacity: '0.8' }}>
+                                        {pct.toFixed(1)}%
+                                    </small>
+                                )}
                             </div>
 
-                            <div className="vr"></div>
+                            <div className="vr opacity-25" style={{ height: '30px' }}></div>
 
-                            {/* MEJORA 2: Formato Total / Meta */}
-                            <div className="px-2">
-                                <div className="d-flex align-items-center gap-2 mb-1" style={{ fontSize: '11px' }}>
-                                    <i className="fas fa-mars text-primary"></i>
-                                    <span className="fw-bold text-oxford">
-                                        {ind.total_men}{isOutcome ? '%' : ''} / {ind.global_target_men || 0}{isOutcome ? '%' : ''}
-                                    </span>
+                            <div className="text-center">
+                                <small className="d-block text-muted text-uppercase fw-bold" style={{ fontSize: '8px' }}>Meta</small>
+                                <div className="fw-bold text-oxford fs-5">
+                                    {ind.global_target}{isOutcome ? '%' : ''}
                                 </div>
-                                <div className="d-flex align-items-center gap-2" style={{ fontSize: '11px' }}>
-                                    <i className="fas fa-venus text-danger"></i>
-                                    <span className="fw-bold text-oxford">
-                                        {ind.total_women}{isOutcome ? '%' : ''} / {ind.global_target_women || 0}{isOutcome ? '%' : ''}
-                                    </span>
-                                </div>
+                                {!isOutcome && <div style={{ height: '15px' }}></div>}
+                            </div>
+                        </div>
+
+                        {/* DESAGREGACIÓN POR GÉNERo*/}
+                        <div className="d-flex justify-content-between align-items-center pt-2 border-top">
+                            <small className="text-muted fw-bold uppercase-label" style={{ fontSize: '9px' }}>
+                                Desglose:
+                            </small>
+                            <div className="d-flex gap-3">
+                                {isOutcome && !isDep ? (
+                                    /* CASO 1: Outcome Independiente (Aprobados / Atendidos) */
+                                    <>
+                                        <span title="Aprobados">
+                                            <i className="fas fa-user-check text-success me-1"></i>
+                                            <small className="fw-bold text-oxford">{ind.total_approved || 0}</small>
+                                        </span>
+                                        <span title="Población Total">
+                                            <i className="fas fa-users text-primary me-1"></i>
+                                            <small className="fw-bold text-oxford">{ind.total_attended || 0}</small>
+                                        </span>
+                                    </>
+                                ) : (
+                                    /* CASO 2 y 3: Outcome Dep (%) o Output (Logro / Meta) */
+                                    <>
+                                        <span>
+                                            <i className="fas fa-mars text-primary me-1"></i>
+                                            <small className="fw-bold text-oxford">
+                                                {isDep ? `${ind.total_men}%` : `${ind.total_men} / ${ind.global_target_men || 0}`}
+                                            </small>
+                                        </span>
+                                        <span>
+                                            <i className="fas fa-venus text-danger me-1"></i>
+                                            <small className="fw-bold text-oxford">
+                                                {isDep ? `${ind.total_women}%` : `${ind.total_women} / ${ind.global_target_women || 0}`}
+                                            </small>
+                                        </span>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -136,7 +164,6 @@ const QuickHealthDash = () => {
 
             {indicators.length > 0 && (
                 <div className="mt-4">
-                    {/* MEJORA 3: Pestañas con colores dinámicos */}
                     <ul className="nav nav-pills nav-fill mb-4 bg-white p-2 rounded-4 shadow-sm border">
                         {Object.keys(groups).map(key => {
                             const colorData = getStatusColor(key);
@@ -164,7 +191,7 @@ const QuickHealthDash = () => {
                         ) : (
                             <div className="text-center p-5 text-muted">
                                 <i className="fas fa-check-circle fa-3x mb-3 opacity-25"></i>
-                                <p>No hay indicadores en esta categoría para este proyecto.</p>
+                                <p>No hay indicadores en esta categoría.</p>
                             </div>
                         )}
                     </div>
