@@ -59,10 +59,10 @@ const QuickHealthDash = () => {
         const pct = calcPct(ind);
         const colorData = getStatusColor(pct);
         const isOutcome = ind.type?.toLowerCase() === 'outcome';
-        const isDep = ind.is_dependent; 
+        const isDep = ind.is_dependent;
 
         return (
-            <div key={ind.id} className="col-12 col-md-6 col-lg-4 mb-3">
+            <div key={ind.id} className="col-12 col-md-6 col-lg-2 mb-3">
                 <div className="card h-100 border-0 shadow-sm"
                     style={{
                         borderLeft: `5px solid ${colorData.hex}`,
@@ -108,10 +108,13 @@ const QuickHealthDash = () => {
                         </div>
 
                         {/* DESAGREGACIÓN POR GÉNERo*/}
-                        <div className="d-flex justify-content-between align-items-center pt-2 border-top">
-                            <small className="text-muted fw-bold uppercase-label" style={{ fontSize: '9px' }}>
+                        <div className='text-center '>
+                            <small className="text-mutedfw-bold uppercase-label" style={{ fontSize: '9px' }}>
                                 Desglose:
                             </small>
+                        </div>
+                        <div className="d-flex justify-content-between align-items-center pt-2 border-top">
+
                             <div className="d-flex gap-3">
                                 {isOutcome && !isDep ? (
                                     /* CASO 1: Outcome Independiente (Aprobados / Atendidos) */
