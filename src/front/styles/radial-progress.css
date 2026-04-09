@@ -1,0 +1,21 @@
+.radial-progress-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.radial-bg {
+  fill: none;
+  stroke: #f1f3f5; /* Un gris muy tenue para no cansar la vista */
+}
+
+.radial-meter {
+  fill: none;
+  transition: stroke-dashoffset 0.8s ease-in-out; /* Animación suave al cargar */
+}
+
+.radial-text {
+  font-weight: 800;
+  fill: #14213d; /* Oxford Grey para autoridad */
+  font-family: "Inter", sans-serif;
+}

@@ -1,0 +1,16 @@
+.gauge-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* El overflow hidden se ha movido al estilo inline del componente */
+}
+
+.gauge-needle {
+  stroke-linecap: round;
+}
+
+.gauge-text {
+  font-weight: 800;
+  fill: #14213d; /* Oxford Grey institucional */
+  font-family: 'Inter', sans-serif; /* Asegura usar la fuente que ya tienes */
+}

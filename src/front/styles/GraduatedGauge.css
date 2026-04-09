@@ -1,0 +1,12 @@
+.graduated-gauge-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.graduated-gauge-text {
+  font-weight: 800;
+  fill: #14213d; /* Oxford Grey */
+  font-family: "Inter", sans-serif;
+}

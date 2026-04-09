@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from "../../utils/api";
 import ContextSelector from "../components/ContextSelector"
 import { toast } from 'sonner';
+import RadialProgress from "../components/RadialProgress"
+import GaugeProgress from "../components/GaugeProgress"
+import GraduatedGauge from "../components/GraduatedGauge"
 
 const QuickHealthDash = () => {
     const [indicators, setIndicators] = useState([]);
@@ -82,8 +85,52 @@ const QuickHealthDash = () => {
                             {ind.name}
                         </h6>
 
-                        {/* LOGRO VS META GLOBAL */}
-                        <div className="bg-light rounded-3 p-3 mb-3 d-flex justify-content-around align-items-center border">
+                        {/* LOGRO VS META GLOBAL 1 (circular) */}
+                        {/* <div className="d-flex justify-content-center align-items-center mb-3 py-2 bg-light rounded-3 border">
+                            <RadialProgress
+                                percentage={pct}
+                                color={colorData.hex}
+                                size={110}
+                            />
+
+                            <div className="ms-3 text-start">
+                                <div className="mb-1">
+                                    <small className="d-block text-muted text-uppercase fw-black" style={{ fontSize: '8px' }}>Logrado</small>
+                                    <span className="fw-bold" style={{ color: colorData.hex }}>{ind.global_achieved}</span>
+                                </div>
+                                <div>
+                                    <small className="d-block text-muted text-uppercase fw-black" style={{ fontSize: '8px' }}>Meta Total</small>
+                                    <span className="fw-bold text-oxford">{ind.global_target}</span>
+                                </div>
+                            </div>
+                        </div> */}
+
+                        {/* LOGRO VS META GLOBAL 2 (circular) */}
+
+                        <div className="d-flex align-items-center mb-3 py-1 px-2 bg-light rounded-3 border">
+
+                            {/* El velocímetro a la izquierda, más compacto */}
+                            <GaugeProgress
+                                percentage={pct}
+                                color={colorData.hex}
+                                size={100} // Un tamaño más pequeño y manejable
+                            />
+
+                            {/* Datos a la derecha, bien alineados */}
+                            <div className="ms-3 flex-grow-1">
+                                <div className="mb-1 d-flex justify-content-between">
+                                    <small className="text-muted text-uppercase fw-black" style={{ fontSize: '8px' }}>Logrado:</small>
+                                    <span className="fw-bold fs-6" style={{ color: colorData.hex }}>{ind.global_achieved}</span>
+                                </div>
+                                <div className="d-flex justify-content-between">
+                                    <small className="text-muted text-uppercase fw-black" style={{ fontSize: '8px' }}>Meta:</small>
+                                    <span className="fw-bold text-oxford fs-6">{ind.global_target}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modelo anterior */}
+                        {/* <div className="bg-light rounded-3 p-3 mb-3 d-flex justify-content-around align-items-center border">
                             <div className="text-center">
                                 <small className="d-block text-muted text-uppercase fw-bold" style={{ fontSize: '8px' }}>Logro</small>
                                 <div className="fw-black fs-5" style={{ color: colorData.hex }}>
@@ -105,7 +152,7 @@ const QuickHealthDash = () => {
                                 </div>
                                 {!isOutcome && <div style={{ height: '15px' }}></div>}
                             </div>
-                        </div>
+                        </div> */}
 
                         {/* DESAGREGACIÓN POR GÉNERo*/}
                         <div className='text-center '>
