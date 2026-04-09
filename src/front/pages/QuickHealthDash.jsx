@@ -33,6 +33,17 @@ const QuickHealthDash = () => {
         return statusMap[key] || { hex: "#6c757d", bootstrap: "bg-secondary" };
     };
 
+
+    const getIndicatorTypeColor = (type) => {
+        const lowerType = type?.toLowerCase();
+        if (lowerType === 'outcome') {
+            return 'bg-primary text-white'; // Azul para Outcomes
+        } else if (lowerType === 'output') {
+            return 'bg-success text-white'; // Verde para Outputs
+        }
+        return 'bg-secondary text-white'; // Gris por defecto si no se reconoce
+    };
+
     const loadData = async (selection) => {
         // 1. Validación original: Si no hay proyecto o competencia, no hacemos nada
         if (!selection?.proyectoId || !selection?.competenciaId) return;
@@ -99,10 +110,11 @@ const QuickHealthDash = () => {
         const isOutcome = ind.type?.toLowerCase() === 'outcome';
         const isDep = ind.is_dependent;
         const unit = isOutcome ? '%' : '';
+        const typeColorClass = getIndicatorTypeColor(ind.type);
 
         return (
-            <div key={ind.id} className="col-12 col-md-6 col-lg-2 mb-3">
-                <div className="card h-100 border-0 shadow-sm"
+            <div key={ind.id} className="col-12 col-sm-6 col-md-3 col-lg-2 my-3 mx-2">
+                <div className="card h-100 border-0 shadow-sm rounded-4 overflow-hidden"
                     style={{
                         borderLeft: `5px solid ${colorData.hex}`,
                         borderRadius: '12px'
@@ -111,13 +123,14 @@ const QuickHealthDash = () => {
                     <div className="card-header bg-oxford py-2 px-3 d-flex justify-content-between align-items-center"
                         style={{ borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
                         <code className="text-white opacity-75 small fw-bold">{ind.code}</code>
-                        <span className="badge bg-light text-dark uppercase-label" style={{ fontSize: '10px' }}>
+                        <span className={`badge ${typeColorClass} rounded-pill px-2 py-1 text-uppercase fw-bold`} style={{ fontSize: '9px', letterSpacing: '0.3px' }}>
                             {ind.type}
                         </span>
                     </div>
 
                     <div className="card-body p-3">
-                        <h6 className="fw-bold text-oxford text-truncate mb-3" title={ind.name}>
+                        <h6 className="fw-bold text-oxford text-truncate mb-3" title={ind.name}
+                            style={{ fontSize: '15px', lineHeight: '1.2', cursor: 'help' }}>
                             {ind.name}
                         </h6>
 
@@ -314,7 +327,7 @@ const QuickHealthDash = () => {
                         })}
                     </ul>
 
-                    <div className="row">
+                    <div className="row justify-content-center">
                         {loading ? (
                             <div className="text-center p-5">
                                 <div className="spinner-border text-emerald"></div>
@@ -322,9 +335,12 @@ const QuickHealthDash = () => {
                         ) : groups[activeTab].length > 0 ? (
                             groups[activeTab].map(renderMiniCard)
                         ) : (
-                            <div className="text-center p-5 text-muted">
-                                <i className="fas fa-check-circle fa-3x mb-3 opacity-25"></i>
-                                <p>No hay indicadores en esta categoría.</p>
+                            <div className="text-center p-5 text-muted w-100 mt-4">
+                                <div className="bg-white d-inline-block p-4 rounded-circle shadow-sm mb-3">
+                                    <i className="fas fa-folder-open fa-3x opacity-25"></i>
+                                </div>
+                                <h6 className="fw-bold">Sin resultados</h6>
+                                <p className="small">No se encontraron indicadores en la categoría <strong>{activeTab}</strong> para esta competencia.</p>
                             </div>
                         )}
                     </div>
