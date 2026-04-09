@@ -5,7 +5,7 @@ set -o errexit
 npm install
 npm run build
 
-pip install pipenv
-pipenv install
+pip install -r requeriments.txt
 
-pipenv run upgrade
+flask db upgrade
+
