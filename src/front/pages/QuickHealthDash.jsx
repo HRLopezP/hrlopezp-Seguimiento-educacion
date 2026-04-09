@@ -63,6 +63,7 @@ const QuickHealthDash = () => {
         const colorData = getStatusColor(pct);
         const isOutcome = ind.type?.toLowerCase() === 'outcome';
         const isDep = ind.is_dependent;
+        const unit = isOutcome ? '%' : '';
 
         return (
             <div key={ind.id} className="col-12 col-md-6 col-lg-2 mb-3">
@@ -120,11 +121,11 @@ const QuickHealthDash = () => {
                             <div className="ms-3 flex-grow-1">
                                 <div className="mb-1 d-flex justify-content-between">
                                     <small className="text-muted text-uppercase fw-black" style={{ fontSize: '8px' }}>Logrado:</small>
-                                    <span className="fw-bold fs-6" style={{ color: colorData.hex }}>{ind.global_achieved}</span>
+                                    <span className="fw-bold fs-6" style={{ color: colorData.hex }}>{ind.global_achieved}{unit}</span>
                                 </div>
                                 <div className="d-flex justify-content-between">
                                     <small className="text-muted text-uppercase fw-black" style={{ fontSize: '8px' }}>Meta:</small>
-                                    <span className="fw-bold text-oxford fs-6">{ind.global_target}</span>
+                                    <span className="fw-bold text-oxford fs-6">{ind.global_target}{unit}</span>
                                 </div>
                             </div>
                         </div>
@@ -160,7 +161,7 @@ const QuickHealthDash = () => {
                                 Desglose:
                             </small>
                         </div>
-                        <div className="d-flex justify-content-between align-items-center pt-2 border-top">
+                        <div className="d-flex justify-content-center align-items-center pt-2 border-top">
 
                             <div className="d-flex gap-3">
                                 {isOutcome && !isDep ? (
@@ -218,7 +219,7 @@ const QuickHealthDash = () => {
                                     <button
                                         className={`nav-link rounded-3 text-uppercase fw-bold m-1 ${activeTab === key ? `active ${colorData.bootstrap} shadow` : 'text-muted'}`}
                                         onClick={() => setActiveTab(key)}
-                                        style={{ fontSize: '11px', transition: 'all 0.3s' }}
+                                        style={{ fontSize: '15px', transition: 'all 0.3s', letterSpacing: '0.5px'}}
                                     >
                                         {key} <span className="badge bg-white text-dark ms-1">{groups[key].length}</span>
                                     </button>
