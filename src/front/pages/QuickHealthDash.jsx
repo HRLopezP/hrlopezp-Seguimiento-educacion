@@ -10,6 +10,7 @@ const QuickHealthDash = () => {
     const [indicators, setIndicators] = useState([]);
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('criticos');
+    const [projectInfo, setProjectInfo] = useState(null);
 
     const calcPct = (ind) => {
         const isOutcome = ind.type?.toLowerCase() === 'outcome';
@@ -33,15 +34,35 @@ const QuickHealthDash = () => {
     };
 
     const loadData = async (selection) => {
-        if (!selection.proyectoId || !selection.competenciaId) return;
+        // 1. Validación original: Si no hay proyecto o competencia, no hacemos nada
+        if (!selection?.proyectoId || !selection?.competenciaId) return;
+
         setLoading(true);
         try {
-            const response = await apiFetch(
-                `/project/${selection.proyectoId}/progress-summary?competence_id=${selection.competenciaId}`
-            );
+            // 2. Construimos la URL con ambos parámetros
+            // competence_id -> para filtrar los indicadores
+            // extended=true -> para que el backend nos envíe el objeto con project_info
+            const url = `/project/${selection.proyectoId}/progress-summary?competence_id=${selection.competenciaId}&extended=true`;
+
+            const response = await apiFetch(url);
+
+            // 3. Verificamos la respuesta y procesamos el JSON
             if (response && response.ok) {
                 const data = await response.json();
-                setIndicators(Array.isArray(data) ? data : []);
+
+                // 4. Como usamos 'extended=true', data ahora es un objeto { project_info, indicators }
+                // Usamos validaciones por si acaso la data no viene como esperamos
+                if (data && data.indicators) {
+                    setIndicators(data.indicators);
+                    setProjectInfo(data.project_info);
+                } else {
+                    // En caso de que por algún motivo no venga el formato extendido, 
+                    // nos protegemos asumiendo que es la lista simple
+                    setIndicators(Array.isArray(data) ? data : []);
+                    setProjectInfo(null);
+                }
+            } else {
+                toast.error("Error en la respuesta del servidor");
             }
         } catch (error) {
             console.error("Error al conectar:", error);
@@ -49,6 +70,20 @@ const QuickHealthDash = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const getRemainingDays = (endDate) => {
+        if (!endDate) return 0;
+        const today = new Date();
+        const target = new Date(endDate);
+
+        // Resetear horas para cálculo exacto por días
+        today.setHours(0, 0, 0, 0);
+        target.setHours(0, 0, 0, 0);
+
+        const diffTime = target - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays;
     };
 
     const groups = {
@@ -208,6 +243,57 @@ const QuickHealthDash = () => {
             </h3>
 
             <ContextSelector onContextChange={loadData} />
+            {projectInfo && (
+                <div className="card border-0 shadow-sm mb-4 overflow-hidden" style={{ borderRadius: '15px' }}>
+                    <div className="card-body p-0">
+                        <div className="d-flex align-items-stretch">
+                            {/* Indicador de Status Izquierdo */}
+                            <div className="bg-emerald px-2"></div>
+
+                            <div className="p-3 d-flex justify-content-between align-items-center w-100">
+                                <div>
+                                    <small className="text-muted text-uppercase fw-black" style={{ fontSize: '10px', letterSpacing: '1px' }}>
+                                        Cronograma del Proyecto
+                                    </small>
+                                    <h5 className="text-oxford fw-black mb-0">{projectInfo.name}</h5>
+                                </div>
+
+                                <div className="d-flex align-items-center gap-4">
+                                    {/* Fechas */}
+                                    <div className="text-end d-none d-md-block">
+                                        <div className="d-flex gap-2">
+                                            <div>
+                                                <small className="d-block text-muted fw-bold" style={{ fontSize: '9px' }}>INICIO</small>
+                                                <span className="badge bg-light text-dark border fw-normal">
+                                                    {new Date(projectInfo.start_date).toLocaleDateString()}
+                                                </span>
+                                            </div>
+                                            <div className="align-self-end pb-1 text-muted">
+                                                <i className="fas fa-chevron-right small"></i>
+                                            </div>
+                                            <div>
+                                                <small className="d-block text-muted fw-bold" style={{ fontSize: '9px' }}>CIERRE</small>
+                                                <span className="badge bg-light text-dark border fw-normal">
+                                                    {new Date(projectInfo.end_date).toLocaleDateString()}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Contador de Días */}
+                                    <div className={`rounded-3 px-3 py-2 text-center shadow-sm ${getRemainingDays(projectInfo.end_date) <= 15 ? 'bg-danger text-white' : 'bg-oxford text-white'}`} style={{ minWidth: '110px' }}>
+                                        <small className="d-block text-uppercase fw-black" style={{ fontSize: '8px', opacity: '0.8' }}>Faltan</small>
+                                        <div className="d-flex align-items-baseline justify-content-center">
+                                            <span className="fs-3 fw-black">{getRemainingDays(projectInfo.end_date)}</span>
+                                            <small className="ms-1 fw-bold" style={{ fontSize: '10px' }}>días</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {indicators.length > 0 && (
                 <div className="mt-4">
@@ -219,7 +305,7 @@ const QuickHealthDash = () => {
                                     <button
                                         className={`nav-link rounded-3 text-uppercase fw-bold m-1 ${activeTab === key ? `active ${colorData.bootstrap} shadow` : 'text-muted'}`}
                                         onClick={() => setActiveTab(key)}
-                                        style={{ fontSize: '15px', transition: 'all 0.3s', letterSpacing: '0.5px'}}
+                                        style={{ fontSize: '15px', transition: 'all 0.3s', letterSpacing: '0.5px' }}
                                     >
                                         {key} <span className="badge bg-white text-dark ms-1">{groups[key].length}</span>
                                     </button>

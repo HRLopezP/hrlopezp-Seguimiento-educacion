@@ -1983,6 +1983,13 @@ def get_project_progress(project_id):
     print(
         f"DEBUG: Total indicadores en DB para este proyecto: {Indicator.query.filter_by(project_id=project_id).count()}")
     try:
+        extended = request.args.get('extended') == 'true'
+        
+        # 2. Obtenemos el proyecto (lo necesitaremos si es extended)
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({"error": "Proyecto no encontrado"}), 404
+        
         competence_id = request.args.get('competence_id')
         query = Indicator.query.filter_by(project_id=project_id)
 
@@ -2003,6 +2010,15 @@ def get_project_progress(project_id):
         print(f"DEBUG: Indicadores tras el join corregido: {len(indicators)}")
 
         if not indicators:
+            if extended:
+                return jsonify({
+                    "project_info": {
+                        "name": project.project_name,
+                        "start_date": project.start_date.isoformat() if project.start_date else None,
+                        "end_date": project.end_date.isoformat() if project.end_date else None
+                    },
+                    "indicators": []
+                }), 200
             return jsonify([]), 200
 
         results = db.session.query(
@@ -2156,6 +2172,17 @@ def get_project_progress(project_id):
                 "provinces": provincias_data
             })
 
+        if extended:
+            return jsonify({
+                "project_info": {
+                    "name": project.project_name,
+                    "start_date": project.start_date.isoformat() if project.start_date else None,
+                    "end_date": project.end_date.isoformat() if project.end_date else None
+                },
+                "indicators": summary
+            }), 200
+        
+        # Si no es extended, devolvemos la lista de siempre
         return jsonify(summary), 200
     except Exception as e:
         print(f"Error en progress-summary: {str(e)}")
