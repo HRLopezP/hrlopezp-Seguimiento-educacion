@@ -12,6 +12,7 @@ const QuickHealthDash = () => {
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('criticos');
     const [projectInfo, setProjectInfo] = useState(null);
+    const [competenciaNombre, setCompetenciaNombre] = useState("");
 
     const calcPct = (ind) => {
         const isOutcome = ind.type?.toLowerCase() === 'outcome';
@@ -46,30 +47,32 @@ const QuickHealthDash = () => {
     };
 
     const loadData = async (selection) => {
-        // 1. Validación original: Si no hay proyecto o competencia, no hacemos nada
         if (!selection?.proyectoId || !selection?.competenciaId) return;
 
         setLoading(true);
+        if (selection.competenciaLabel) {
+            setCompetenciaNombre(selection.competenciaLabel);
+        } else {
+            setCompetenciaNombre("Procesando...");
+        }
         try {
-            // 2. Construimos la URL con ambos parámetros
-            // competence_id -> para filtrar los indicadores
-            // extended=true -> para que el backend nos envíe el objeto con project_info
             const url = `/project/${selection.proyectoId}/progress-summary?competence_id=${selection.competenciaId}&extended=true`;
-
             const response = await apiFetch(url);
 
-            // 3. Verificamos la respuesta y procesamos el JSON
             if (response && response.ok) {
                 const data = await response.json();
 
-                // 4. Como usamos 'extended=true', data ahora es un objeto { project_info, indicators }
-                // Usamos validaciones por si acaso la data no viene como esperamos
                 if (data && data.indicators) {
                     setIndicators(data.indicators);
                     setProjectInfo(data.project_info);
+                    if (!selection.competenciaLabel && data.indicators.length > 0) {
+                        const desc = data.indicators[0].description || "";
+                        if (desc.includes("competencia ")) {
+                            const extraido = desc.split("competencia ")[1];
+                            setCompetenciaNombre(extraido);
+                        }
+                    }
                 } else {
-                    // En caso de que por algún motivo no venga el formato extendido, 
-                    // nos protegemos asumiendo que es la lista simple
                     setIndicators(Array.isArray(data) ? data : []);
                     setProjectInfo(null);
                 }
@@ -100,19 +103,24 @@ const QuickHealthDash = () => {
 
 
     const handleDownloadPDF = () => {
-        if (!indicators.length) {
-            toast.error("No hay datos para exportar");
-            return;
-        }
+        if (!indicators.length) return toast.error("Sin datos para exportar");
 
-        const toastId = toast.loading("Preparando PDF elegante...");
+        // Calculamos los días para pasárselos al generador
+        const dias = projectInfo ? getRemainingDays(projectInfo.end_date) : 0;
+
+        const toastId = toast.loading("Generando reporte...");
         try {
-            // Llamamos a la función externa pasando la data procesada
-            generateHealthReport(projectInfo, groups);
-            toast.success("Reporte descargado", { id: toastId });
+            // [PROFE]: Ahora enviamos 4 argumentos
+            generateHealthReport(
+                projectInfo,
+                groups,
+                competenciaNombre || "General",
+                dias
+            );
+            toast.success("PDF generado exitosamente", { id: toastId });
         } catch (error) {
             console.error(error);
-            toast.error("Error al generar PDF", { id: toastId });
+            toast.error("Error al exportar", { id: toastId });
         }
     };
 
