@@ -39,11 +39,11 @@ const QuickHealthDash = () => {
     const getIndicatorTypeColor = (type) => {
         const lowerType = type?.toLowerCase();
         if (lowerType === 'outcome') {
-            return 'bg-primary text-white'; // Azul para Outcomes
+            return 'bg-primary text-white';
         } else if (lowerType === 'output') {
-            return 'bg-success text-white'; // Verde para Outputs
+            return 'bg-success text-white';
         }
-        return 'bg-secondary text-white'; // Gris por defecto si no se reconoce
+        return 'bg-secondary text-white'; 
     };
 
     const loadData = async (selection) => {
@@ -92,7 +92,6 @@ const QuickHealthDash = () => {
         const today = new Date();
         const target = new Date(endDate);
 
-        // Resetear horas para cálculo exacto por días
         today.setHours(0, 0, 0, 0);
         target.setHours(0, 0, 0, 0);
 
@@ -105,12 +104,10 @@ const QuickHealthDash = () => {
     const handleDownloadPDF = () => {
         if (!indicators.length) return toast.error("Sin datos para exportar");
 
-        // Calculamos los días para pasárselos al generador
         const dias = projectInfo ? getRemainingDays(projectInfo.end_date) : 0;
 
         const toastId = toast.loading("Generando reporte...");
         try {
-            // [PROFE]: Ahora enviamos 4 argumentos
             generateHealthReport(
                 projectInfo,
                 groups,
