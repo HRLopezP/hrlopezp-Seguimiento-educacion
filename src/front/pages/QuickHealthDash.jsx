@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import RadialProgress from "../components/RadialProgress"
 import GaugeProgress from "../components/GaugeProgress"
 import GraduatedGauge from "../components/GraduatedGauge"
+import { generateHealthReport } from "../../utils/pdfGenerator"
 
 const QuickHealthDash = () => {
     const [indicators, setIndicators] = useState([]);
@@ -95,6 +96,24 @@ const QuickHealthDash = () => {
         const diffTime = target - today;
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         return diffDays;
+    };
+
+
+    const handleDownloadPDF = () => {
+        if (!indicators.length) {
+            toast.error("No hay datos para exportar");
+            return;
+        }
+
+        const toastId = toast.loading("Preparando PDF elegante...");
+        try {
+            // Llamamos a la función externa pasando la data procesada
+            generateHealthReport(projectInfo, groups);
+            toast.success("Reporte descargado", { id: toastId });
+        } catch (error) {
+            console.error(error);
+            toast.error("Error al generar PDF", { id: toastId });
+        }
     };
 
     const groups = {
@@ -269,6 +288,15 @@ const QuickHealthDash = () => {
                                         Cronograma del Proyecto
                                     </small>
                                     <h5 className="text-oxford fw-black mb-0">{projectInfo.name}</h5>
+                                </div>
+                                <div className="d-flex justify-content-between align-items-center mb-4">
+                                    <button
+                                        className="btn btn-oxford text-white shadow-sm"
+                                        onClick={handleDownloadPDF}
+                                        disabled={loading || !indicators.length}
+                                    >
+                                        <i className="fas fa-file-pdf me-2"></i>Descargar Reporte
+                                    </button>
                                 </div>
 
                                 <div className="d-flex align-items-center gap-4">
