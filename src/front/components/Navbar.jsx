@@ -42,6 +42,24 @@ export const Navbar = () => {
                                     Pulso de Proyectos
                                 </NavLink>
                             </li>
+                            <li className="nav-item">
+                                <NavLink
+                                    className={({ isActive }) => `nav-link rounded-pill px-3 ${isActive ? 'active-sigssep' : ''}`}
+                                    to="/official/planning"
+                                >
+                                    <i className="fas fa-heartbeat me-2 text-emerald"></i>
+                                    Plan
+                                </NavLink>
+                            </li>
+                            <li className="nav-item">
+                                <NavLink
+                                    className={({ isActive }) => `nav-link rounded-pill px-3 ${isActive ? 'active-sigssep' : ''}`}
+                                    to="/official/tracking"
+                                >
+                                    <i className="fas fa-heartbeat me-2 text-emerald"></i>
+                                    Seguir
+                                </NavLink>
+                            </li>
                             {/* 1. RUTAS DE GERENTE / ADMIN (Acceso Total Organizado) */}
                             {isManager && (
                                 <>

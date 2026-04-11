@@ -32,6 +32,8 @@ import AuditInbox from "./pages/AuditInbox";
 import Profile from "./pages/Profile";
 import OfficialInbox from "./pages/OfficialInbox"
 import QuickHealthDash from "./pages/QuickHealthDash";
+import { TrackingDashboard } from "./pages/TrackingDashboard";
+import { OfficialPlanning } from "./pages/OfficialPlanning";
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -206,6 +208,24 @@ export const router = createBrowserRouter(
           <ProtectedRoute allowedRoles={["Administrador", "Gerente", "Monitoreo"]}>
             <AuditInbox />
           </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/official/planning"
+        element={
+          <OfficialRoute>
+            <OfficialPlanning />
+          </OfficialRoute>
+        }
+      />
+
+      <Route
+        path="/official/tracking"
+        element={
+          <OfficialRoute>
+            <TrackingDashboard />
+          </OfficialRoute>
         }
       />
 
