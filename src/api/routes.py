@@ -2431,8 +2431,9 @@ def get_indicator_locations(indicator_id):
 
         results.append({
             "id_location": loc.id_location,
-            "province_name": loc.province_ref.name,
-            "municipality_name": loc.municipality_ref.name,
+            "province_id": loc.province_id,
+            "province_name": loc.province_ref.name if loc.province_ref else "N/A",
+            "municipality_name": loc.municipality_ref.name if loc.municipality_ref else "N/A",
             "parish_name": loc.parish_ref.name if loc.parish_ref else "N/A",
             "community": loc.community_institution,
             "province_target": goal_info.total_target if goal_info else 0

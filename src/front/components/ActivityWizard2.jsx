@@ -60,7 +60,7 @@ const ActivityWizard2 = ({ selectedDate, proyectoId, competenciaId, initialData,
                         // Buscamos la provincia en el resumen comparando por NOMBRE
                         // Usamos .toLowerCase() y .trim() para que "Táchira" coincida siempre
                         const statsProv = indInfo.provinces?.find(p =>
-                            p.province_name?.trim().toLowerCase() === ubicacionSeleccionada.province_name?.trim().toLowerCase()
+                            String(p.province_id) === String(ubicacionSeleccionada.province_id)
                         );
 
                         if (statsProv) {
