@@ -26,8 +26,6 @@ import ProjectDetail from "./pages/ProjectDetail";
 import ProjectTechnicalSetup from "./pages/ProjectTechnicalSetup";
 import ActivityCatalogManagement from "./pages/ActivityCatalogManagement";
 import VerificationMeansManagement from "./pages/VerificationMeansManagement";
-import { OfficialDashboard } from "./pages/OfficialDashboard";
-import { ManagerDashboard } from "./pages/ManagerDashboard"
 import AuditInbox from "./pages/AuditInbox";
 import Profile from "./pages/Profile";
 import OfficialInbox from "./pages/OfficialInbox"
@@ -168,29 +166,11 @@ export const router = createBrowserRouter(
       />
 
       <Route
-        path="/manager/dashboard"
-        element={
-          <ProtectedRoute>
-            <ManagerDashboard />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
         path="/manager/dashboard-plan"
         element={
           <ProtectedRoute>
             <ManagerDashboardPlan />
           </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/official/dashboard"
-        element={
-          <OfficialRoute>
-            <OfficialDashboard />
-          </OfficialRoute>
         }
       />
 

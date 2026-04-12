@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiFetch } from "../../utils/api";
 import Swal from 'sweetalert2';
-import { invalidateGapCache } from "./ActivityWizard";
+import { invalidateGapCache } from "./ActivityWizard2";
 
 const AchievementTracker = ({ activity, onClose, onRefresh }) => {
     const [loading, setLoading] = useState(false);
