@@ -69,6 +69,11 @@ export const Navbar = () => {
                                         </NavLink>
                                     </li>
                                     <li className="nav-item">
+                                        <NavLink className="nav-link" to="manager/dashboard-plan">
+                                            <i className="fas fa-chart-line me-1"></i> Planif.
+                                        </NavLink>
+                                    </li>
+                                    <li className="nav-item">
                                         <NavLink className="nav-link" to="/manager/projects">
                                             <i className="fas fa-tasks me-1"></i> Proyectos
                                         </NavLink>
