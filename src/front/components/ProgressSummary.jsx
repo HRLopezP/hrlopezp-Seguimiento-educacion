@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import "../styles/ProgressSummary.css";
+import { generateDetailedProgressReport } from "../../utils/pdfGenerator";
 
 const getStatusColor = (percentage) => {
     if (percentage <= 25) return "#e74c3c";
@@ -62,7 +63,7 @@ const CircularImpact = ({ percentage, isGoalReached }) => {
     );
 };
 
-const ProgressSummary = ({ data }) => {
+const ProgressSummary = ({ data, projectInfo }) => {
     const [expandedId, setExpandedId] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [rangeFilter, setRangeFilter] = useState("all");
@@ -77,6 +78,15 @@ const ProgressSummary = ({ data }) => {
             (indicator.global_target > 0 ? (indicator.global_achieved / indicator.global_target) * 100 : 0);
     };
 
+    const handleDownload = () => {
+        // Verificamos que tengamos datos antes de intentar generar nada
+        if (data && data.length > 0) {
+            generateDetailedProgressReport(data, projectInfo);
+        } else {
+            toast.error("No hay datos disponibles para exportar");
+        }
+    };
+    
     const filteredData = data?.filter(indicator => {
         const percentage = calcPct(indicator);
         const matchesText = indicator.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -135,6 +145,14 @@ const ProgressSummary = ({ data }) => {
                         <option value="100+">Meta alcanzada (100%+)</option>
                     </select>
                 </div>
+                <button
+                    className="btn btn-emerald text-white shadow-sm"
+                    onClick={handleDownload}
+                    disabled={!data || data.length === 0}
+                >
+                    <i className="fas fa-file-pdf me-2"></i>
+                    Descargar Detalle
+                </button>
             </div>
 
             {filteredData.length === 0 ? (

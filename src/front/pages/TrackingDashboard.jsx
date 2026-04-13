@@ -8,15 +8,17 @@ export const TrackingDashboard = () => {
     const [context, setContext] = useState(null);
     const [summaryData, setSummaryData] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [projectHeader, setProjectHeader] = useState(null);
 
     const loadProgressSummary = useCallback(async (proyectoId, competenciaId) => {
         if (!proyectoId || !competenciaId) return;
         setLoading(true);
         try {
-            const res = await apiFetch(`/project/${proyectoId}/progress-summary?competence_id=${competenciaId}`);
+            const res = await apiFetch(`/project/${proyectoId}/progress-summary?competence_id=${competenciaId}&extended=true`);
             if (res?.ok) {
-                const data = await res.json();
-                setSummaryData(data);
+                const json = await res.json();
+                setSummaryData(json.indicators || []);
+                setProjectHeader(json.project_info);
             }
         } catch (error) {
             toast.error("Error al cargar el resumen de progreso");
@@ -50,7 +52,10 @@ export const TrackingDashboard = () => {
                                 <p className="mt-2 text-muted">Calculando avances en tiempo real...</p>
                             </div>
                         ) : (
-                            <ProgressSummary data={summaryData} />
+                            <ProgressSummary
+                                data={summaryData}
+                                projectInfo={projectHeader}
+                                competenceName={context?.competenciaNombre} />
                         )}
                     </div>
                 ) : (

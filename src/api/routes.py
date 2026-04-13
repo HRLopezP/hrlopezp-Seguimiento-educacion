@@ -2173,11 +2173,23 @@ def get_project_progress(project_id):
             })
 
         if extended:
+            competence_name = "General"
+            if competence_id:
+                # Importamos el modelo
+                from api.models import Competence
+                # Buscamos la competencia por su ID
+                comp = Competence.query.get(competence_id)
+                
+                if comp:
+                    # REVISIÓN: En tu models.py el atributo es .name
+                    competence_name = comp.name
+
             return jsonify({
                 "project_info": {
                     "name": project.project_name,
                     "start_date": project.start_date.isoformat() if project.start_date else None,
-                    "end_date": project.end_date.isoformat() if project.end_date else None
+                    "end_date": project.end_date.isoformat() if project.end_date else None,
+                    "competence_name": competence_name
                 },
                 "indicators": summary
             }), 200
