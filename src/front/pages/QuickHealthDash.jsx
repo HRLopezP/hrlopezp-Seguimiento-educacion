@@ -185,7 +185,6 @@ const QuickHealthDash = () => {
                             {/* El velocímetro a la izquierda, más compacto */}
                             <GaugeProgress
                                 percentage={pct}
-                                color={colorData.hex}
                                 size={100} // Un tamaño más pequeño y manejable
                             />
 
