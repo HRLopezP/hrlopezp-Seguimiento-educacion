@@ -101,13 +101,10 @@ export const generateHealthReport = (
             let displayDesglose = "";
 
             if (isOutcome && !isDep) {
-                // CASO 1: Outcome Independiente (Aprobados / Atendidos)
                 displayDesglose = `Apr: ${ind.total_approved || 0} / Eval: ${ind.total_attended || 0}`;
             } else if (isOutcome && isDep) {
-                // CASO 2: Outcome Dependiente (Muestra porcentajes de H/M)
                 displayDesglose = `H: ${ind.total_men}% / M: ${ind.total_women}%`;
             } else {
-                // CASO 3: Outputs (Logro actual / Meta específica por género)
                 displayDesglose = `H: ${ind.total_men}/${ind.global_target_men || 0} - M: ${ind.total_women}/${ind.global_target_women || 0}`;
             }
 
@@ -117,7 +114,7 @@ export const generateHealthReport = (
                 ind.type?.toUpperCase(),
                 `${ind.global_achieved}${isOutcome ? "%" : ""}`,
                 `${ind.global_target}${isOutcome ? "%" : ""}`,
-                displayDesglose, // Usamos nuestra nueva variable calculada
+                displayDesglose, 
                 `${pct.toFixed(1)}%`,
             ];
         });
@@ -169,8 +166,8 @@ export const generateDetailedProgressReport = (
 
     const colors = {
         oxford: [20, 33, 61],
-        emerald: [16, 185, 129], // Verde para competencia
-        blueDays: [58, 134, 255], // Azul para tiempo restante
+        emerald: [16, 185, 129], 
+        blueDays: [58, 134, 255], 
         lightGrey: [245, 245, 245],
         white: [255, 255, 255]
     };
@@ -201,12 +198,11 @@ export const generateDetailedProgressReport = (
     const fDate = (d) => d ? new Date(d).toLocaleDateString('es-ES') : "N/A";
     const periodoText = `PERIODO: ${fDate(projectInfo?.start_date)} al ${fDate(projectInfo?.end_date)}`;
 
-    doc.setTextColor(255, 255, 255); // Color normal (blanco sobre el fondo Oxford)
+    doc.setTextColor(255, 255, 255); 
     doc.setFont("helvetica", "normal");
     doc.text(periodoText, 14, 39);
 
-    // Tiempo restante a la extrema derecha (posicionado en x=196 para margen derecho)
-    doc.setTextColor(...colors.blueDays); // Solo este en Azul
+    doc.setTextColor(...colors.blueDays); 
     doc.setFont("helvetica", "bold");
     doc.text(timeText, 196, 39, { align: "right" });
 
@@ -262,7 +258,6 @@ export const generateDetailedProgressReport = (
         const globalPct = isOutcome ? ind.global_achieved : (ind.global_target > 0 ? (ind.global_achieved / ind.global_target) * 100 : 0);
 
         const tableRows = [
-            // Fila de Total General Resaltada
             [
                 { content: "TOTAL GENERAL", styles: { fontStyle: 'bold', fillColor: [230, 244, 241] } },
                 { content: `${ind.global_target}${isOutcome ? "%" : ""}`, styles: { fontStyle: 'bold', fillColor: [230, 244, 241] } },

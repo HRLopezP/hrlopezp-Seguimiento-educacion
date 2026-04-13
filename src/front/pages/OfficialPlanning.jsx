@@ -111,7 +111,6 @@ export const OfficialPlanning = () => {
                             onActivityClick={(act) => handleDateSelect(act.period?.start)}
                             activities={activities}
                         />
-                        {/* Modales: Manager, Wizard y Tracker se mantienen aquí para la gestión de días */}
                         {modals.manager && (
                             <ModalWrapper onClose={closeModals}>
                                 <DayManagerModal

@@ -79,7 +79,6 @@ const ProgressSummary = ({ data, projectInfo }) => {
     };
 
     const handleDownload = () => {
-        // Verificamos que tengamos datos antes de intentar generar nada
         if (data && data.length > 0) {
             generateDetailedProgressReport(data, projectInfo);
         } else {
@@ -290,7 +289,6 @@ const ProgressSummary = ({ data, projectInfo }) => {
                                                                 <div className={`bg-light px-0 py-1 rounded-pill ${provTooltipText ? 'custom-tooltip' : ''}`}
                                                                     data-tooltip={provTooltipText}>
                                                                     <small className="text-muted me-1" style={{ fontSize: '10px' }}>LOGRO <br /> ESPECÍFICO:</small>
-                                                                    {/* <span className="fw-bold">{prov.achieved}{isOutcome && isDep ? '%' : ''}</span> */}
                                                                 </div>
                                                                 <div className="d-flex gap-3">
                                                                     {isOutcome && !isDep ? (

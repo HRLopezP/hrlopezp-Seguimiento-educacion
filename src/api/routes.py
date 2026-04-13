@@ -1985,7 +1985,6 @@ def get_project_progress(project_id):
     try:
         extended = request.args.get('extended') == 'true'
         
-        # 2. Obtenemos el proyecto (lo necesitaremos si es extended)
         project = Project.query.get(project_id)
         if not project:
             return jsonify({"error": "Proyecto no encontrado"}), 404
@@ -2175,13 +2174,10 @@ def get_project_progress(project_id):
         if extended:
             competence_name = "General"
             if competence_id:
-                # Importamos el modelo
                 from api.models import Competence
-                # Buscamos la competencia por su ID
                 comp = Competence.query.get(competence_id)
                 
                 if comp:
-                    # REVISIÓN: En tu models.py el atributo es .name
                     competence_name = comp.name
 
             return jsonify({
@@ -2194,7 +2190,6 @@ def get_project_progress(project_id):
                 "indicators": summary
             }), 200
         
-        # Si no es extended, devolvemos la lista de siempre
         return jsonify(summary), 200
     except Exception as e:
         print(f"Error en progress-summary: {str(e)}")

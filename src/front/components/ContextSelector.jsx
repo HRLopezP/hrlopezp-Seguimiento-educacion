@@ -56,13 +56,10 @@ const ContextSelector = ({ onContextChange }) => {
         const { name, value } = e.target;
         const newSelection = { ...selection, [name]: value };
 
-        // Si el usuario cambia la competencia, buscamos su nombre en la lista
         if (name === "competenciaId") {
             const compObj = competencias.find(c => c.id_competence == value);
-            // Guardamos el nombre dentro del objeto de selección
             newSelection.competenciaNombre = compObj ? compObj.name_competence : "";
 
-            // Reset de proyecto
             newSelection.proyectoId = "";
             newSelection.proyectoNombre = "";
         }
@@ -73,7 +70,7 @@ const ContextSelector = ({ onContextChange }) => {
         }
 
         setSelection(newSelection);
-        onContextChange(newSelection); // Ahora enviamos el objeto con el nombre incluido
+        onContextChange(newSelection);
     };
 
     return (
