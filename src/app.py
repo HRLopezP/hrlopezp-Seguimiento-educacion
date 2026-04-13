@@ -32,7 +32,7 @@ else:
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 MIGRATE = Migrate(app, db, compare_type=True)
-app.config['SECRET_KEY'] = os.getenv("FLASK_APP_KEY", "una-clave-muy-secreta")
+app.config['SECRET_KEY'] = os.getenv("FLASK_APP_KEY")
 db.init_app(app)
 
 
