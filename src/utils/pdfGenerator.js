@@ -167,13 +167,12 @@ export const generateDetailedProgressReport = (
 ) => {
     const doc = new jsPDF("p", "mm", "a4");
 
-    const fDate = (d) => (d ? new Date(d).toLocaleDateString("es-ES") : "N/A");
-
     const colors = {
         oxford: [20, 33, 61],
         emerald: [16, 185, 129], // Verde para competencia
         blueDays: [58, 134, 255], // Azul para tiempo restante
-        lightGrey: [245, 245, 245]
+        lightGrey: [245, 245, 245],
+        white: [255, 255, 255]
     };
 
     const today = new Date();
@@ -199,15 +198,22 @@ export const generateDetailedProgressReport = (
     doc.setFont("helvetica", "bold");
     doc.text(`COMPETENCIA: ${projectInfo?.competence_name?.toUpperCase() || "GENERAL"}`, 14, 32);
 
-    const rango = `${fDate(projectInfo?.start_date)} al ${fDate(projectInfo?.end_date)}`;
-    doc.text(`PERIODO DE EJECUCIÓN: ${rango}`, 14, 37);
+    const fDate = (d) => d ? new Date(d).toLocaleDateString('es-ES') : "N/A";
+    const periodoText = `PERIODO: ${fDate(projectInfo?.start_date)} al ${fDate(projectInfo?.end_date)}`;
 
-    doc.setTextColor(...colors.blueDays);
-    doc.text(`TIEMPO: ${timeText}`, 14, 39);
+    doc.setTextColor(255, 255, 255); // Color normal (blanco sobre el fondo Oxford)
+    doc.setFont("helvetica", "normal");
+    doc.text(periodoText, 14, 39);
+
+    // Tiempo restante a la extrema derecha (posicionado en x=196 para margen derecho)
+    doc.setTextColor(...colors.blueDays); // Solo este en Azul
+    doc.setFont("helvetica", "bold");
+    doc.text(timeText, 196, 39, { align: "right" });
 
     let currentY = 55;
 
-    data.forEach((ind, index) => {
+    data.forEach((ind) => {
+        const type = ind.type?.toLowerCase();
         const isOutcome = ind.type?.toLowerCase() === "outcome";
         const isDep = ind.is_dependent;
         const isIndependentOutcome = isOutcome && !isDep;
@@ -223,54 +229,54 @@ export const generateDetailedProgressReport = (
         doc.setTextColor(...colors.oxford);
         doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
-        doc.text(`${ind.code}: ${ind.name}`, 16, currentY + 5);
+        doc.text(`${ind.code}: ${ind.name}`, 16, currentY + 5.5);
 
         doc.setFontSize(7);
         doc.setFont("helvetica", "italic");
-        doc.text(`Tipo: ${ind.type?.toUpperCase()}`, 160, currentY + 5);
+        doc.text(`Tipo:`, 160, currentY + 5);
+
+        // 2. BADGE para el Tipo de Indicador
+        const badgeColor = isOutcome ? colors.blueDays : colors.emerald;
+        const typeLabel = type.toUpperCase();
+        const labelWidth = doc.getTextWidth(typeLabel) + 4;
+
+        doc.setFillColor(...badgeColor);
+        doc.roundedRect(196 - labelWidth, currentY + 1.5, labelWidth, 5, 1, 1, "F");
+        doc.setTextColor(...colors.white);
+        doc.setFontSize(7);
+        doc.text(typeLabel, 196 - (labelWidth / 2), currentY + 5, { align: "center" });
 
         currentY += 10;
 
-        const globalPct = isOutcome ? ind.global_achieved :
-            (ind.global_target > 0 ? (ind.global_achieved / ind.global_target) * 100 : 0);
-
-        let globalDesglose = "";
-        if (isIndependentOutcome) {
-            globalDesglose = `Apr: ${ind.total_approved} / Eval: ${ind.total_attended}`;
-        } else {
+        const formatDesglose = (h, m, tH, tM, approved, attended) => {
+            if (isIndependentOutcome) {
+                return `Apr: ${approved}/${attended} (Evaluados)`;
+            }
             const suffix = (isOutcome && isDep) ? "%" : "";
-            globalDesglose = `H: ${ind.total_men}${suffix} - M: ${ind.total_women}${suffix}`;
-        }
+            const targetH = !isOutcome ? `/${tH || 0}` : "";
+            const targetM = !isOutcome ? `/${tM || 0}` : "";
+            return `H: ${h}${suffix}${targetH} - M: ${m}${suffix}${targetM}`;
+        };
 
         const activeProvinces = ind.provinces.filter(p => p.target > 0);
+        const globalPct = isOutcome ? ind.global_achieved : (ind.global_target > 0 ? (ind.global_achieved / ind.global_target) * 100 : 0);
 
         const tableRows = [
-            // FILA RESALTADA (TOTAL GENERAL)
+            // Fila de Total General Resaltada
             [
                 { content: "TOTAL GENERAL", styles: { fontStyle: 'bold', fillColor: [230, 244, 241] } },
                 { content: `${ind.global_target}${isOutcome ? "%" : ""}`, styles: { fontStyle: 'bold', fillColor: [230, 244, 241] } },
                 { content: `${ind.global_achieved}${isOutcome ? "%" : ""}`, styles: { fontStyle: 'bold', fillColor: [230, 244, 241] } },
-                { content: globalDesglose, styles: { fontStyle: 'bold', fillColor: [230, 244, 241] } },
-                { content: `${globalPct.toFixed(1)}%`, styles: { fontStyle: 'bold', fillColor: [20, 33, 61], textColor: [255, 255, 255] } }
+                { content: formatDesglose(ind.total_men, ind.total_women, ind.global_target_men, ind.global_target_women, ind.total_approved, ind.total_attended), styles: { fontStyle: 'bold', fillColor: [230, 244, 241] } },
+                { content: `${globalPct.toFixed(1)}%`, styles: { fontStyle: 'bold', fillColor: colors.oxford, textColor: colors.white } }
             ],
-            // FILAS DE PROVINCIAS
             ...activeProvinces.map(p => {
-                const pPct = isOutcome ? p.achieved :
-                    (p.target > 0 ? (p.achieved / p.target) * 100 : 0);
-
-                let pDesglose = "";
-                if (isIndependentOutcome) {
-                    pDesglose = `Apr: ${p.approved} / Eval: ${p.attended}`;
-                } else {
-                    const suffix = (isOutcome && isDep) ? "%" : "";
-                    pDesglose = `H: ${p.men}${suffix} - M: ${p.women}${suffix}`;
-                }
-
+                const pPct = isOutcome ? p.achieved : (p.target > 0 ? (p.achieved / p.target) * 100 : 0);
                 return [
                     p.province_name,
                     `${p.target}${isOutcome ? "%" : ""}`,
                     `${p.achieved}${isOutcome ? "%" : ""}`,
-                    pDesglose,
+                    formatDesglose(p.men, p.women, p.target_men, p.target_women, p.approved, p.attended),
                     `${pPct.toFixed(1)}%`
                 ];
             })
@@ -278,28 +284,17 @@ export const generateDetailedProgressReport = (
 
         autoTable(doc, {
             startY: currentY,
-            head: [["LOCALIZACIÓN", "META", "LOGRO", "DESGLOSE", "PROGRESO (%)"]],
+            head: [["LOCALIZACIÓN", "META", "LOGRO", "DESGLOSE", "PROGRESO"]],
             body: tableRows,
             theme: "grid",
             headStyles: { fillColor: colors.oxford, fontSize: 8 },
-            styles: { fontSize: 8 },
-            columnStyles: {
-                4: { halign: 'center', cellWidth: 30 }
-            },
+            styles: { fontSize: 7.5 },
+            columnStyles: { 3: { cellWidth: 45 }, 4: { halign: 'center', cellWidth: 25 } },
             margin: { left: 14 }
         });
 
         currentY = doc.lastAutoTable.finalY + 10;
     });
 
-    // Pie de página
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.text(`Página ${i} de ${pageCount} - Generado el ${today.toLocaleDateString()}`, 14, 285);
-    }
-
-    doc.save(`Progreso_Detallado_${projectInfo?.name || "Proyecto"}.pdf`);
+    doc.save(`Reporte_SIGSSEP_${projectInfo?.name || "Detalle"}.pdf`);
 };

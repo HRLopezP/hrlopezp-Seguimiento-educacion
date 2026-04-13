@@ -86,7 +86,7 @@ const ProgressSummary = ({ data, projectInfo }) => {
             toast.error("No hay datos disponibles para exportar");
         }
     };
-    
+
     const filteredData = data?.filter(indicator => {
         const percentage = calcPct(indicator);
         const matchesText = indicator.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -145,14 +145,16 @@ const ProgressSummary = ({ data, projectInfo }) => {
                         <option value="100+">Meta alcanzada (100%+)</option>
                     </select>
                 </div>
-                <button
-                    className="btn btn-emerald text-white shadow-sm"
-                    onClick={handleDownload}
-                    disabled={!data || data.length === 0}
-                >
-                    <i className="fas fa-file-pdf me-2"></i>
-                    Descargar Detalle
-                </button>
+                <div>
+                    <button
+                        className="btn btn-emerald text-white shadow-sm"
+                        onClick={handleDownload}
+                        disabled={!data || data.length === 0}
+                    >
+                        <i className="fas fa-file-pdf me-2"></i>
+                        Descargar detalle en PDF
+                    </button>
+                </div>
             </div>
 
             {filteredData.length === 0 ? (
