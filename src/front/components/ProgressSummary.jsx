@@ -144,15 +144,25 @@ const ProgressSummary = ({ data, projectInfo }) => {
                         <option value="100+">Meta alcanzada (100%+)</option>
                     </select>
                 </div>
-                <div>
+                <div className="d-flex gap-2 flex-wrap">
                     <button
                         className="btn btn-emerald text-white shadow-sm"
                         onClick={handleDownload}
                         disabled={!data || data.length === 0}
                     >
                         <i className="fas fa-file-pdf me-2"></i>
-                        Descargar detalle en PDF
+                        Descargar detalle completo (PDF)
                     </button>
+                    {rangeFilter !== "all" && filteredData.length > 0 && (
+                        <button
+                            className="btn btn-outline-primary shadow-sm"
+                            style={{ borderRadius: '12px', fontWeight: 'bold' }}
+                            onClick={() => generateDetailedProgressReport(filteredData, projectInfo)}
+                        >
+                            <i className="fas fa-filter me-2"></i>
+                            Descargar indicadores filtrados ({filteredData.length})
+                        </button>
+                    )}
                 </div>
             </div>
 
