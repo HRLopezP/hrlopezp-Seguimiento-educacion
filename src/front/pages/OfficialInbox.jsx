@@ -55,11 +55,12 @@ const OfficialInbox = () => {
 
 
     const fetchMyData = useCallback(async () => {
-        if (currentTab === "Aprobada" && !filters.proyectoId) {
+        if (currentTab === "Aprobada" && !filters.proyectoId && !filters.search_code) {
             setActivities([]);
             setLoading(false);
             return;
         }
+
         setLoading(true);
         try {
             const params = new URLSearchParams({
@@ -67,7 +68,8 @@ const OfficialInbox = () => {
                 page: page,
                 per_page: 10,
                 search_code: filters.search_code,
-                project_id: filters.proyectoId
+                project_id: filters.proyectoId,
+                competence_id: filters.competenciaId
             });
 
             const res = await apiFetch(`/my-activities?${params.toString()}`);
@@ -189,8 +191,13 @@ const OfficialInbox = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {currentTab === "Aprobada" && !filters.proyectoId ? (
-                                        <tr><td colSpan="7" className="text-center p-5 text-muted">Selecciona un proyecto para ver tus logros aprobados.</td></tr>
+                                    {currentTab === "Aprobada" && !filters.proyectoId && !filters.search_code ? (
+                                        <tr>
+                                            <td colSpan="7" className="text-center p-5 text-muted">
+                                                <i className="fas fa-search me-2"></i>
+                                                Busca por <strong>Código</strong> o selecciona un <strong>Proyecto</strong> para ver tus logros aprobados.
+                                            </td>
+                                        </tr>
                                     ) : loading ? (
                                         <tr><td colSpan="7" className="text-center p-5"><span className="spinner-border text-emerald"></span></td></tr>
                                     ) : activities.length > 0 ? (

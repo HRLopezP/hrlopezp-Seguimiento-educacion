@@ -3036,17 +3036,20 @@ def get_my_activities():
         Activity.status == status_enum
     )
 
-    if status_str == "Aprobada":
-        if competencia_id and competencia_id != "":
-            query = query.filter(Activity.project_competence_id == int(competencia_id))
 
     if search_code:
         query = query.join(Indicator).join(IndicatorTemplate).filter(
-            IndicatorTemplate.code.ilike(f"%{search_code}%")
+            db.or_(
+                IndicatorTemplate.code.ilike(f"%{search_code}%"),
+                IndicatorTemplate.description.ilike(f"%{search_code}%")
+            )
         )
     
     if proyecto_id and proyecto_id != "":
         query = query.filter(Activity.project_id == int(proyecto_id))
+
+    if competencia_id and competencia_id != "":
+        query = query.filter(Activity.project_competence_id == int(competencia_id))
 
     query = query.order_by(Activity.updated_at.desc())
 
