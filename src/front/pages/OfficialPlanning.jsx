@@ -6,10 +6,12 @@ import ActivityWizard2 from "../components/ActivityWizard2";
 import DayManagerModal from "../components/DayManagerModal";
 import AchievementTracker from "../components/AchievementTracker";
 import { toast } from "sonner";
+import { STATUS_CONFIG } from "../../utils/statusHelper"
 
 export const OfficialPlanning = () => {
     const [context, setContext] = useState(null);
     const [activities, setActivities] = useState([]);
+    const [filterStatus, setFilterStatus] = useState(null);
     const [loading, setLoading] = useState(false);
     const [selectedDate, setSelectedDate] = useState(null);
     const [selectedActivity, setSelectedActivity] = useState(null);
@@ -47,6 +49,11 @@ export const OfficialPlanning = () => {
         return activities.filter(act => act.period?.start === selectedDate);
     }, [activities, selectedDate]);
 
+
+    const filteredActivities = useMemo(() => {
+        if (!filterStatus) return activities;
+        return activities.filter(act => act.status === filterStatus);
+    }, [activities, filterStatus]);
 
 
     const handleDateSelect = (dateStr) => {
@@ -101,15 +108,48 @@ export const OfficialPlanning = () => {
                 <ContextSelector onContextChange={setContext} />
 
                 {context ? (
-                    <div className="mt-4" style={{
-                        opacity: loading.activities ? 0.5 : 1,
-                        transition: 'opacity 0.3s ease',
-                        pointerEvents: loading.activities ? 'none' : 'auto'
-                    }}>
+                    <div className="animate__animated animate__fadeIn">
+                        {/* LEYENDA INTERACTIVA */}
+                        <div className="d-flex flex-wrap justify-content-between align-items-center mb-3 p-3 bg-white rounded border shadow-sm">
+                            <div className="d-flex flex-wrap gap-2 align-items-center">
+                                <small className="fw-bold text-muted text-uppercase me-2" style={{ fontSize: '0.7rem' }}>
+                                    <i className="fas fa-filter me-1"></i> Filtrar vista:
+                                </small>
+                                {Object.entries(STATUS_CONFIG).map(([key, config]) => (
+                                    <button
+                                        key={key}
+                                        onClick={() => setFilterStatus(filterStatus === key ? null : key)}
+                                        className={`btn btn-sm rounded-pill d-flex align-items-center transition-all ${filterStatus === key ? 'shadow border-dark' : 'opacity-50'}`}
+                                        style={{
+                                            backgroundColor: filterStatus === key ? (config.style?.backgroundColor || config.calendarColor) : '#f3f4f6',
+                                            color: filterStatus === key ? (config.style?.color || config.textColor || '#000') : '#6b7280',
+                                            border: filterStatus === key ? '2px solid #334155' : '2px solid transparent',
+                                            padding: '4px 12px'
+                                        }}
+                                    >
+                                        <span
+                                            className="me-2 rounded-circle"
+                                            style={{ width: '10px', height: '10px', backgroundColor: config.textColor || '#000', display: 'inline-block' }}
+                                        ></span>
+                                        <span className="fw-medium">{key}</span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            {filterStatus && (
+                                <button
+                                    className="btn btn-sm text-danger fw-bold border-0 bg-transparent"
+                                    onClick={() => setFilterStatus(null)}
+                                >
+                                    <i className="fas fa-times-circle me-1"></i>
+                                    Ver todo el calendario
+                                </button>
+                            )}
+                        </div>
                         <ExecutionCalendar
                             onDateSelect={handleDateSelect}
                             onActivityClick={(act) => handleDateSelect(act.period?.start)}
-                            activities={activities}
+                            activities={filteredActivities}
                         />
                         {modals.manager && (
                             <ModalWrapper onClose={closeModals}>
@@ -153,7 +193,7 @@ export const OfficialPlanning = () => {
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 };
 
