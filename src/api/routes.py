@@ -2825,8 +2825,8 @@ def get_audit_inbox():
     competence_id = request.args.get('competence_id', type=int)
     search_code = request.args.get('search_code')
 
-    if status_str == "Aprobada" and not project_id:
-        return jsonify({"msg": "Debe seleccionar un proyecto para ver los logros aprobados"}), 400
+    if status_str == "Aprobada" and not project_id and not search_code:
+        return jsonify({"msg": "Debe seleccionar un proyecto o realizar una búsqueda para ver logros aprobados"}), 400
 
     status_filter = next((s for s in ActivityStatus if s.value == status_str), ActivityStatus.EN_REVISION)
 
@@ -2844,8 +2844,12 @@ def get_audit_inbox():
         query = query.filter(ProjectCompetence.competence_id == competence_id)
 
     if search_code:
+        # Asegúrate de que los joins no se dupliquen si ya los hiciste arriba
         query = query.join(Indicator).join(IndicatorTemplate).filter(
-            IndicatorTemplate.code.ilike(f"%{search_code}%")
+            db.or_(
+                IndicatorTemplate.code.ilike(f"%{search_code}%"),
+                IndicatorTemplate.description.ilike(f"%{search_code}%") # ¡Añadimos búsqueda por nombre/descripción!
+            )
         )
 
     user_id = get_jwt_identity()
