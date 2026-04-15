@@ -33,7 +33,7 @@ const ProjectTechnicalSetup = () => {
             theory_name: "Sin Teoría asignada",
             result_name: "Sin Resultado asignado",
             result_type: "output",
-            comp_name: "Sin Competencia" 
+            comp_name: "Sin Competencia"
         };
 
         for (const t of allTheories) {
@@ -47,8 +47,8 @@ const ProjectTechnicalSetup = () => {
                         theory_name: t.name,
                         result_name: r.name,
                         result_type: r.type?.toLowerCase() || "output",
-                        comp_name: t.competence_name || selectedComp?.competence_name || "General", 
-                        indicator_name: found.name 
+                        comp_name: t.competence_name || selectedComp?.competence_name || "General",
+                        indicator_name: found.name
                     };
                 }
             }
@@ -150,7 +150,7 @@ const ProjectTechnicalSetup = () => {
                 province_goals: uniqueProvinces,
                 means_ids: [],
                 means_tags: [],
-                calculation_type: resultObj?.type === 'outcome' ? 'dependent' : 'direct', 
+                calculation_type: resultObj?.type === 'outcome' ? 'dependent' : 'direct',
                 measurement_unit: resultObj?.type === 'outcome' ? 'percentage' : 'absolute',
                 depends_on_ids: [],
             };
@@ -174,12 +174,40 @@ const ProjectTechnicalSetup = () => {
             if (ind.template_id === indicatorId) {
                 let extraData = {};
 
+                // Caso A: Selección de medios de verificación
                 if (field === 'means_ids') {
                     extraData.means_tags = masterMeans.filter(m => value.includes(m.id));
                 }
 
+                // Caso B: Cambio de estrategia (Si pasa a independiente, limpiamos dependencias)
                 if (field === 'calculation_type' && value === 'independent') {
                     extraData.depends_on_ids = [];
+                }
+
+                // Caso C: EL CORAZÓN DEL PROBLEMA - Cambio en dependencias
+                if (field === 'depends_on_ids') {
+                    // 1. Buscamos cuáles son los indicadores "padres" según los IDs en 'value'
+                    const parentIndicators = prev.filter(s => value.includes(s.template_id));
+
+                    // 2. Creamos un Set con los IDs de las provincias que cubren esos padres
+                    const validProvinceIds = new Set();
+                    parentIndicators.forEach(p => {
+                        p.province_goals.forEach(pg => {
+                            // Si el padre tiene meta (H, M o total) en esa provincia, es válida
+                            if (pg.total > 0 || pg.men > 0 || pg.women > 0) {
+                                validProvinceIds.add(pg.province_id);
+                            }
+                        });
+                    });
+
+                    // 3. Sincronizamos las metas locales del indicador actual
+                    extraData.province_goals = ind.province_goals.map(pg => {
+                        // Si la provincia ya no está en los padres, reseteamos sus valores a 0
+                        if (!validProvinceIds.has(pg.province_id)) {
+                            return { ...pg, total: 0, men: 0, women: 0 };
+                        }
+                        return pg;
+                    });
                 }
 
                 return {
@@ -345,8 +373,8 @@ const ProjectTechnicalSetup = () => {
             text: "Se borrará permanentemente del servidor y se actualizarán las dependencias.",
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#ef4444', 
-            cancelButtonColor: '#1b263b',  
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#1b263b',
             confirmButtonText: 'Sí, eliminar de la DB',
             cancelButtonText: 'Cancelar',
             background: document.documentElement.getAttribute('data-theme') === 'dark' ? '#1b263b' : '#ffffff',
@@ -477,7 +505,7 @@ const ProjectTechnicalSetup = () => {
                             key={comp.competence_id}
                             className={`btn ${selectedComp?.competence_id === comp.competence_id ? 'btn-emerald' : 'btn-outline-oxford'} shadow-sm`}
                             style={{ borderRadius: '8px', transition: 'all 0.3s ease' }}
-                            onClick={() => handleCompetenceChange(comp)} 
+                            onClick={() => handleCompetenceChange(comp)}
                         >
                             <i className={`fas fa-briefcase me-2 ${selectedComp?.competence_id === comp.competence_id ? 'text-white' : ''}`}></i>
                             {comp.competence_name}
@@ -897,7 +925,7 @@ const ProjectTechnicalSetup = () => {
                                                             <button
                                                                 className="btn btn-sm btn-outline-danger border-0"
                                                                 onClick={(e) => {
-                                                                    e.stopPropagation(); 
+                                                                    e.stopPropagation();
                                                                     confirmDelete(ind.template_id, ind.code);
                                                                 }}
                                                                 title="Eliminar este indicador"
