@@ -20,7 +20,7 @@
 }
 
 .auth-header {
-    background-color: #1B263B; /* Azul Oxford fijo */
+    background-color: #1B263B; 
     padding: 2.5rem;
     text-align: center;
     color: #ffffff;
@@ -55,7 +55,7 @@
 }
 
 .auth-btn-submit {
-    background-color: #2D6A4F; /* Verde Esmeralda */
+    background-color: #2D6A4F; 
     color: white;
     border-radius: 10px;
     padding: 0.8rem;
@@ -75,26 +75,24 @@
     cursor: not-allowed;
 }
 
-/* Manejo de Autofill del navegador */
+
 input:-webkit-autofill {
     -webkit-text-fill-color: var(--text-primary) !important;
     -webkit-box-shadow: 0 0 0px 1000px var(--bg-color) inset !important;
     transition: background-color 5000s ease-in-out 0s;
 }
 
-/* Color del placeholder de forma global para los inputs de autenticación */
 .auth-input::placeholder {
     color: var(--text-primary);
-    opacity: 0.5; /* Lo hacemos sutil para que se entienda que es una sugerencia */
+    opacity: 0.5; 
 }
 
-/* Refuerzo específico para el Modo Oscuro */
+
 [data-theme="dark"] .auth-input::placeholder {
-    color: #e0e1dd; /* Blanco hueso para que resalte en el fondo azul */
-    opacity: 0.4;   /* Un poco menos de opacidad para que no compita con el texto real */
+    color: #e0e1dd; 
+    opacity: 0.4;  
 }
 
-/* Estilo para navegadores específicos (algunos lo necesitan por separado) */
 [data-theme="dark"] .auth-input::-webkit-input-placeholder { color: #e0e1dd; }
 [data-theme="dark"] .auth-input::-moz-placeholder { color: #e0e1dd; }
 [data-theme="dark"] .auth-input:-ms-input-placeholder { color: #e0e1dd; }

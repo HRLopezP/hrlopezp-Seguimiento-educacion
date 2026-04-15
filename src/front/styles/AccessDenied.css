@@ -14,16 +14,14 @@
     position: absolute;
     top: -50%;
     left: -50%;
-    width: 200%; /* Más grande para cubrir la rotación */
+    width: 200%; 
     height: 200%;
-    /* Creamos el texto repetido usando un SVG como fondo */
     background-image: url("data:image/svg+xml,%3Csvg width='200' height='100' viewBox='0 0 200 100' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='10' y='50' font-family='Arial' font-weight='900' font-size='20' fill='gray' fill-opacity='0.04'%3ESIGSSEP%3C/text%3E%3C/svg%3E");
     transform: rotate(-25deg);
     z-index: 0;
     pointer-events: none;
 }
 
-/* --- ANIMACIÓN DE LATIDO (Pulse) --- */
 .pulse-animation {
     animation: shield-heartbeat 2s infinite ease-in-out;
 }
@@ -34,7 +32,6 @@
     100% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.2)); }
 }
 
-/* --- RESTO DE ESTILOS (Escudo y Colores) --- */
 .denied-card {
     position: relative;
     z-index: 10;
@@ -62,7 +59,6 @@
     clip-path: inset(0 0 0 50%);
 }
 
-/* Forzar visibilidad en Modo Oscuro */
 [data-theme="dark"] .denied-title { color: #ffffff !important; }
 [data-theme="dark"] .denied-text { color: rgba(255,255,255,0.8) !important; }
 [data-theme="dark"] .btn-denied-outline { color: #ffffff; border-color: #415A77; }
