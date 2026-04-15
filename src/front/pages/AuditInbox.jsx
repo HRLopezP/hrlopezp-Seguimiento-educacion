@@ -88,7 +88,7 @@ const AuditInbox = () => {
 
 
   const fetchAuditData = useCallback(async () => {
-    if (currentTab === "Aprobada" && !filters.proyectoId) {
+    if (currentTab === "Aprobada" && !filters.proyectoId && !filters.search_code) {
       setActivities([]);
       setLoading(false);
       return;
@@ -106,10 +106,9 @@ const AuditInbox = () => {
         params.append("search_code", filters.search_code);
       }
 
-      if (currentTab === "Aprobada") {
-        if (filters.proyectoId) params.append("project_id", filters.proyectoId);
-        if (filters.competenciaId) params.append("competence_id", filters.competenciaId);
-      }
+      if (filters.proyectoId) params.append("project_id", filters.proyectoId);
+      if (filters.competenciaId) params.append("competence_id", filters.competenciaId);
+
       const res = await apiFetch(`/audit/inbox?${params.toString()}`);
 
       if (res.ok) {
@@ -117,6 +116,7 @@ const AuditInbox = () => {
         setActivities(result.data || []);
         setTotalPages(result.total_pages || 1);
       } else {
+        setActivities([]);
         toast.error("Error en la respuesta del servidor");
       }
     } catch (error) {
@@ -256,11 +256,11 @@ const AuditInbox = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {currentTab === "Aprobada" && !filters.proyectoId ? (
+                  {currentTab === "Aprobada" && !filters.proyectoId && !filters.search_code ? (
                     <tr>
                       <td colSpan="4" className="text-center p-5 text-muted">
-                        <i className="fas fa-hand-point-up me-2"></i>
-                        Selecciona un <strong>Proyecto</strong> para cargar los logros aprobados.
+                        <i className="fas fa-search me-2"></i>
+                        Ingresa un <strong>Código</strong> o selecciona un <strong>Proyecto</strong> para cargar logros.
                       </td>
                     </tr>
                   ) : loading ? (

@@ -4,14 +4,14 @@
    porque .auth-card y .auth-input hacen el trabajo pesado */
 
 .login-link {
-    color: var(--text-primary);
-    text-decoration: none;
-    opacity: 0.7;
-    transition: all 0.3s ease;
+  color: var(--text-primary);
+  text-decoration: none;
+  opacity: 0.7;
+  transition: all 0.3s ease;
 }
 
 .login-link:hover {
-    opacity: 1;
-    color: var(--accent-color);
-    text-decoration: underline;
+  opacity: 1;
+  color: var(--accent-color);
+  text-decoration: underline;
 }

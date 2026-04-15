@@ -39,7 +39,7 @@ const ContextSelector = ({ onContextChange }) => {
                 const response = await apiFetch(`/official/projects?competencia_id=${id}`);
 
                 if (response && response.ok) {
-                    const data = await response.json(); 
+                    const data = await response.json();
                     setProyectos(Array.isArray(data) ? data : []);
                 }
             } catch (error) {
@@ -54,19 +54,24 @@ const ContextSelector = ({ onContextChange }) => {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        const numericValue = value ? parseInt(value, 10) : '';
-        const newSelection = { ...selection, [name]: numericValue };
+        const newSelection = { ...selection, [name]: value };
 
-        if (name === 'competenciaId') newSelection.proyectoId = '';
+        if (name === "competenciaId") {
+            const compObj = competencias.find(c => c.id_competence == value);
+            newSelection.competenciaNombre = compObj ? compObj.name_competence : "";
+
+            newSelection.proyectoId = "";
+            newSelection.proyectoNombre = "";
+        }
+
+        if (name === "proyectoId") {
+            const projObj = proyectos.find(p => p.id == value);
+            newSelection.proyectoNombre = projObj ? projObj.project_name : "";
+        }
 
         setSelection(newSelection);
-
-        if (newSelection.competenciaId && newSelection.proyectoId) {
-            onContextChange(newSelection);
-        }
+        onContextChange(newSelection);
     };
-
-    console.log("¿Qué hay en competencias?:", competencias, "Tipo:", typeof competencias);
 
     return (
         <div className="card shadow-sm border-0 bg-card-dynamic mb-4">

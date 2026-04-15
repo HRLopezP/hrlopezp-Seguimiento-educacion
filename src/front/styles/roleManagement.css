@@ -155,49 +155,48 @@
 }
 
 .table-sigssep td span.user-name-text {
-    display: block;
-    max-width: 400px; /* Evita que el nombre se estire infinitamente */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis; /* Si el nombre es larguísimo, pone "..." */
+  display: block;
+  max-width: 400px; /* Evita que el nombre se estire infinitamente */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* Si el nombre es larguísimo, pone "..." */
 }
 
 /* 2. Ajustes para Tablets y Celulares */
 @media (max-width: 768px) {
-    .management-card-header {
-        flex-direction: column; /* Apila el título y el botón */
-        gap: 15px;
-        text-align: center;
-    }
+  .management-card-header {
+    flex-direction: column; /* Apila el título y el botón */
+    gap: 15px;
+    text-align: center;
+  }
 
-    .management-title {
-        font-size: 1.4rem;
-    }
+  .management-title {
+    font-size: 1.4rem;
+  }
 
-    .btn-action.btn-activate {
-        width: 100%; /* Botón ancho en móviles */
-    }
+  .btn-action.btn-activate {
+    width: 100%; /* Botón ancho en móviles */
+  }
 
-    /* Reducimos el padding de las celdas para que quepa todo */
-    .table-sigssep th, 
-    .table-sigssep td {
-        padding: 10px 5px !important;
-        font-size: 0.85rem;
-    }
+  /* Reducimos el padding de las celdas para que quepa todo */
+  .table-sigssep th,
+  .table-sigssep td {
+    padding: 10px 5px !important;
+    font-size: 0.85rem;
+  }
 }
 
 /* 3. Evitar que la tabla se vea estirada en monitores ultra-wide */
 .management-card-unified {
-    max-width: 1200px;
-    margin-left: auto;
-    margin-right: auto;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-
 .hover-opacity-100:hover {
-    opacity: 1 !important;
-    transform: scale(1.1);
-    transition: all 0.2s ease;
+  opacity: 1 !important;
+  transform: scale(1.1);
+  transition: all 0.2s ease;
 }
 
 .text-new {
@@ -208,54 +207,63 @@
   color: white !important;
 }
 
-
 /* auditoría */
 /* Contenedor centrado para las categorías */
 .audit-tabs-container {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    margin-bottom: 25px;
-    padding: 10px;
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-bottom: 25px;
+  padding: 10px;
 }
 
 /* Estilo base de los botones de categoría */
 .audit-tab-btn {
-    border: none;
-    background: #f8f9fa;
-    color: #6c757d;
-    padding: 10px 25px;
-    border-radius: 50px; /* Bordes redondeados para un look moderno */
-    font-weight: 600;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  border: none;
+  background: #f8f9fa;
+  color: #6c757d;
+  padding: 10px 25px;
+  border-radius: 50px; /* Bordes redondeados para un look moderno */
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 /* Efecto Hover */
 .audit-tab-btn:hover {
-    transform: translateY(-2px);
-    filter: brightness(0.95);
+  transform: translateY(-2px);
+  filter: brightness(0.95);
 }
 
 /* Colores dinámicos para la pestaña ACTIVA */
 
 /* "En Revisión" -> Oxford Grey (Gris serio) */
 .audit-tab-btn.active.tab-revision {
-    background-color: #37474f !important; /* Oxford Grey */
-    color: white !important;
-    box-shadow: 0 4px 10px rgba(55, 71, 79, 0.3);
+  background-color: #37474f !important; /* Oxford Grey */
+  color: white !important;
+  box-shadow: 0 4px 10px rgba(55, 71, 79, 0.3);
 }
 
 /* "Aprobada" -> Emerald Green */
 .audit-tab-btn.active.tab-aprobada {
-    background-color: #10b981 !important; /* Emerald Green */
-    color: white !important;
-    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+  background-color: #10b981 !important; /* Emerald Green */
+  color: white !important;
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
 }
 
 /* "Rechazada" -> Rojo */
 .audit-tab-btn.active.tab-rechazada {
-    background-color: #ef4444 !important; /* Rojo vibrante */
-    color: white !important;
-    box-shadow: 0 4px 10px rgba(239, 68, 68, 0.3);
+  background-color: #ef4444 !important; /* Rojo vibrante */
+  color: white !important;
+  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.3);
+}
+
+/* Estilo para el switch de acceso global */
+.form-check-input:checked {
+  background-color: #10b981 !important; /* Emerald Green */
+  border-color: #10b981 !important;
+}
+
+.form-check-input {
+  border: 2px solid #1b263b; /* Oxford Grey para el estado apagado */
 }

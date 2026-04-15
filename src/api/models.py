@@ -14,6 +14,7 @@ class Rol(db.Model):
     id_rol: Mapped[int] = mapped_column(primary_key=True)
     name_rol: Mapped[str] = mapped_column(
         String(30), unique=True, nullable=False)
+    has_all_access = db.Column(db.Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(
         timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(
@@ -28,6 +29,8 @@ class Rol(db.Model):
         return {
             "id": self.id_rol,
             "name_rol": self.name_rol,
+            "has_all_access": True if self.name_rol == "Administrador" else self.has_all_access,
+            "created_at": self.created_at
         }
 
 

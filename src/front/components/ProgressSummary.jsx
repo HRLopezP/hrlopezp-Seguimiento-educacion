@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import "../styles/ProgressSummary.css";
+import { generateDetailedProgressReport } from "../../utils/pdfGenerator";
 
 const getStatusColor = (percentage) => {
-    if (percentage <= 25) return "#e74c3c"; 
+    if (percentage <= 25) return "#e74c3c";
     if (percentage <= 50) return "#f39c12";
     if (percentage <= 75) return "#3498db";
     if (percentage < 100) return "#2ecc71";
@@ -16,13 +17,13 @@ const CircularImpact = ({ percentage, isGoalReached }) => {
     const dynamicColor = getStatusColor(percentage);
 
     return (
-        <div 
+        <div
             className={isGoalReached ? "goal-reached-pulse" : ""}
             style={{
                 position: 'relative', width: '100px', height: '100px',
                 backgroundColor: '#2c3e50', borderRadius: '50%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: `4px solid ${isGoalReached ? dynamicColor : '#34495e'}`, 
+                border: `4px solid ${isGoalReached ? dynamicColor : '#34495e'}`,
                 boxShadow: isGoalReached ? `0 0 20px ${dynamicColor}66` : '0 10px 25px rgba(0,0,0,0.3)',
                 flexShrink: 0,
                 transition: 'all 0.5s ease'
@@ -44,8 +45,8 @@ const CircularImpact = ({ percentage, isGoalReached }) => {
             <svg style={{ transform: 'rotate(-90deg)', width: '100%', height: '100%' }}>
                 <circle cx="50" cy="50" r={radius} stroke="rgba(255,255,255,0.1)" strokeWidth="8" fill="transparent" />
                 <circle
-                    cx="50" cy="50" r={radius} 
-                    stroke={dynamicColor} 
+                    cx="50" cy="50" r={radius}
+                    stroke={dynamicColor}
                     strokeWidth="8" fill="transparent"
                     strokeDasharray={dash}
                     style={{ strokeDashoffset: offset, transition: 'stroke-dashoffset 1.5s ease' }}
@@ -62,7 +63,7 @@ const CircularImpact = ({ percentage, isGoalReached }) => {
     );
 };
 
-const ProgressSummary = ({ data }) => {
+const ProgressSummary = ({ data, projectInfo }) => {
     const [expandedId, setExpandedId] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [rangeFilter, setRangeFilter] = useState("all");
@@ -77,10 +78,18 @@ const ProgressSummary = ({ data }) => {
             (indicator.global_target > 0 ? (indicator.global_achieved / indicator.global_target) * 100 : 0);
     };
 
+    const handleDownload = () => {
+        if (data && data.length > 0) {
+            generateDetailedProgressReport(data, projectInfo);
+        } else {
+            toast.error("No hay datos disponibles para exportar");
+        }
+    };
+
     const filteredData = data?.filter(indicator => {
         const percentage = calcPct(indicator);
-        const matchesText = indicator.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            indicator.code.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesText = indicator.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            indicator.code.toLowerCase().includes(searchTerm.toLowerCase());
 
         let matchesRange = true;
         if (rangeFilter === "0-25") matchesRange = percentage <= 25;
@@ -107,10 +116,10 @@ const ProgressSummary = ({ data }) => {
                         <span className="input-group-text bg-white border-end-0">
                             <i className="fas fa-search text-muted"></i>
                         </span>
-                        <input 
-                            type="text" 
-                            className="form-control border-start-0 ps-0" 
-                            placeholder="Buscar por nombre o código..." 
+                        <input
+                            type="text"
+                            className="form-control border-start-0 ps-0"
+                            placeholder="Buscar por nombre o código..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             style={{ boxShadow: 'none', height: '50px' }}
@@ -118,9 +127,9 @@ const ProgressSummary = ({ data }) => {
                     </div>
                 </div>
                 <div className="col-12 col-md-4">
-                    <select 
-                        className="form-select shadow-sm" 
-                        style={{ 
+                    <select
+                        className="form-select shadow-sm"
+                        style={{
                             borderRadius: '15px', height: '50px', cursor: 'pointer',
                             borderLeft: `8px solid ${rangeFilter === 'all' ? '#ddd' : getStatusColor(parseInt(rangeFilter.split('-')[1] || 101))}`
                         }}
@@ -135,6 +144,26 @@ const ProgressSummary = ({ data }) => {
                         <option value="100+">Meta alcanzada (100%+)</option>
                     </select>
                 </div>
+                <div className="d-flex gap-2 flex-wrap">
+                    <button
+                        className="btn btn-emerald text-white shadow-sm"
+                        onClick={handleDownload}
+                        disabled={!data || data.length === 0}
+                    >
+                        <i className="fas fa-file-pdf me-2"></i>
+                        Descargar detalle completo (PDF)
+                    </button>
+                    {rangeFilter !== "all" && filteredData.length > 0 && (
+                        <button
+                            className="btn btn-outline-primary shadow-sm"
+                            style={{ borderRadius: '12px', fontWeight: 'bold' }}
+                            onClick={() => generateDetailedProgressReport(filteredData, projectInfo)}
+                        >
+                            <i className="fas fa-filter me-2"></i>
+                            Descargar indicadores filtrados ({filteredData.length})
+                        </button>
+                    )}
+                </div>
             </div>
 
             {filteredData.length === 0 ? (
@@ -145,14 +174,14 @@ const ProgressSummary = ({ data }) => {
                     const isDep = indicator.is_dependent;
                     const isExpanded = expandedId === indicator.id;
                     const globalPercentage = calcPct(indicator);
-                    
-                    const globalGoalReached = isOutcome 
+
+                    const globalGoalReached = isOutcome
                         ? (indicator.global_achieved >= indicator.global_target)
                         : (globalPercentage >= 100);
 
                     return (
                         <div key={indicator.id} className={`card indicator-card border-0 shadow-lg mb-4 ${isExpanded ? 'is-active' : ''}`} style={{ borderRadius: '25px', overflow: 'hidden' }}>
-                            <div 
+                            <div
                                 className="px-4 py-1 d-flex flex-column flex-md-row justify-content-between align-items-center gap-4 accordion-header-clickable"
                                 style={{ backgroundColor: '#34495e', color: 'white', cursor: 'pointer', transition: '0.3s' }}
                                 onClick={() => toggleExpand(indicator.id)}
@@ -189,8 +218,8 @@ const ProgressSummary = ({ data }) => {
                                                 {indicator.global_achieved}{isOutcome && isDep ? '%' : ''}
                                             </span>
                                             <div className="opacity-50" style={{ fontSize: '10px' }}>
-                                                {isOutcome && !isDep ? 
-                                                    `${indicator.total_approved} Ap. / ${indicator.total_attended} Tot.` : 
+                                                {isOutcome && !isDep ?
+                                                    `${indicator.total_approved} Ap. / ${indicator.total_attended} Tot.` :
                                                     `${indicator.total_men} ${isDep ? '%' : ''} H/ ${indicator.total_women} ${isDep ? '%' : ''} M`
                                                 }
                                             </div>
@@ -207,8 +236,8 @@ const ProgressSummary = ({ data }) => {
                                             {indicator.provinces?.filter(p => p.target > 0).map((prov) => {
                                                 const provProgress = isOutcome ? (prov.achieved || 0) : (prov.target > 0 ? (prov.achieved / prov.target) * 100 : 0);
                                                 const provColor = getStatusColor(provProgress);
-                                                
-                                                const provGoalReached = isOutcome 
+
+                                                const provGoalReached = isOutcome
                                                     ? (prov.achieved >= prov.target)
                                                     : (provProgress >= 100);
 
@@ -228,9 +257,15 @@ const ProgressSummary = ({ data }) => {
                                                                         {provGoalReached && <i className="fas fa-trophy ms-2" style={{ color: '#f1c40f', fontSize: '14px' }}></i>}
                                                                     </h5>
                                                                 </div>
+                                                                <div className="text-center">
+                                                                    <small className="d-block text-muted text-uppercase fw-bold" style={{ fontSize: '8px' }}>Logro</small>
+                                                                    <div className="fw-bold fs-5" style={{ color: provColor }}>
+                                                                        {prov.achieved}{isOutcome ? '%' : ''}
+                                                                    </div>
+                                                                </div>
                                                                 <div className="text-end">
-                                                                    <small className="d-block text-muted text-uppercase fw-bold" style={{ fontSize: '8px' }}>Meta</small>
-                                                                    <div className="fw-bold text-dark fs-5">{prov.target}{isOutcome && isDep ? '%' : ''}</div>
+                                                                    <small className="d-block text-center text-muted text-uppercase fw-bold" style={{ fontSize: '8px' }}>Meta</small>
+                                                                    <div className="fw-bold text-dark text-center fs-5">{prov.target}{isOutcome ? '%' : ''}</div>
                                                                     {!isDep && !isOutcome && (
                                                                         <div className="text-muted" style={{ fontSize: '10px' }}>
                                                                             {prov.target_men || 0} H | {prov.target_women || 0} M
@@ -242,9 +277,6 @@ const ProgressSummary = ({ data }) => {
                                                             <div className="mb-4">
                                                                 <div className="d-flex justify-content-between mb-1">
                                                                     <small className="text-muted fw-bold" style={{ fontSize: '10px' }}>PROGRESO</small>
-                                                                    <small className="fw-bold" style={{ color: provColor }}>
-                                                                        {provProgress.toFixed(2)}%
-                                                                    </small>
                                                                 </div>
                                                                 <div
                                                                     className={`progress ${provTooltipText ? 'custom-tooltip' : ''}`}
@@ -252,19 +284,21 @@ const ProgressSummary = ({ data }) => {
                                                                     data-tooltip={provTooltipText}
                                                                 >
                                                                     <div className="progress-bar"
-                                                                        style={{ 
-                                                                            width: `${Math.min(provProgress, 100)}%`, 
+                                                                        style={{
+                                                                            width: `${Math.min(provProgress, 100)}%`,
                                                                             transition: 'width 1s ease-in-out',
-                                                                            backgroundColor: provColor 
+                                                                            backgroundColor: provColor
                                                                         }}></div>
                                                                 </div>
+                                                                <small className="fw-bold" style={{ color: provColor }}>
+                                                                    {provProgress.toFixed(2)}%
+                                                                </small>
                                                             </div>
 
                                                             <div className="d-flex justify-content-between align-items-center pt-3 border-top">
-                                                                <div className={`bg-light px-3 py-1 rounded-pill ${provTooltipText ? 'custom-tooltip' : ''}`} 
-                                                                     data-tooltip={provTooltipText}>
-                                                                    <small className="text-muted me-1" style={{ fontSize: '10px' }}>LOGRO:</small>
-                                                                    <span className="fw-bold text-dark">{prov.achieved}{isOutcome && isDep ? '%' : ''}</span>
+                                                                <div className={`bg-light px-0 py-1 rounded-pill ${provTooltipText ? 'custom-tooltip' : ''}`}
+                                                                    data-tooltip={provTooltipText}>
+                                                                    <small className="text-muted me-1" style={{ fontSize: '10px' }}>LOGRO <br /> ESPECÍFICO:</small>
                                                                 </div>
                                                                 <div className="d-flex gap-3">
                                                                     {isOutcome && !isDep ? (
@@ -274,8 +308,19 @@ const ProgressSummary = ({ data }) => {
                                                                         </>
                                                                     ) : (
                                                                         <>
-                                                                            <span><i className="fas fa-mars text-primary"></i> <small className="fw-bold">{prov.men}{isDep ? '%' : ''}</small></span>
-                                                                            <span><i className="fas fa-venus text-danger"></i> <small className="fw-bold">{prov.women}{isDep ? '%' : ''}</small></span>
+                                                                            <span>
+                                                                                <i className="fas fa-mars text-primary"></i>
+                                                                                <small className="fw-bold">
+                                                                                    {/* CASO 2: Outcome Dependiente (%) vs CASO 3: Output (Logro / Meta) */}
+                                                                                    {isDep ? ` ${prov.men}%` : ` ${prov.men} / ${prov.target_men || 0}`}
+                                                                                </small>
+                                                                            </span>
+                                                                            <span>
+                                                                                <i className="fas fa-venus text-danger"></i>
+                                                                                <small className="fw-bold">
+                                                                                    {isDep ? ` ${prov.women}%` : ` ${prov.women} / ${prov.target_women || 0}`}
+                                                                                </small>
+                                                                            </span>
                                                                         </>
                                                                     )}
                                                                 </div>

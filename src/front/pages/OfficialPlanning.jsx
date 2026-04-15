@@ -2,18 +2,17 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiFetch } from "../../utils/api";
 import ContextSelector from '../components/ContextSelector';
 import ExecutionCalendar from "../components/ExecutionCalendar";
-import ActivityWizard from "../components/ActivityWizard";
+import ActivityWizard2 from "../components/ActivityWizard2";
 import DayManagerModal from "../components/DayManagerModal";
 import AchievementTracker from "../components/AchievementTracker";
-import ProgressSummary from "../components/ProgressSummary";
 import { toast } from "sonner";
+import { STATUS_CONFIG } from "../../utils/statusHelper"
 
-export const OfficialDashboard = () => {
-    const [activeTab, setActiveTab] = useState('planning');
+export const OfficialPlanning = () => {
     const [context, setContext] = useState(null);
     const [activities, setActivities] = useState([]);
-    const [summaryData, setSummaryData] = useState([]);
-    const [loading, setLoading] = useState({ activities: false, summary: false });
+    const [filterStatus, setFilterStatus] = useState(null);
+    const [loading, setLoading] = useState(false);
     const [selectedDate, setSelectedDate] = useState(null);
     const [selectedActivity, setSelectedActivity] = useState(null);
     const [modals, setModals] = useState({ manager: false, wizard: false, tracker: false });
@@ -37,38 +36,24 @@ export const OfficialDashboard = () => {
         }
     }, []);
 
-    const loadProgressSummary = useCallback(async (proyectoId, competenciaId) => {
-        if (!proyectoId || !competenciaId) return;
-        console.log("Enviando a summary:", { proyectoId, competenciaId });
-
-        setLoading(prev => ({ ...prev, summary: true }));
-        try {
-            const res = await apiFetch(`/project/${proyectoId}/progress-summary?competence_id=${competenciaId}`);
-            if (res?.ok) {
-                const data = await res.json();
-                setSummaryData(data);
-            }
-        } catch (error) {
-            toast.error("Error al cargar el resumen de progreso");
-        } finally {
-            setLoading(prev => ({ ...prev, summary: false }));
-        }
-    }, []);
-
     useEffect(() => {
         if (context?.proyectoId && context?.competenciaId) {
             loadActivities(context.proyectoId, context.competenciaId);
-            loadProgressSummary(context.proyectoId, context.competenciaId);
         } else {
             setActivities([]);
-            setSummaryData([]);
         }
-    }, [context?.proyectoId, context?.competenciaId, loadActivities, loadProgressSummary]);
+    }, [context?.proyectoId, context?.competenciaId, loadActivities,]);
 
 
     const activitiesInSelectedDate = useMemo(() => {
         return activities.filter(act => act.period?.start === selectedDate);
     }, [activities, selectedDate]);
+
+
+    const filteredActivities = useMemo(() => {
+        if (!filterStatus) return activities;
+        return activities.filter(act => act.status === filterStatus);
+    }, [activities, filterStatus]);
 
 
     const handleDateSelect = (dateStr) => {
@@ -107,6 +92,7 @@ export const OfficialDashboard = () => {
         }
     };
 
+
     const closeModals = () => {
         setModals({ manager: false, wizard: false, tracker: false });
         setSelectedActivity(null);
@@ -115,115 +101,99 @@ export const OfficialDashboard = () => {
     return (
         <div className="project-detail-main-container fade-in">
             <div className="container py-4">
-                <header className="mb-4 d-flex justify-content-between align-items-center">
+                <header className="mb-4">
                     <h2 className="text-oxford-dynamic fw-bold m-0">Panel de Planificación</h2>
-
-                    <div className="btn-group shadow-sm" style={{ borderRadius: '10px', overflow: 'hidden' }}>
-                        <button
-                            className={`btn ${activeTab === 'planning' ? 'btn-dark' : 'btn-light'}`}
-                            onClick={() => setActiveTab('planning')}
-                        >
-                            <i className="fas fa-calendar-alt me-2"></i>Planificación
-                        </button>
-                        <button
-                            className={`btn ${activeTab === 'summary' ? 'btn-dark' : 'btn-light'}`}
-                            onClick={() => setActiveTab('summary')}
-                        >
-                            <i className="fas fa-chart-pie me-2"></i>Seguimiento
-                        </button>
-                    </div>
                 </header>
 
                 <ContextSelector onContextChange={setContext} />
 
                 {context ? (
-                    <div className="mt-4" style={{
-                        opacity: loading.activities ? 0.5 : 1,
-                        transition: 'opacity 0.3s ease',
-                        pointerEvents: loading.activities ? 'none' : 'auto'
-                    }}>
-                        {activeTab === 'planning' ? (
-                            <ExecutionCalendar
-                                onDateSelect={handleDateSelect}
-                                onActivityClick={(act) => handleDateSelect(act.period?.start)}
-                                activities={activities}
-                            />
-                        ) : (
-                            <div className="fade-in">
-                                {loading.summary ? (
-                                    <div className="text-center py-5">
-                                        <div className="spinner-border text-success" role="status"></div>
-                                        <p className="mt-2 text-muted">Calculando avances...</p>
-                                    </div>
-                                ) : (
-                                    <ProgressSummary data={summaryData} />
-                                )}
+                    <div className="animate__animated animate__fadeIn">
+                        {/* LEYENDA INTERACTIVA */}
+                        <div className="d-flex flex-wrap justify-content-between align-items-center mb-3 p-3 bg-white rounded border shadow-sm">
+                            <div className="d-flex flex-wrap gap-2 align-items-center">
+                                <small className="fw-bold text-muted text-uppercase me-2" style={{ fontSize: '0.7rem' }}>
+                                    <i className="fas fa-filter me-1"></i> Filtrar vista:
+                                </small>
+                                {Object.entries(STATUS_CONFIG).map(([key, config]) => (
+                                    <button
+                                        key={key}
+                                        onClick={() => setFilterStatus(filterStatus === key ? null : key)}
+                                        className={`btn btn-sm rounded-pill d-flex align-items-center transition-all ${filterStatus === key ? 'shadow border-dark' : 'opacity-50'}`}
+                                        style={{
+                                            backgroundColor: filterStatus === key ? (config.style?.backgroundColor || config.calendarColor) : '#f3f4f6',
+                                            color: filterStatus === key ? (config.style?.color || config.textColor || '#000') : '#6b7280',
+                                            border: filterStatus === key ? '2px solid #334155' : '2px solid transparent',
+                                            padding: '4px 12px'
+                                        }}
+                                    >
+                                        <span
+                                            className="me-2 rounded-circle"
+                                            style={{ width: '10px', height: '10px', backgroundColor: config.textColor || '#000', display: 'inline-block' }}
+                                        ></span>
+                                        <span className="fw-medium">{key}</span>
+                                    </button>
+                                ))}
                             </div>
-                        )}
 
-                        {/* RENDERIZADO DE MODALES CENTRALIZADO */}
+                            {filterStatus && (
+                                <button
+                                    className="btn btn-sm text-danger fw-bold border-0 bg-transparent"
+                                    onClick={() => setFilterStatus(null)}
+                                >
+                                    <i className="fas fa-times-circle me-1"></i>
+                                    Ver todo el calendario
+                                </button>
+                            )}
+                        </div>
+                        <ExecutionCalendar
+                            onDateSelect={handleDateSelect}
+                            onActivityClick={(act) => handleDateSelect(act.period?.start)}
+                            activities={filteredActivities}
+                        />
                         {modals.manager && (
                             <ModalWrapper onClose={closeModals}>
                                 <DayManagerModal
                                     selectedDate={selectedDate}
                                     activities={activitiesInSelectedDate}
                                     onClose={closeModals}
-                                    onEditActivity={(act) => {
-                                        setSelectedActivity(act);
-                                        setModals({ manager: false, wizard: true });
-                                    }}
+                                    onEditActivity={(act) => { setSelectedActivity(act); setModals({ manager: false, wizard: true }); }}
                                     onCancelActivity={handleCancelActivity}
-                                    onAddActivity={() => {
-                                        setSelectedActivity(null);
-                                        setModals({ manager: false, wizard: true });
-                                    }}
-                                    onRegisterAchievement={(act) => {
-                                        setSelectedActivity(act);
-                                        setModals({ manager: false, tracker: true });
-                                    }}
+                                    onRegisterAchievement={(act) => { setSelectedActivity(act); setModals({ manager: false, tracker: true }); }}
+                                    onAddActivity={() => { setSelectedActivity(null); setModals({ manager: false, wizard: true }); }}
                                 />
                             </ModalWrapper>
                         )}
-
                         {modals.wizard && (
                             <ModalWrapper size="lg" onClose={closeModals}>
-                                <ActivityWizard
+                                <ActivityWizard2
                                     selectedDate={selectedDate}
                                     proyectoId={context.proyectoId}
                                     competenciaId={context.competenciaId}
                                     initialData={selectedActivity}
-                                    summaryData={summaryData}
                                     onClose={closeModals}
-                                    onSaveSuccess={() => { 
-                                        closeModals(); 
-                                        loadActivities(context.proyectoId, context.competenciaId);
-                                        loadProgressSummary(context.proyectoId, context.competenciaId);
-                                    }}
+                                    onSaveSuccess={() => { closeModals(); loadActivities(context.proyectoId, context.competenciaId); }}
                                 />
                             </ModalWrapper>
                         )}
-
                         {modals.tracker && (
                             <ModalWrapper onClose={closeModals}>
                                 <AchievementTracker
                                     activity={selectedActivity}
                                     onClose={closeModals}
-                                    onRefresh={() => {
-                                        loadActivities(context.proyectoId, context.competenciaId);
-                                        loadProgressSummary(context.proyectoId, context.competenciaId);
-                                    }}
+                                    onRefresh={() => loadActivities(context.proyectoId, context.competenciaId)}
                                 />
                             </ModalWrapper>
                         )}
                     </div>
                 ) : (
                     <div className="text-center py-5 opacity-50">
-                        <i className="fas fa-project-diagram fa-3x mb-3"></i>
-                        <p>Selecciona una competencia y proyecto para comenzar.</p>
+                        <i className="fas fa-calendar-check fa-3x mb-3"></i>
+                        <p>Selecciona contexto para planificar tus actividades.</p>
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 };
 

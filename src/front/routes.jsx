@@ -26,11 +26,13 @@ import ProjectDetail from "./pages/ProjectDetail";
 import ProjectTechnicalSetup from "./pages/ProjectTechnicalSetup";
 import ActivityCatalogManagement from "./pages/ActivityCatalogManagement";
 import VerificationMeansManagement from "./pages/VerificationMeansManagement";
-import { OfficialDashboard } from "./pages/OfficialDashboard";
-import { ManagerDashboard } from "./pages/ManagerDashboard"
 import AuditInbox from "./pages/AuditInbox";
 import Profile from "./pages/Profile";
 import OfficialInbox from "./pages/OfficialInbox"
+import QuickHealthDash from "./pages/QuickHealthDash";
+import { TrackingDashboard } from "./pages/TrackingDashboard";
+import { OfficialPlanning } from "./pages/OfficialPlanning";
+import { ManagerDashboardPlan } from "./pages/ManagerDashboardPlan";
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
@@ -164,20 +166,11 @@ export const router = createBrowserRouter(
       />
 
       <Route
-        path="/manager/dashboard"
+        path="/manager/dashboard-plan"
         element={
           <ProtectedRoute>
-            <ManagerDashboard />
+            <ManagerDashboardPlan />
           </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/official/dashboard"
-        element={
-          <OfficialRoute>
-            <OfficialDashboard />
-          </OfficialRoute>
         }
       />
 
@@ -191,11 +184,38 @@ export const router = createBrowserRouter(
       />
 
       <Route
+        path="/official/health-status"
+        element={
+          <OfficialRoute>
+            <QuickHealthDash />
+          </OfficialRoute>
+        }
+      />
+
+      <Route
         path="/manager/audit-inbox"
         element={
           <ProtectedRoute allowedRoles={["Administrador", "Gerente", "Monitoreo"]}>
             <AuditInbox />
           </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/official/planning"
+        element={
+          <OfficialRoute>
+            <OfficialPlanning />
+          </OfficialRoute>
+        }
+      />
+
+      <Route
+        path="/official/tracking"
+        element={
+          <OfficialRoute>
+            <TrackingDashboard />
+          </OfficialRoute>
         }
       />
 
