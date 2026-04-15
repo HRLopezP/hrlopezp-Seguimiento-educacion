@@ -173,36 +173,27 @@ const ProjectTechnicalSetup = () => {
         setSelectedIndicators(prev => prev.map(ind => {
             if (ind.template_id === indicatorId) {
                 let extraData = {};
-
-                // Caso A: Selección de medios de verificación
                 if (field === 'means_ids') {
                     extraData.means_tags = masterMeans.filter(m => value.includes(m.id));
                 }
 
-                // Caso B: Cambio de estrategia (Si pasa a independiente, limpiamos dependencias)
                 if (field === 'calculation_type' && value === 'independent') {
                     extraData.depends_on_ids = [];
                 }
 
-                // Caso C: EL CORAZÓN DEL PROBLEMA - Cambio en dependencias
                 if (field === 'depends_on_ids') {
-                    // 1. Buscamos cuáles son los indicadores "padres" según los IDs en 'value'
                     const parentIndicators = prev.filter(s => value.includes(s.template_id));
 
-                    // 2. Creamos un Set con los IDs de las provincias que cubren esos padres
                     const validProvinceIds = new Set();
                     parentIndicators.forEach(p => {
                         p.province_goals.forEach(pg => {
-                            // Si el padre tiene meta (H, M o total) en esa provincia, es válida
                             if (pg.total > 0 || pg.men > 0 || pg.women > 0) {
                                 validProvinceIds.add(pg.province_id);
                             }
                         });
                     });
 
-                    // 3. Sincronizamos las metas locales del indicador actual
                     extraData.province_goals = ind.province_goals.map(pg => {
-                        // Si la provincia ya no está en los padres, reseteamos sus valores a 0
                         if (!validProvinceIds.has(pg.province_id)) {
                             return { ...pg, total: 0, men: 0, women: 0 };
                         }

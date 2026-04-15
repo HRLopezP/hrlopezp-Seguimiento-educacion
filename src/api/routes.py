@@ -1188,17 +1188,13 @@ def bulk_indicators():
                     ids_a_conectar = item.get('depends_on_ids')
                     
                     if ids_a_conectar is not None:
-                        # 1. Conectamos los nuevos padres (Outputs)
                         parent_indicators = Indicator.query.filter(
                             Indicator.project_id == project_id,
                             Indicator.template_id.in_(ids_a_conectar)
                         ).all()
                         current_indicator.depends_on = parent_indicators
 
-                        # 2. LIMPIEZA AUTOMÁTICA (Solo si es dependiente)
-                        # Si el indicador es un Outcome dependiente, borramos provincias huérfanas
                         if item.get('calculation_type') == 'dependent':
-                            # Obtenemos las IDs de las provincias que tienen los padres seleccionados
                             valid_provinces = db.session.query(IndicatorLocationGoal.province_id).filter(
                                 IndicatorLocationGoal.indicator_id.in_(
                                     [p.id_indicator for p in parent_indicators]
@@ -1207,7 +1203,6 @@ def bulk_indicators():
                             
                             valid_ids = [p[0] for p in valid_provinces]
 
-                            # Borramos de la DB cualquier meta de este indicador en provincias que ya no son válidas
                             IndicatorLocationGoal.query.filter(
                                 IndicatorLocationGoal.indicator_id == current_indicator.id_indicator,
                                 ~IndicatorLocationGoal.province_id.in_(valid_ids)
