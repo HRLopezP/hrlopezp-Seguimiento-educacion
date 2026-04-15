@@ -12,29 +12,26 @@ flask-mail = "*"
 faker = "*"
 certifi = "==2020.12.5"
 cloudinary = "==1.24.0"
-flask = "==1.1.2"
 flask-admin = "==1.5.7"
 flask-cors = "==3.0.10"
-flask-migrate = "==2.6.0"
-flask-sqlalchemy = "==2.4.4"
 flask-swagger = "==0.2.14"
 gunicorn = "==20.0.4"
 psycopg2-binary = "*"
 python-dotenv = "==0.15.0"
 python-editor = "==1.0.4"
-sqlalchemy = "==1.3.23"
 wtforms = "==2.3.3"
-alembic = {version = "==1.5.4", markers = "python_version >= \"2.7\" and python_version not in \"3.0, 3.1, 3.2, 3.3, 3.4, 3.5\""}
 click = {version = "==7.1.2", markers = "python_version >= \"2.7\" and python_version not in \"3.0, 3.1, 3.2, 3.3, 3.4\""}
 itsdangerous = {version = "==1.1.0", markers = "python_version >= \"2.7\" and python_version not in \"3.0, 3.1, 3.2, 3.3\""}
 jinja2 = {version = "==2.11.3", markers = "python_version >= \"2.7\" and python_version not in \"3.0, 3.1, 3.2, 3.3, 3.4\""}
 mako = {version = "==1.1.4", markers = "python_version >= \"2.7\" and python_version not in \"3.0, 3.1, 3.2, 3.3\""}
 markupsafe = {version = "==1.1.1", markers = "python_version >= \"2.7\" and python_version not in \"3.0, 3.1, 3.2, 3.3\""}
-python-dateutil = {version = "==2.8.1", markers = "python_version >= \"2.7\" and python_version not in \"3.0, 3.1, 3.2, 3.3\""}
 pyyaml = "*"
-six = {version = "==1.15.0", markers = "python_version >= \"2.7\" and python_version not in \"3.0, 3.1, 3.2, 3.3\""}
 urllib3 = {version = "==1.26.3", markers = "python_version >= \"2.7\" and python_version not in \"3.0, 3.1, 3.2, 3.3, 3.4\" and python_version < \"4\""}
 werkzeug = {version = "==1.0.1", markers = "python_version >= \"2.7\" and python_version not in \"3.0, 3.1, 3.2, 3.3, 3.4\""}
+six = "*"
+python-dateutil = "==2.9.0"
+alembic = "*"
+flask-migrate = "*"
 
 [requires]
 python_version = "3.13"
